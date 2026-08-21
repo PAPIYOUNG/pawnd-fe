@@ -265,6 +265,9 @@ export async function getReunitedStories(limit = 3): Promise<ReunitedStory[]> {
 }
 
 export async function getHomePageData(): Promise<HomePageData> {
+  // Simulate 3-second loading delay to display skeleton loading state
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+
   const [stats, latestPosts, reunitedStories] = await Promise.all([
     getHomeStats(),
     getLatestPosts(8),
@@ -277,3 +280,4 @@ export async function getHomePageData(): Promise<HomePageData> {
     reunitedStories,
   };
 }
+
