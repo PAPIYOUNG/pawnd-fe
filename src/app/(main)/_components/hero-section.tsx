@@ -1,3 +1,6 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Plus, Search } from 'lucide-react';
@@ -5,59 +8,108 @@ import { Plus, Search } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+const HERO_IMAGES = [
+  {
+    src: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?q=80&w=1600&auto=format&fit=crop',
+    alt: 'สุนัขและแมวเพื่อนรักที่ได้อยู่บ้านอย่างปลอดภัยและอบอุ่น',
+  },
+  {
+    src: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?q=80&w=1600&auto=format&fit=crop',
+    alt: 'สุนัขสองตัววิ่งเล่นอย่างมีความสุขบนสนามหญ้า',
+  },
+  {
+    src: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=1600&auto=format&fit=crop',
+    alt: 'แมวไทยน่ารักตาใสในบ้านที่อบอุ่น',
+  },
+  {
+    src: 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?q=80&w=1600&auto=format&fit=crop',
+    alt: 'ลูกสุนัขและลูกแมวนอนกอดกันในบ้าน',
+  },
+];
+
 export function HeroSection() {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // Auto-rotate background images every 6 seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % HERO_IMAGES.length);
+    }, 6000);
+
+    return () => clearInterval(timer);
+  }, []);
+
   return (
-    <section className="w-full bg-[#ECF5EE] py-12 sm:py-16 lg:py-20">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-12">
-          {/* Left Column: Heading, Description & Action Buttons */}
-          <div className="flex flex-col gap-6 lg:col-span-7">
-            <h1 className="text-3xl font-extrabold tracking-tight text-[#164E36] sm:text-4xl lg:text-5xl lg:leading-[1.2]">
-              ช่วยสัตว์เลี้ยงกลับบ้านอย่างปลอดภัย
-            </h1>
-            <p className="max-w-2xl text-base leading-relaxed text-[#2D5A47] sm:text-lg">
-              แพลตฟอร์มศูนย์รวมการตามหาสัตว์เลี้ยงหายและช่วยสัตว์พลัดหลง พร้อมระบบค้นหาและจับคู่ภาพถ่ายด้วย AI อัจฉริยะ ช่วยให้การค้นหาและคืนสัตว์เลี้ยงของคุณมีโอกาสสำเร็จสูงสุด
-            </p>
+    <section className="relative w-full overflow-hidden bg-[#ECF5EE] py-16 transition-colors duration-300 sm:py-20 lg:py-24 dark:bg-[#071E14]">
+      {/* 1. Full-width High-Visibility Background Layer with Cross-Fade */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
+        {HERO_IMAGES.map((img, index) => {
+          const isActive = currentImageIndex === index;
 
-            <div className="flex flex-wrap items-center gap-3.5 pt-2">
-              {/* Primary CTA */}
-              <Link
-                href="/posts/create?type=LOST"
-                className={cn(
-                  buttonVariants({ variant: 'default', size: 'lg' }),
-                  'rounded-2xl bg-primary px-6 py-6 text-base font-semibold text-primary-foreground shadow-sm hover:bg-primary/90'
-                )}
-              >
-                <Plus className="size-5 stroke-[2.5]" />
-                <span>แจ้งสัตว์เลี้ยงหาย</span>
-              </Link>
-
-              {/* Secondary CTA */}
-              <Link
-                href="/posts"
-                className={cn(
-                  buttonVariants({ variant: 'outline', size: 'lg' }),
-                  'rounded-2xl border-2 border-primary/30 bg-white/80 px-6 py-6 text-base font-semibold text-primary shadow-2xs hover:bg-white hover:border-primary'
-                )}
-              >
-                <Search className="size-4.5" />
-                <span>ค้นหาสัตว์เลี้ยง</span>
-              </Link>
-            </div>
-          </div>
-
-          {/* Right Column: Hero Banner Image */}
-          <div className="flex justify-center lg:col-span-5">
-            <div className="relative aspect-[4/3] w-full max-w-lg overflow-hidden rounded-3xl bg-muted shadow-lg ring-4 ring-white/60">
+          return (
+            <div
+              key={img.src}
+              className={cn(
+                'absolute inset-0 transition-all duration-1000 ease-in-out',
+                isActive
+                  ? 'opacity-80 scale-100 dark:opacity-40'
+                  : 'opacity-0 scale-105'
+              )}
+            >
               <Image
-                src="https://images.unsplash.com/photo-1548767797-d8c844163c4c?q=80&w=1000&auto=format&fit=crop"
-                alt="สุนัขและแมวเพื่อนรักคู่ใจ"
+                src={img.src}
+                alt={img.alt}
                 fill
-                priority
-                sizes="(max-width: 768px) 100vw, 50vw"
-                className="object-cover"
+                priority={index === 0}
+                sizes="100vw"
+                className="object-cover object-center"
               />
             </div>
+          );
+        })}
+
+        {/* Subtle top & bottom edge gradients for seamless transition */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#ECF5EE]/40 via-transparent to-[#ECF5EE]/60 dark:from-[#071E14]/70 dark:via-transparent dark:to-[#071E14]/90" />
+      </div>
+
+      {/* 2. Centered Frosted Glass Content Card */}
+      <div className="relative z-10 mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col items-center gap-6 rounded-3xl border border-white/80 bg-white/80 p-8 text-center shadow-xl backdrop-blur-md transition-colors duration-300 sm:p-10 lg:p-12 dark:border-white/10 dark:bg-[#0E281C]/85 dark:shadow-2xl">
+          {/* Main Headline */}
+          <h1 className="text-3xl font-extrabold tracking-tight text-[#164E36] sm:text-4xl lg:text-5xl lg:leading-[1.25] dark:text-[#6EE7B7]">
+            ช่วยสัตว์เลี้ยงกลับบ้านอย่างปลอดภัย
+          </h1>
+
+          {/* Subtitle / Description */}
+          <p className="max-w-2xl text-base font-medium leading-relaxed text-[#1D3E2F] sm:text-lg dark:text-[#D1FAE5]/90">
+            แพลตฟอร์มศูนย์รวมการตามหาสัตว์เลี้ยงหายและช่วยสัตว์พลัดหลง พร้อมระบบค้นหาและจับคู่ภาพถ่ายด้วย AI อัจฉริยะ ช่วยให้การค้นหาและคืนสัตว์เลี้ยงของคุณมีโอกาสสำเร็จสูงสุด
+          </p>
+
+          {/* Action Buttons (Centered & Equal Width) */}
+          <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
+            {/* Primary CTA */}
+            <Link
+              href="/posts/create?type=LOST"
+              className={cn(
+                buttonVariants({ variant: 'default', size: 'lg' }),
+                'h-13 min-w-[200px] justify-center rounded-2xl border-2 border-transparent bg-primary px-6 text-base font-semibold text-primary-foreground shadow-md transition-all hover:scale-105 hover:bg-primary/90'
+              )}
+            >
+              <Plus className="size-5 stroke-[2.5]" />
+              <span>แจ้งสัตว์เลี้ยงหาย</span>
+            </Link>
+
+            {/* Secondary CTA */}
+            <Link
+              href="/posts"
+              className={cn(
+                buttonVariants({ variant: 'outline', size: 'lg' }),
+                'h-13 min-w-[200px] justify-center rounded-2xl border-2 border-primary/40 bg-white px-6 text-base font-semibold text-primary shadow-xs transition-all hover:scale-105 hover:border-primary hover:bg-white dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-muted'
+              )}
+            >
+              <Search className="size-5" />
+              <span>ค้นหาสัตว์เลี้ยง</span>
+            </Link>
           </div>
         </div>
       </div>

@@ -11,14 +11,14 @@ interface ReunitedStoriesSectionProps {
 
 export function ReunitedStoriesSection({ stories }: ReunitedStoriesSectionProps) {
   return (
-    <section className="w-full bg-[#ECF5EE] py-12 sm:py-16">
+    <section className="w-full bg-[#ECF5EE] py-12 transition-colors duration-300 sm:py-16 dark:bg-[#071E14]/70">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center">
-          <h2 className="text-2xl font-bold tracking-tight text-[#164E36] sm:text-3xl">
+          <h2 className="text-2xl font-bold tracking-tight text-[#164E36] sm:text-3xl dark:text-[#6EE7B7]">
             เรื่องราวความสำเร็จพากลับบ้าน
           </h2>
-          <p className="mt-2 text-sm text-[#2D5A47] sm:text-base">
+          <p className="mt-2 text-sm text-[#2D5A47] sm:text-base dark:text-[#D1FAE5]/80">
             ความหวังมีเสมอ เสียงขอบคุณจากครอบครัวที่ได้สัตว์เลี้ยงสุดที่รักกลับมาสู่อ้อมกอด
           </p>
         </div>
@@ -28,7 +28,7 @@ export function ReunitedStoriesSection({ stories }: ReunitedStoriesSectionProps)
           {stories.map((story) => (
             <Card
               key={story.id}
-              className="flex flex-col justify-between overflow-hidden rounded-3xl border border-white/80 bg-white shadow-xs transition-transform duration-300 hover:-translate-y-1 hover:shadow-md"
+              className="flex flex-col justify-between overflow-hidden rounded-3xl border border-white/80 bg-white shadow-xs transition-all duration-300 hover:-translate-y-1 hover:shadow-md dark:border-border/60 dark:bg-card"
             >
               <div>
                 {/* Photo of owner + pet */}
