@@ -50,8 +50,8 @@ export function HeroSection() {
           <div className="flex justify-center lg:col-span-5">
             <div className="relative aspect-[4/3] w-full max-w-lg overflow-hidden rounded-3xl bg-muted shadow-lg ring-4 ring-white/60">
               <Image
-                src="https://images.unsplash.com/photo-1548767797-d8c844163c4c?q=80&w=1000&auto=format&fit=crop"
-                alt="สุนัขและแมวเพื่อนรักคู่ใจ"
+                src="https://images.unsplash.com/photo-1601758228041-f3b2795255f1?q=80&w=1200&auto=format&fit=crop"
+                alt="สุนัขและแมวเพื่อนรักที่ได้อยู่บ้านอย่างปลอดภัยและอบอุ่น"
                 fill
                 priority
                 sizes="(max-width: 768px) 100vw, 50vw"
