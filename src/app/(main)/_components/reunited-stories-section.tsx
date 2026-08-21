@@ -1,0 +1,72 @@
+import Link from 'next/link';
+import Image from 'next/image';
+import { ArrowRight } from 'lucide-react';
+
+import { Card } from '@/components/ui/card';
+import { ReunitedStory } from '@/types/home';
+
+interface ReunitedStoriesSectionProps {
+  stories: ReunitedStory[];
+}
+
+export function ReunitedStoriesSection({ stories }: ReunitedStoriesSectionProps) {
+  return (
+    <section className="w-full bg-[#ECF5EE] py-12 sm:py-16">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        {/* Section Header */}
+        <div className="text-center">
+          <h2 className="text-2xl font-bold tracking-tight text-[#164E36] sm:text-3xl">
+            เรื่องราวความสำเร็จพากลับบ้าน
+          </h2>
+          <p className="mt-2 text-sm text-[#2D5A47] sm:text-base">
+            ความหวังมีเสมอ เสียงขอบคุณจากครอบครัวที่ได้สัตว์เลี้ยงสุดที่รักกลับมาสู่อ้อมกอด
+          </p>
+        </div>
+
+        {/* Stories Grid */}
+        <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
+          {stories.map((story) => (
+            <Card
+              key={story.id}
+              className="flex flex-col justify-between overflow-hidden rounded-3xl border border-white/80 bg-white shadow-xs transition-transform duration-300 hover:-translate-y-1 hover:shadow-md"
+            >
+              <div>
+                {/* Photo of owner + pet */}
+                <div className="relative aspect-[16/10] w-full overflow-hidden bg-muted">
+                  <Image
+                    src={story.coverImageUrl}
+                    alt={`${story.petName} และ ${story.ownerName}`}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    className="object-cover"
+                  />
+                </div>
+
+                {/* Story details */}
+                <div className="p-5">
+                  <h3 className="text-base font-bold text-foreground">
+                    {story.petName} และ {story.ownerName}
+                  </h3>
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                    &ldquo;{story.quote}&rdquo;
+                  </p>
+                </div>
+              </div>
+
+              {/* Read more link */}
+              <div className="p-5 pt-0">
+                <Link
+                  href={story.detailUrl || `/posts/${story.id}`}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-primary transition-colors hover:underline"
+                >
+                  <span>อ่านเรื่องราวของ {story.ownerName} เพิ่มเติม</span>
+                  <ArrowRight className="size-3.5" />
+                </Link>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
