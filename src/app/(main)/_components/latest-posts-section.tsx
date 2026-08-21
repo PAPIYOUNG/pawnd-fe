@@ -88,7 +88,7 @@ export function LatestPostsSection({ posts }: LatestPostsSectionProps) {
             type="button"
             onClick={handlePrev}
             aria-label="เลื่อนไปก่อนหน้า"
-            className="absolute -left-2 sm:-left-3 top-1/2 z-20 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-border/80 bg-white/95 text-foreground shadow-md backdrop-blur-xs transition-all hover:scale-110 hover:bg-white hover:text-primary active:scale-95 sm:size-11"
+            className="absolute -left-2 sm:-left-3 top-1/2 z-20 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-border/80 bg-white/95 text-foreground shadow-md backdrop-blur-xs transition-all hover:scale-110 hover:bg-white hover:text-primary active:scale-95 sm:size-11 dark:bg-card/95 dark:hover:bg-card"
           >
             <ChevronLeft className="size-5 sm:size-6" />
           </button>
@@ -98,7 +98,7 @@ export function LatestPostsSection({ posts }: LatestPostsSectionProps) {
             type="button"
             onClick={handleNext}
             aria-label="เลื่อนไปถัดไป"
-            className="absolute -right-2 sm:-right-3 top-1/2 z-20 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-border/80 bg-white/95 text-foreground shadow-md backdrop-blur-xs transition-all hover:scale-110 hover:bg-white hover:text-primary active:scale-95 sm:size-11"
+            className="absolute -right-2 sm:-right-3 top-1/2 z-20 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-border/80 bg-white/95 text-foreground shadow-md backdrop-blur-xs transition-all hover:scale-110 hover:bg-white hover:text-primary active:scale-95 sm:size-11 dark:bg-card/95 dark:hover:bg-card"
           >
             <ChevronRight className="size-5 sm:size-6" />
           </button>
