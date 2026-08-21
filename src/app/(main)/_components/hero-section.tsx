@@ -25,7 +25,7 @@ export function HeroSection() {
                 href="/posts/create?type=LOST"
                 className={cn(
                   buttonVariants({ variant: 'default', size: 'lg' }),
-                  'rounded-2xl bg-primary px-6 py-6 text-base font-semibold text-primary-foreground shadow-sm hover:bg-primary/90'
+                  'h-13 min-w-[200px] justify-center rounded-2xl border-2 border-transparent bg-primary px-6 text-base font-semibold text-primary-foreground shadow-sm hover:bg-primary/90'
                 )}
               >
                 <Plus className="size-5 stroke-[2.5]" />
@@ -37,10 +37,10 @@ export function HeroSection() {
                 href="/posts"
                 className={cn(
                   buttonVariants({ variant: 'outline', size: 'lg' }),
-                  'rounded-2xl border-2 border-primary/30 bg-white/80 px-6 py-6 text-base font-semibold text-primary shadow-2xs hover:bg-white hover:border-primary'
+                  'h-13 min-w-[200px] justify-center rounded-2xl border-2 border-primary/30 bg-white/80 px-6 text-base font-semibold text-primary shadow-2xs hover:border-primary hover:bg-white'
                 )}
               >
-                <Search className="size-4.5" />
+                <Search className="size-5" />
                 <span>ค้นหาสัตว์เลี้ยง</span>
               </Link>
             </div>
