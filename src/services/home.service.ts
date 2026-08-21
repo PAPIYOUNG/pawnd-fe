@@ -74,6 +74,66 @@ export const MOCK_LATEST_POSTS: LatestPostItem[] = [
       'https://images.unsplash.com/photo-1573865526739-10659fec78a5?q=80&w=800&auto=format&fit=crop',
     createdAt: new Date(Date.now() - 18000000).toISOString(),
   },
+  {
+    id: 'mock-5',
+    type: 'LOST',
+    petName: 'มิลค์กี้',
+    petType: 'CAT',
+    breed: 'เปอร์เซีย',
+    gender: 'FEMALE',
+    ageDescription: 'เปอร์เซีย ขนยาวสีขาวครีม อายุ 2 ปี',
+    province: 'ชลบุรี',
+    locationDetail: 'บางแสน สาย 2, ชลบุรี',
+    timeAgo: 'หายไป 5 ชั่วโมงที่แล้ว',
+    coverImageUrl:
+      'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?q=80&w=800&auto=format&fit=crop',
+    createdAt: new Date(Date.now() - 20000000).toISOString(),
+  },
+  {
+    id: 'mock-6',
+    type: 'FOUND',
+    petName: 'น้องบ๊อบบี้ คอร์กี้',
+    petType: 'DOG',
+    breed: 'เวลช์ คอร์กี้',
+    gender: 'MALE',
+    ageDescription: 'เวลช์ คอร์กี้ สวมปลอกคอสีส้ม',
+    province: 'เชียงใหม่',
+    locationDetail: 'นิมมานเหมินท์, เชียงใหม่',
+    timeAgo: 'พบเมื่อ 4 ชั่วโมงก่อน',
+    coverImageUrl:
+      'https://images.unsplash.com/photo-1612536057832-2ff7ead58194?q=80&w=800&auto=format&fit=crop',
+    createdAt: new Date(Date.now() - 14400000).toISOString(),
+  },
+  {
+    id: 'mock-7',
+    type: 'LOST',
+    petName: 'ลัคกี้ โกลเด้น',
+    petType: 'DOG',
+    breed: 'โกลเด้น รีทรีฟเวอร์',
+    gender: 'MALE',
+    ageDescription: 'โกลเด้น รีทรีฟเวอร์ ขนสีทอง อายุ 3 ปี',
+    province: 'ปทุมธานี',
+    locationDetail: 'รังสิต คลอง 3, ปทุมธานี',
+    timeAgo: 'หายเมื่อวานนี้ 09:00 น.',
+    coverImageUrl:
+      'https://images.unsplash.com/photo-1552053831-71594a27632d?q=80&w=800&auto=format&fit=crop',
+    createdAt: new Date(Date.now() - 90000000).toISOString(),
+  },
+  {
+    id: 'mock-8',
+    type: 'FOUND',
+    petName: 'แมวสามสี ขี้อ้อน',
+    petType: 'CAT',
+    breed: 'พันธุ์ไทย สามสี',
+    gender: 'FEMALE',
+    ageDescription: 'แมวสามสี ลายเปรอะ เพศเมีย เชื่องมาก',
+    province: 'สมุทรปราการ',
+    locationDetail: 'สำโรงเหนือ, สมุทรปราการ',
+    timeAgo: 'พบช่วงเช้าวันนี้',
+    coverImageUrl:
+      'https://images.unsplash.com/photo-1533738363-b7f9aef128ce?q=80&w=800&auto=format&fit=crop',
+    createdAt: new Date(Date.now() - 25000000).toISOString(),
+  },
 ];
 
 export const MOCK_REUNITED_STORIES: ReunitedStory[] = [
@@ -146,7 +206,7 @@ interface ApiReunitedPost {
   reunitedAt?: string;
 }
 
-export async function getLatestPosts(limit = 4): Promise<LatestPostItem[]> {
+export async function getLatestPosts(limit = 8): Promise<LatestPostItem[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/home/latest?limit=${limit}`, {
       next: { revalidate: 30 },
@@ -204,11 +264,10 @@ export async function getReunitedStories(limit = 3): Promise<ReunitedStory[]> {
   }
 }
 
-
 export async function getHomePageData(): Promise<HomePageData> {
   const [stats, latestPosts, reunitedStories] = await Promise.all([
     getHomeStats(),
-    getLatestPosts(4),
+    getLatestPosts(8),
     getReunitedStories(3),
   ]);
 
