@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import { Bell, Plus, Menu, X } from 'lucide-react';
 
 import { buttonVariants } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {
@@ -72,24 +73,27 @@ export default function Header({
           })}
         </nav>
 
-        {/* Right: Actions & User Session */}
-        <div className="hidden sm:flex items-center gap-3.5">
+        {/* Right: Actions, ThemeToggle & User Session */}
+        <div className="hidden sm:flex items-center gap-2.5">
+          {/* Dark / Light Theme Toggle Button */}
+          <ThemeToggle />
+
           {isLoggedIn ? (
             <>
               {/* Notification Bell */}
               <button
                 type="button"
                 aria-label="การแจ้งเตือน"
-                className="relative flex size-9 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-muted hover:text-foreground"
+                className="relative flex size-10 min-h-[40px] min-w-[40px] items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-muted hover:text-foreground active:scale-95"
               >
-                <Bell className="size-4.5" />
-                <span className="absolute top-2 right-2 size-2 rounded-full bg-destructive ring-2 ring-background" />
+                <Bell className="size-5" />
+                <span className="absolute top-2.5 right-2.5 size-2 rounded-full bg-destructive ring-2 ring-background" />
               </button>
 
               {/* User Profile Avatar */}
               <Link
                 href="/profile"
-                className="relative size-9 overflow-hidden rounded-full ring-2 ring-border transition-transform hover:scale-105"
+                className="relative size-10 min-h-[40px] min-w-[40px] overflow-hidden rounded-full ring-2 ring-border transition-transform hover:scale-105"
                 title={userName}
               >
                 <Image
@@ -105,7 +109,7 @@ export default function Header({
                 href="/posts/create?type=LOST"
                 className={cn(
                   buttonVariants({ variant: 'default', size: 'default' }),
-                  'rounded-2xl gap-1.5 px-4 font-medium shadow-xs'
+                  'h-10 min-h-[40px] rounded-2xl gap-1.5 px-4 font-medium shadow-xs'
                 )}
               >
                 <Plus className="size-4 stroke-[2.5]" />
@@ -118,7 +122,7 @@ export default function Header({
                 href="/login"
                 className={cn(
                   buttonVariants({ variant: 'ghost', size: 'sm' }),
-                  'rounded-xl'
+                  'h-10 min-h-[40px] rounded-xl px-4'
                 )}
               >
                 เข้าสู่ระบบ
@@ -127,7 +131,7 @@ export default function Header({
                 href="/register"
                 className={cn(
                   buttonVariants({ variant: 'default', size: 'sm' }),
-                  'rounded-xl'
+                  'h-10 min-h-[40px] rounded-xl px-4'
                 )}
               >
                 สมัครสมาชิก
@@ -136,13 +140,14 @@ export default function Header({
           )}
         </div>
 
-        {/* Mobile Hamburger Button */}
-        <div className="flex sm:hidden items-center gap-2">
+        {/* Mobile Right Bar (ThemeToggle + Hamburger Button) */}
+        <div className="flex sm:hidden items-center gap-1.5">
+          <ThemeToggle />
           <button
             type="button"
             onClick={() => setMobileMenuOpen((open) => !open)}
-            aria-label="เปิดเมนู"
-            className="flex size-9 items-center justify-center rounded-lg text-foreground hover:bg-muted"
+            aria-label="เปิดเมนูนำทาง"
+            className="flex size-10 min-h-[40px] min-w-[40px] items-center justify-center rounded-xl text-foreground hover:bg-muted active:scale-95"
           >
             {mobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
@@ -152,27 +157,37 @@ export default function Header({
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
         <div className="border-b border-border bg-background px-4 py-4 sm:hidden">
-          <nav className="flex flex-col gap-2.5">
+          <nav className="flex flex-col gap-2">
             {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
-                  'rounded-xl px-3 py-2 text-sm font-medium transition-colors hover:bg-muted',
+                  'flex min-h-[40px] items-center rounded-xl px-3 text-sm font-medium transition-colors hover:bg-muted',
                   pathname === link.href ? 'bg-muted text-primary font-semibold' : 'text-foreground'
                 )}
               >
                 {link.label}
               </Link>
             ))}
-            <div className="mt-3 border-t border-border pt-3">
+
+            {/* Mobile Theme Toggle Row */}
+            <div className="flex items-center justify-between border-t border-border pt-3">
+              <span className="text-sm font-medium text-muted-foreground">
+                ธีมการแสดงผล
+              </span>
+              <ThemeToggle showLabel={true} />
+            </div>
+
+            {/* Mobile CTA */}
+            <div className="pt-2">
               <Link
                 href="/posts/create?type=LOST"
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
                   buttonVariants({ variant: 'default' }),
-                  'w-full rounded-2xl gap-1.5'
+                  'h-11 w-full rounded-2xl gap-1.5 font-medium'
                 )}
               >
                 <Plus className="size-4 stroke-[2.5]" />
