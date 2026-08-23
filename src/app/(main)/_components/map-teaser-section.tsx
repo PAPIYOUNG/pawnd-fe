@@ -4,11 +4,19 @@ import { MapPin, Navigation } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+/**
+ * MapTeaserSection Component
+ * - ส่วนแสดงตัวอย่างแผนที่ตำแหน่งสัตว์เลี้ยงหายและพบสัตว์พลัดหลง (Interactive Map Teaser)
+ * - ใช้ภาพกราฟิกเวกเตอร์ SVG จำลองแผนที่เมือง แม่น้ำ สะพาน และหมุดพิกัด (Pins)
+ * - มีหมุดสีแดง (สัตว์หาย) และหมุดสีเขียว (พบสัตว์พลัดหลง) พร้อมแอนิเมชันคลื่นกระจาย (Ping Animation)
+ * - มีการ์ดข้อมูลลอยตัว (Floating Info Card) บอกจุดเสี่ยงในพิกัด 5 กิโลเมตร
+ * - มีปุ่ม CTA "ดูแผนที่เต็มจอ" เชื่อมโยงไปยังหน้าแผนที่หลัก (/map)
+ */
 export function MapTeaserSection() {
   return (
     <section className="w-full py-12 sm:py-16">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Section Header */}
+        {/* หัวข้อประจำ Section */}
         <div className="text-center">
           <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
             สำรวจพื้นที่ผ่านแผนที่สัตว์เลี้ยงหาย
@@ -18,9 +26,9 @@ export function MapTeaserSection() {
           </p>
         </div>
 
-        {/* Map Container */}
+        {/* กรอบแสดงแผนที่จำลอง (Map Container) */}
         <div className="relative mt-8 overflow-hidden rounded-3xl border border-border/80 bg-[#FDF9F3] shadow-md dark:border-border/60 dark:bg-[#121B17]">
-          {/* Stylized Vector Map Graphic */}
+          {/* เวกเตอร์กราฟิกจำลองแผนที่เมืองและแม่น้ำ */}
           <div className="relative h-[320px] w-full sm:h-[400px]">
             <svg
               viewBox="0 0 1000 500"
@@ -28,10 +36,10 @@ export function MapTeaserSection() {
               preserveAspectRatio="xMidYMid slice"
               aria-label="แผนที่จำลองตำแหน่งสัตว์เลี้ยง"
             >
-              {/* Map Land Background */}
+              {/* พื้นดินแผนที่ */}
               <rect width="1000" height="500" fill="#FBF5EB" className="dark:fill-[#14261F]" />
 
-              {/* City Blocks & Land Parcels */}
+              {/* บล็อกอาคารและแปลงที่ดิน */}
               <path
                 d="M50 40h120v70H50zM220 30h160v60H220zM420 50h140v80H420zM620 30h180v70H620zM840 40h120v90H840z"
                 fill="#F4ECE1"
@@ -48,7 +56,7 @@ export function MapTeaserSection() {
                 className="dark:fill-[#224035]"
               />
 
-              {/* Major Roads & Streets */}
+              {/* เส้นทางถนนสายหลัก */}
               <path
                 d="M0 160 Q 250 140, 500 180 T 1000 150"
                 fill="none"
@@ -85,7 +93,7 @@ export function MapTeaserSection() {
                 strokeWidth="12"
               />
 
-              {/* River / Waterway Curve */}
+              {/* สายน้ำ / แม่น้ำหลัก */}
               <path
                 d="M0 240 C 200 270, 300 190, 480 230 C 650 270, 780 180, 1000 220 L 1000 265 C 780 225, 650 315, 480 275 C 300 235, 200 315, 0 285 Z"
                 fill="#A6D5D8"
@@ -93,39 +101,38 @@ export function MapTeaserSection() {
                 opacity="0.85"
               />
 
-              {/* Bridges over river */}
+              {/* สะพานข้ามแม่น้ำ */}
               <rect x="195" y="240" width="24" height="48" fill="#FFFFFF" className="dark:fill-[#386655]" rx="2" />
               <rect x="575" y="248" width="24" height="48" fill="#FFFFFF" className="dark:fill-[#386655]" rx="2" />
 
-              {/* Map Location Pins */}
-              {/* Lost Pet Pin 1 (Red) */}
+              {/* หมุดแสดงตำแหน่งสัตว์หาย (สีแดง - Lost Pin) */}
               <g transform="translate(480, 220)">
                 <circle cx="0" cy="0" r="16" fill="#EF4444" opacity="0.25" className="animate-ping" />
                 <circle cx="0" cy="0" r="12" fill="#EF4444" stroke="#FFFFFF" strokeWidth="2.5" />
                 <circle cx="0" cy="0" r="4" fill="#FFFFFF" />
               </g>
 
-              {/* Found Pet Pin 2 (Green) */}
+              {/* หมุดแสดงตำแหน่งพบสัตว์พลัดหลง (สีเขียว - Found Pin) */}
               <g transform="translate(640, 290)">
                 <circle cx="0" cy="0" r="16" fill="#10B981" opacity="0.25" className="animate-ping" />
                 <circle cx="0" cy="0" r="12" fill="#10B981" stroke="#FFFFFF" strokeWidth="2.5" />
                 <circle cx="0" cy="0" r="4" fill="#FFFFFF" />
               </g>
 
-              {/* Additional Lost Pin (Red) */}
+              {/* หมุดสัตว์หายเพิ่มเติม */}
               <g transform="translate(780, 150)">
                 <circle cx="0" cy="0" r="10" fill="#EF4444" stroke="#FFFFFF" strokeWidth="2" />
                 <circle cx="0" cy="0" r="3.5" fill="#FFFFFF" />
               </g>
 
-              {/* Additional Found Pin (Green) */}
+              {/* หมุดพบสัตว์เพิ่มเติม */}
               <g transform="translate(320, 170)">
                 <circle cx="0" cy="0" r="10" fill="#10B981" stroke="#FFFFFF" strokeWidth="2" />
                 <circle cx="0" cy="0" r="3.5" fill="#FFFFFF" />
               </g>
             </svg>
 
-            {/* Floating Info Overlay Card (Top Left) */}
+            {/* การ์ดข้อมูลจำลองจุดเสี่ยงลอยตัวอยู่มุมบนซ้าย */}
             <div className="absolute top-4 left-4 z-10 max-w-[260px] rounded-2xl border border-border/80 bg-white/95 p-4 shadow-md backdrop-blur-xs sm:top-6 sm:left-6 sm:max-w-xs dark:bg-card/95 dark:border-border">
               <div className="flex items-center gap-1.5 text-xs font-bold text-foreground sm:text-sm">
                 <Navigation className="size-4 text-primary" />
@@ -138,7 +145,7 @@ export function MapTeaserSection() {
           </div>
         </div>
 
-        {/* Action Button */}
+        {/* ปุ่มสำหรับกดเปิดดูหน้าแผนที่แบบเต็มจอ */}
         <div className="mt-6 flex justify-center">
           <Link
             href="/map"

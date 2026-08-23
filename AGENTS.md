@@ -73,13 +73,25 @@ AI Agent **ต้องดำเนินการตามลำดับต่
 
 ### 2.4 ข้อห้ามด้าน Git ที่สำคัญที่สุด
 
-AI Agent สามารถสร้าง Local Commit เมื่อ Feature ผ่าน Definition of Done แล้ว แต่:
-
 - ❌ **ห้าม `git push` ทุกกรณี เว้นแต่มนุษย์สั่งอย่างชัดเจนในคำสั่งนั้น**
 - ❌ **ห้ามสร้าง Pull Request อัตโนมัติ**
 - ❌ **ห้าม merge branch หรือ rebase อัตโนมัติ**
 - ❌ **ห้าม force push หรือ reset history**
 - ✅ หลัง commit ให้รายงาน commit hash, commit message, ผลการทดสอบ (lint/build) และรายการไฟล์สำคัญ แล้วหยุดรอมนุษย์ตรวจและ push เอง
+
+### 2.5 กฎการเขียนคอมเมนต์ในโค้ด (Mandatory Thai Code Commenting Standard)
+
+AI Agent และนักพัฒนา **ต้องเขียนคอมเมนต์ภาษาไทยอธิบายโค้ดอย่างละเอียดและสม่ำเสมอในทุกไฟล์ที่สร้างหรือแก้ไข** ตามตัวอย่างมาตรฐานในหน้า `HomePage` (`src/app/(main)/page.tsx` และ `src/app/(main)/_components/`):
+
+1. **Header JSDoc ของคอมโพเนนต์ / ฟังก์ชัน / Interface:**
+   - อธิบายหน้าที่และจุดประสงค์ของคอมโพเนนต์หรือฟังก์ชัน (เช่น เป็น RSC หรือ Client Component, ทำหน้าที่อะไร)
+   - อธิบาย Props หรือ Return Value สำคัญ
+2. **State & Effect Hooks:**
+   - อธิบายว่า State แต่ละตัวเก็บข้อมูลอะไร และ Effect ทำงานเมื่อใดเพื่ออะไร
+3. **Event Handlers & Logic:**
+   - อธิบายขั้นตอนการทำงานของฟังก์ชันและการคำนวณที่สำคัญ
+4. **JSX Sections & Sub-elements:**
+   - ใส่คอมเมนต์กำกับแต่ละบล็อก Section ใน JSX (เช่น ส่วนหัว, การ์ด, ปุ่ม CTA, จุดระบุสถานะ)
 
 ---
 
@@ -470,6 +482,7 @@ gh pr create
 - [ ] Form Validation ครบด้วย React Hook Form + Zod
 - [ ] รองรับ Responsive Mobile-First และ a11y (aria-labels)
 - [ ] ตรวจสอบ `pnpm lint` และ `pnpm build` ผ่านเรียบร้อย
+- [ ] เขียนคอมเมนต์ภาษาไทยอธิบายโค้ดอย่างละเอียดตามมาตรฐาน Section 2.5
 - [ ] Commit ด้วย Conventional Commits
 - [ ] **ไม่ได้สั่ง `git push` หรือสร้าง PR เองเด็ดขาด**
 

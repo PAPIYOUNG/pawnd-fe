@@ -10,13 +10,22 @@ interface PetCardProps {
   post: LatestPostItem;
 }
 
+/**
+ * PetCard Component
+ * - คอมโพเนนต์การ์ดแสดงข้อมูลสรุปสัตว์เลี้ยง (สำหรับหน้า Feed และ Home Carousel)
+ * - ประกอบด้วย:
+ *   1. รูปภาพปกสัตว์เลี้ยง พร้อมเอฟเฟกต์ Zoom เมื่อ Hover
+ *   2. ป้าย Badge สถานะ: "สัตว์หาย" (สีแดง) หรือ "พบสัตว์พลัดหลง" (สีเขียว)
+ *   3. ชื่อสัตว์เลี้ยง และข้อมูลสายพันธุ์/อายุ
+ *   4. พิกัดสถานที่ที่พบ/หาย และเวลาที่ผ่านมา (Time Ago)
+ */
 export function PetCard({ post }: PetCardProps) {
   const isLost = post.type === 'LOST';
 
   return (
     <Link href={`/posts/${post.id}`} className="group block">
       <Card className="overflow-hidden rounded-2xl border-border/70 bg-card transition-all duration-300 hover:-translate-y-1 hover:shadow-md">
-        {/* Pet Image Container */}
+        {/* กล่องรูปภาพสัตว์เลี้ยง */}
         <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
           <Image
             src={post.coverImageUrl}
@@ -25,7 +34,7 @@ export function PetCard({ post }: PetCardProps) {
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
             className="object-cover transition-transform duration-500 group-hover:scale-105"
           />
-          {/* Status Badge */}
+          {/* ป้าย Badge แสดงสถานะ สัตว์หาย / พบสัตว์พลัดหลง */}
           <div className="absolute top-3 left-3 z-10">
             <Badge
               variant={isLost ? 'lost' : 'found'}
@@ -36,22 +45,27 @@ export function PetCard({ post }: PetCardProps) {
           </div>
         </div>
 
-        {/* Card Details */}
+        {/* รายละเอียดข้อมูลสัตว์เลี้ยง */}
         <div className="flex flex-col gap-2 p-4">
           <div>
+            {/* ชื่อสัตว์เลี้ยง */}
             <h3 className="line-clamp-1 text-base font-bold text-foreground transition-colors group-hover:text-primary">
               {post.petName}
             </h3>
+            {/* สายพันธุ์ หรือคำอธิบายเพิ่มเติม */}
             <p className="line-clamp-1 text-xs text-muted-foreground">
               {post.ageDescription || post.breed || 'ข้อมูลสัตว์เลี้ยง'}
             </p>
           </div>
 
-          <div className="flex flex-col gap-1 pt-1 text-xs text-muted-foreground border-t border-border/40">
+          {/* พิกัดสถานที่และเวลา */}
+          <div className="flex flex-col gap-1 border-t border-border/40 pt-1 text-xs text-muted-foreground">
+            {/* พิกัดสถานที่ */}
             <div className="flex items-center gap-1.5 line-clamp-1">
               <MapPin className="size-3.5 shrink-0 text-primary" />
               <span className="truncate">{post.locationDetail || post.province}</span>
             </div>
+            {/* เวลาที่ผ่านมา */}
             <div className="flex items-center gap-1.5">
               <Clock className="size-3.5 shrink-0 text-muted-foreground/80" />
               <span>{post.timeAgo}</span>

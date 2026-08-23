@@ -1,5 +1,11 @@
 import { Skeleton } from '@/components/ui/skeleton';
 
+/**
+ * Loading Component (Next.js App Router Suspense Fallback)
+ * - แสดงสถานะกำลังโหลด (Skeleton Loading Screen) จำลองโครงสร้างหน้าแรกแบบ 1:1
+ * - ทำงานอัตโนมัติขณะที่ Server Component กำลัง Fetch ข้อมูลจาก Backend
+ * - ประกอบด้วย Skeleton จำลอง Hero Banner, Stats Bar, Latest Posts Feed และ Reunited Stories
+ */
 export default function Loading() {
   return (
     <div className="flex w-full flex-col animate-pulse">
@@ -7,7 +13,7 @@ export default function Loading() {
       <section className="w-full bg-[#ECF5EE]/60 py-12 sm:py-16 lg:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-12">
-            {/* Left Skeleton Content */}
+            {/* โครงร่างข้อความและปุ่ม CTA ทางซ้าย */}
             <div className="flex flex-col gap-5 lg:col-span-7">
               <Skeleton className="h-10 w-3/4 rounded-2xl bg-muted/80 sm:h-12" />
               <Skeleton className="h-5 w-full rounded-lg bg-muted/60" />
@@ -18,7 +24,7 @@ export default function Loading() {
               </div>
             </div>
 
-            {/* Right Skeleton Image */}
+            {/* โครงร่างภาพถ่าย Hero ทางขวา */}
             <div className="flex justify-center lg:col-span-5">
               <Skeleton className="aspect-[4/3] w-full max-w-lg rounded-3xl bg-muted/80 shadow-md" />
             </div>
@@ -26,7 +32,7 @@ export default function Loading() {
         </div>
       </section>
 
-      {/* 2. Stats Bar Skeleton */}
+      {/* 2. Stats Bar Skeleton: โครงร่างการ์ดสถิติ 4 ช่อง */}
       <section className="w-full py-8 sm:py-10">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -50,7 +56,7 @@ export default function Loading() {
         </div>
       </section>
 
-      {/* 3. Latest Posts Section Skeleton */}
+      {/* 3. Latest Posts Section Skeleton: โครงร่างประกาศสัตว์เลี้ยงล่าสุด 4 การ์ด */}
       <section className="w-full py-10 sm:py-14">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center gap-2.5 text-center">
@@ -79,7 +85,7 @@ export default function Loading() {
         </div>
       </section>
 
-      {/* 4. Reunited Stories Skeleton */}
+      {/* 4. Reunited Stories Skeleton: โครงร่างเรื่องราวความสำเร็จ 3 การ์ด */}
       <section className="w-full bg-[#ECF5EE]/40 py-12 sm:py-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center gap-2.5 text-center">
