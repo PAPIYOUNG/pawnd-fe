@@ -29,7 +29,7 @@ const GoogleMapsEmbed = dynamic(
   { ssr: false }
 );
 
-// ข้อมูลจำลองรายการสัตว์เลี้ยงหายและพบในระยะใกล้เคียง (Nearby Pet Cases)
+// ข้อมูลจำลองรายการสัตว์เลี้ยงหายและพบในระยะใกล้เคียงครบทั้ง 6 รายการ (6 Nearby Pet Cases)
 const NEARBY_PET_CASES = [
   {
     id: 'mock-1',
@@ -56,18 +56,48 @@ const NEARBY_PET_CASES = [
     name: 'ช็อกโก้',
     breed: 'พุดเดิ้ลทอย สีน้ำตาล',
     type: 'LOST' as const,
-    distance: '3.8 กม.',
+    distance: '3.1 กม.',
     location: 'ลาดพร้าว 101, กทม.',
     imageUrl:
       'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?q=80&w=200&auto=format&fit=crop',
+  },
+  {
+    id: 'mock-4',
+    name: 'แมวไทยสีขาวตาโต',
+    breed: 'พันธุ์ไทย เพศเมีย',
+    type: 'FOUND' as const,
+    distance: '3.8 กม.',
+    location: 'ม.เกษตรศาสตร์ บางเขน',
+    imageUrl:
+      'https://images.unsplash.com/photo-1573865526739-10659fec78a5?q=80&w=200&auto=format&fit=crop',
+  },
+  {
+    id: 'mock-5',
+    name: 'น้องมิลค์กี้',
+    breed: 'ปอมเมอเรเนียน สีขาว',
+    type: 'LOST' as const,
+    distance: '4.2 กม.',
+    location: 'พหลโยธิน 24, จตุจักร',
+    imageUrl:
+      'https://images.unsplash.com/photo-1587300003388-59208cc962cb?q=80&w=200&auto=format&fit=crop',
+  },
+  {
+    id: 'mock-6',
+    name: 'โกลเด้นท์เพศเมีย',
+    breed: 'โกลเด้น รีทรีฟเวอร์',
+    type: 'FOUND' as const,
+    distance: '4.7 กม.',
+    location: 'รัชดาภิเษก 32, กทม.',
+    imageUrl:
+      'https://images.unsplash.com/photo-1552053831-71594a27632d?q=80&w=200&auto=format&fit=crop',
   },
 ];
 
 /**
  * MapTeaserSection Component (Client Component)
  * - ส่วนแสดงแผนที่จริงของประเทศไทย (Interactive Real Map Teaser)
- * - แก้ไขปัญหา React DevTools Suspense Cleanup Error ด้วยการครอบ Suspense Boundary ที่ชัดเจน
- * - การ์ดแจ้งเตือนจุดเสี่ยงและ List รายการในระยะใกล้ สามารถ "กดย่อ-ขยาย (Collapse / Expand)" ได้ เพื่อไม่ให้บดบังแผนที่
+ * - แสดงรายการสัตว์เลี้ยงหายและพบในระยะ 5 กม. ครบทั้ง 6 รายการ พร้อมแถบเลื่อนดูข้อมูลได้สะดวก
+ * - การ์ดแจ้งเตือนจุดเสี่ยงสามารถ "กดย่อ-ขยาย (Collapse / Expand)" ได้เพื่อไม่ให้บดบังแผนที่
  * - รองรับการสลับระหว่าง OpenStreetMap (Leaflet) และ Google Maps
  */
 export function MapTeaserSection() {
@@ -102,7 +132,7 @@ export function MapTeaserSection() {
           {/* เรนเดอร์แผนที่ด้วย Suspense Boundary */}
           <Suspense
             fallback={
-              <div className="flex h-[440px] w-full items-center justify-center rounded-3xl bg-muted/60 sm:h-[520px]">
+              <div className="flex h-[460px] w-full items-center justify-center rounded-3xl bg-muted/60 sm:h-[540px]">
                 <div className="flex flex-col items-center gap-3">
                   <Skeleton className="size-12 rounded-full" />
                   <span className="text-sm font-medium text-muted-foreground">
@@ -114,12 +144,12 @@ export function MapTeaserSection() {
           >
             {isMounted ? (
               mapProvider === 'leaflet' ? (
-                <RealLeafletMap heightClass="h-[440px] sm:h-[520px]" />
+                <RealLeafletMap heightClass="h-[460px] sm:h-[540px]" />
               ) : (
-                <GoogleMapsEmbed heightClass="h-[440px] sm:h-[520px]" />
+                <GoogleMapsEmbed heightClass="h-[460px] sm:h-[540px]" />
               )
             ) : (
-              <div className="flex h-[440px] w-full items-center justify-center rounded-3xl bg-muted/60 sm:h-[520px]">
+              <div className="flex h-[460px] w-full items-center justify-center rounded-3xl bg-muted/60 sm:h-[540px]">
                 <span className="text-sm font-medium text-muted-foreground">
                   กำลังเตรียมแผนที่...
                 </span>
@@ -131,8 +161,8 @@ export function MapTeaserSection() {
               วางไว้ที่ top-16 ไม่บังปุ่มซูมเข้าซูมออก (+ / -) มุมบนซ้าย */}
           <div className="absolute top-16 left-3.5 z-[400] transition-all duration-300 ease-in-out sm:top-20 sm:left-6">
             {isPanelExpanded ? (
-              /* การ์ดแบบขยายเต็ม (Expanded View) */
-              <div className="w-[280px] sm:w-[310px] rounded-2xl border border-border/80 bg-white/95 p-3.5 shadow-lg backdrop-blur-md transition-all sm:p-4 dark:bg-card/95 dark:border-border">
+              /* การ์ดแบบขยายเต็ม (Expanded View) แสดงครบ 6 เคส พร้อมแถบเลื่อน Scroll */
+              <div className="w-[285px] sm:w-[320px] rounded-2xl border border-border/80 bg-white/95 p-3.5 shadow-lg backdrop-blur-md transition-all sm:p-4 dark:bg-card/95 dark:border-border">
                 {/* ส่วนหัวการ์ด พร้อมปุ่มกดย่อการ์ด */}
                 <div className="flex items-center justify-between border-b border-border/50 pb-2.5">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-foreground sm:text-sm">
@@ -159,63 +189,66 @@ export function MapTeaserSection() {
                   พบสัตว์เลี้ยงหาย 6 รายการ และแจ้งพบ 3 รายการ ในระยะ 5 กม. รอบตัวคุณ
                 </p>
 
-                {/* List รายการสัตว์เลี้ยงในระยะใกล้ (Nearby Items List) */}
+                {/* List รายการสัตว์เลี้ยงในระยะใกล้ครบทั้ง 6 รายการ (Scrollable Nearby List) */}
                 <div className="mt-3 flex flex-col gap-2">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                      เคสล่าสุดใกล้คุณ
+                      เคสล่าสุดใกล้คุณ (ครบ 6 รายการ)
                     </span>
                     <span className="text-[10px] text-primary font-semibold">
                       ในระยะ 5 กม.
                     </span>
                   </div>
 
-                  {NEARBY_PET_CASES.map((pet) => (
-                    <Link
-                      key={pet.id}
-                      href={`/posts/${pet.id}`}
-                      className="group flex items-center gap-2.5 rounded-xl border border-border/60 bg-background/80 p-2 transition-all hover:border-primary/50 hover:bg-muted/60"
-                    >
-                      {/* รูปสัตว์เลี้ยงขนาดย่อ */}
-                      <div className="relative size-10 shrink-0 overflow-hidden rounded-lg">
-                        <Image
-                          src={pet.imageUrl}
-                          alt={pet.name}
-                          fill
-                          sizes="40px"
-                          className="object-cover transition-transform group-hover:scale-105"
-                        />
-                      </div>
-
-                      {/* ข้อมูลสัตว์เลี้ยงและระยะทาง */}
-                      <div className="flex flex-1 flex-col overflow-hidden">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="truncate text-xs font-bold text-foreground">
-                            {pet.name}
-                          </span>
-                          <span
-                            className={cn(
-                              'shrink-0 rounded-[4px] px-1.5 py-0.2 text-[9px] font-bold',
-                              pet.type === 'LOST'
-                                ? 'bg-destructive/10 text-destructive'
-                                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                            )}
-                          >
-                            {pet.type === 'LOST' ? 'หาย' : 'พบ'}
-                          </span>
+                  {/* กล่อง Scroll รายการ 6 เคส */}
+                  <div className="flex max-h-[200px] sm:max-h-[230px] flex-col gap-2 overflow-y-auto pr-1">
+                    {NEARBY_PET_CASES.map((pet) => (
+                      <Link
+                        key={pet.id}
+                        href={`/posts/${pet.id}`}
+                        className="group flex items-center gap-2.5 rounded-xl border border-border/60 bg-background/80 p-2 transition-all hover:border-primary/50 hover:bg-muted/60"
+                      >
+                        {/* รูปสัตว์เลี้ยงขนาดย่อ */}
+                        <div className="relative size-10 shrink-0 overflow-hidden rounded-lg">
+                          <Image
+                            src={pet.imageUrl}
+                            alt={pet.name}
+                            fill
+                            sizes="40px"
+                            className="object-cover transition-transform group-hover:scale-105"
+                          />
                         </div>
 
-                        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                          <span className="truncate">{pet.location}</span>
-                          <span className="shrink-0 font-bold text-primary">
-                            {pet.distance}
-                          </span>
-                        </div>
-                      </div>
+                        {/* ข้อมูลสัตว์เลี้ยงและระยะทาง */}
+                        <div className="flex flex-1 flex-col overflow-hidden">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="truncate text-xs font-bold text-foreground">
+                              {pet.name}
+                            </span>
+                            <span
+                              className={cn(
+                                'shrink-0 rounded-[4px] px-1.5 py-0.2 text-[9px] font-bold',
+                                pet.type === 'LOST'
+                                  ? 'bg-destructive/10 text-destructive'
+                                  : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                              )}
+                            >
+                              {pet.type === 'LOST' ? 'หาย' : 'พบ'}
+                            </span>
+                          </div>
 
-                      <ChevronRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-                    </Link>
-                  ))}
+                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                            <span className="truncate">{pet.location}</span>
+                            <span className="shrink-0 font-bold text-primary">
+                              {pet.distance}
+                            </span>
+                          </div>
+                        </div>
+
+                        <ChevronRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : (
