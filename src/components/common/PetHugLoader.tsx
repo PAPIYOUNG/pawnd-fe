@@ -17,27 +17,26 @@ interface PetHugLoaderProps {
 
 /**
  * PetHugLoader Component (Client Component)
- * - หน้าจอโหลดแอนิเมชัน Lottie ของแท้ "คนกอดน้องหมาน้องแมว (Pet Hug)" จาก LottieFiles
- * - ลบกรอบสี่เหลี่ยมรอบโลโก้ออก 100% ให้เหลือเฉพาะตัวโลโก้โปร่งใส (Transparent PAWND Logo)
- * - ขยายขนาดโลโก้ให้ใหญ่ขึ้นเด่นชัด (size-28 sm:size-36 หรือ 112px - 144px)
- * - ข้อความ "ช่วยน้อง กลับบ้านอย่างปลอดภัย" ดัดโค้งครอบเหนือภาพแอนิเมชันด้วยฟอนต์ Mali
- * - ขยายภาพแอนิเมชันและหลอดโหลด (Loading Bar) ให้สวยงาม สมดุล และลงตัว
- * - รองรับทั้ง Light Mode (พื้นหลังนวลตา #ECF5EE) และ Dark Mode (รัตติกาลลุ่มลึก #071E14)
+ * - หน้าจอโหลดแอนิเมชัน Signature ของ PAWND (Brand Signature Splash Screen)
+ * - ล็อคธีมสีเอกลักษณ์ประจำแบรนด์ (Signature Sage Green #ECF5EE) โดยไม่เปลี่ยนตาม Dark Mode เพื่อรักษาความสวยงาม อบอุ่น และเป็นมิตรสูงสุดในทุกสภาวะ
+ * - โลโก้ PAWND ขนาดใหญ่ ไร้กรอบ โปร่งใส 100%
+ * - ข้อความ "ช่วยน้อง กลับบ้านอย่างปลอดภัย" ดัดโค้งครอบเหนือภาพแอนิเมชัน Pet Hug ลายเส้นคมชัด
+ * - หลอดโหลด (Loading Bar) สีเขียวมรกต Gradient ขนาดใหญ่ นุ่มนวล ชัดเจน
  */
 export function PetHugLoader({
   lottieSrc = '/animations/pet-hug.json',
 }: PetHugLoaderProps) {
   return (
     <div
-      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden bg-[#ECF5EE] px-4 transition-colors duration-300 dark:bg-[#071E14]"
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden bg-[#ECF5EE] px-4 select-none"
       aria-label="กำลังโหลดหน้าเว็บ PAWND"
     >
-      {/* 1. วงแสงละมุนด้านหลัง (Soft Ambient Halo) */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-96 rounded-full bg-primary/10 blur-3xl pointer-events-none dark:bg-primary/20" />
+      {/* 1. วงแสงละมุนด้านหลัง (Soft Ambient Glow) */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-96 rounded-full bg-[#10B981]/10 blur-3xl pointer-events-none" />
 
       {/* 2. กล่องรวมโลโก้ ข้อความโค้ง และภาพแอนิเมชัน */}
       <div className={`relative flex flex-col items-center justify-center ${cuteMaliFont.className}`}>
-        {/* โลโก้ PAWND แบบตัดกรอบออก โปร่งใส 100% พร้อมขยายขนาดใหญ่สะใจ (size-28 sm:size-36) */}
+        {/* โลโก้ PAWND ทางการแบบโปร่งใส ไร้กรอบ ขยายขนาดใหญ่โดดเด่น */}
         <div className="relative mb-1 flex items-center justify-center">
           <Image
             src="/logo.png"
@@ -64,7 +63,7 @@ export function PetHugLoader({
               fill="none"
             />
             {/* ข้อความวางตามแนวเส้นโค้ง */}
-            <text className="fill-[#164E36] dark:fill-[#A7F3D0] font-bold text-[18px] sm:text-[20px] tracking-wide">
+            <text className="fill-[#164E36] font-bold text-[18px] sm:text-[20px] tracking-wide">
               <textPath href="#cuteArchPath" startOffset="50%" textAnchor="middle">
                 ช่วยน้อง กลับบ้านอย่างปลอดภัย
               </textPath>
@@ -72,7 +71,7 @@ export function PetHugLoader({
           </svg>
         </div>
 
-        {/* ภาพแอนิเมชัน Lottie Pet Hug (พื้นหลังโปร่งใส 100% ขยายใหญ่ขึ้น) */}
+        {/* ภาพแอนิเมชัน Lottie Pet Hug ลายเส้นต้นฉบับคมชัด น่ารัก อบอุ่น มีชีวิตชีวา */}
         <div className="relative flex size-64 sm:size-80 items-center justify-center">
           <DotLottieReact
             src={lottieSrc}
@@ -85,8 +84,8 @@ export function PetHugLoader({
 
       {/* 3. หลอดโหลดด้านล่าง (Enlarged Loading Progress Bar) */}
       <div className="mt-4 flex flex-col items-center">
-        <div className="h-3 sm:h-3.5 w-64 sm:w-80 max-w-xs overflow-hidden rounded-full bg-[#164E36]/20 p-0.5 shadow-inner dark:bg-white/20">
-          <div className="h-full w-full rounded-full bg-gradient-to-r from-[#10B981] via-[#059669] to-[#047857] shadow-xs animate-[loadingBar_2s_ease-in-out_infinite] dark:from-[#34D399] dark:to-[#10B981]" />
+        <div className="h-3 sm:h-3.5 w-64 sm:w-80 max-w-xs overflow-hidden rounded-full bg-[#164E36]/15 p-0.5 shadow-inner">
+          <div className="h-full w-full rounded-full bg-gradient-to-r from-[#10B981] via-[#059669] to-[#047857] shadow-xs animate-[loadingBar_2s_ease-in-out_infinite]" />
         </div>
       </div>
 
