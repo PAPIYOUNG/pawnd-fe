@@ -52,9 +52,23 @@ export async function apiFetch<T>(
     return undefined as T;
   }
 
+  let parsed: unknown;
   try {
-    return JSON.parse(text) as T;
+    parsed = JSON.parse(text);
   } catch {
     return text as T;
   }
+
+  // backend ห่อทุก response สำเร็จด้วย { success, data, timestamp, path }
+  // ผ่าน global TransformInterceptor — unwrap .data ให้ทุกจุดที่เรียก apiFetch อัตโนมัติ
+  if (
+    parsed !== null &&
+    typeof parsed === 'object' &&
+    'success' in parsed &&
+    'data' in parsed
+  ) {
+    return (parsed as { data: T }).data;
+  }
+
+  return parsed as T;
 }
