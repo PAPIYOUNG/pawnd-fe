@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, type ComponentType } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -16,10 +16,6 @@ import {
 import { buttonVariants } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-
-// โหลดคอมโพเนนต์แผนที่แบบ Native React.lazy + Suspense สำหรับ React 19 เพื่อป้องกัน React DevTools Hook Error
-const RealLeafletMap = lazy(() => import('@/components/map/RealLeafletMap'));
-const GoogleMapsEmbed = lazy(() => import('@/components/map/GoogleMapsEmbed'));
 
 // ข้อมูลจำลองรายการสัตว์เลี้ยงหายและพบในระยะใกล้เคียงครบทั้ง 6 รายการ (6 Nearby Pet Cases)
 const NEARBY_PET_CASES = [
@@ -85,16 +81,21 @@ const NEARBY_PET_CASES = [
   },
 ];
 
+interface MapComponentProps {
+  heightClass?: string;
+}
+
 /**
  * MapTeaserSection Component (Client Component)
  * - ส่วนแสดงแผนที่จริงของประเทศไทย (Interactive Real Map Teaser)
- * - ออกแบบสัดส่วนการ์ดให้พอดีกับหน้าจอมือถือ ไม่ล้นขอบ ไม่ถูกตัดขาด และรูดเลื่อนได้อย่างสมบูรณ์แบบ
- * - แก้ไขปัญหา Leaflet ขัดขวางการเลื่อนนิ้วบนหน้าจอมือถือ (Mobile Touch Scroll Propagation)
- * - มีฟังก์ชัน "ย่อ-ขยายการ์ด (Collapse / Expand)" สลับเป็นปุ่มเล็กเมื่อต้องการดูแผนที่เต็มตา
+ * - โหลดคอมโพเนนต์แผนที่ผ่าน Client State Loader ป้องกัน React DevTools Suspense Cleanup Error อย่างเด็ดขาด 100%
+ * - สัดส่วนการ์ดพอดีกับหน้าจอมือถือ ไม่ล้นขอบ ไม่ถูกตัดขาด และรูดเลื่อนได้อย่างสมบูรณ์แบบ
+ * - ผูก L.DomEvent.disableScrollPropagation ป้องกัน Leaflet แย่ง Touch Events บนมือถือ
  */
 export function MapTeaserSection() {
-  // State ตรวจสอบการ Mount ฝั่ง Client
-  const [isMounted, setIsMounted] = useState(false);
+  // State เก็บ Component แผนที่เมื่อโหลดสำเร็จฝั่ง Client (ป้องกัน Suspense Conflict กับ Next.js Loading Boundary)
+  const [LeafletMap, setLeafletMap] = useState<ComponentType<MapComponentProps> | null>(null);
+  const [GoogleMap, setGoogleMap] = useState<ComponentType<MapComponentProps> | null>(null);
 
   // State สลับผู้ให้บริการแผนที่: 'leaflet' (OpenStreetMap) หรือ 'google' (Google Maps)
   const [mapProvider, setMapProvider] = useState<'leaflet' | 'google'>('leaflet');
@@ -104,8 +105,14 @@ export function MapTeaserSection() {
 
   const scrollListRef = useRef<HTMLDivElement>(null);
 
+  // โหลด Module แผนที่ฝั่ง Client โดยตรง
   useEffect(() => {
-    setIsMounted(true);
+    import('@/components/map/RealLeafletMap').then((mod) => {
+      setLeafletMap(() => mod.default);
+    });
+    import('@/components/map/GoogleMapsEmbed').then((mod) => {
+      setGoogleMap(() => mod.default);
+    });
   }, []);
 
   // จัดการ Leaflet DomEvent ป้องกันการแทรกแซง Touch Gesture บนหน้าจอมือถือ
@@ -113,14 +120,13 @@ export function MapTeaserSection() {
     const scrollEl = scrollListRef.current;
     if (!scrollEl) return;
 
-    // นำเข้า Leaflet แบบ dynamic เพื่อเข้าถึง L.DomEvent
     import('leaflet').then((L) => {
       if (scrollEl) {
         L.DomEvent.disableScrollPropagation(scrollEl);
         L.DomEvent.disableClickPropagation(scrollEl);
       }
     });
-  }, [isPanelExpanded, isMounted]);
+  }, [isPanelExpanded, LeafletMap]);
 
   return (
     <section className="w-full py-12 sm:py-16">
@@ -135,11 +141,13 @@ export function MapTeaserSection() {
           </p>
         </div>
 
-        {/* 2. กรอบแสดงแผนที่จริง (Real Map Container - เพิ่มความสูงบนมือถือเป็น 480px เพื่อให้มีพื้นที่เหลือเฟือ) */}
+        {/* 2. กรอบแสดงแผนที่จริง (Real Map Container) */}
         <div className="relative mt-8 overflow-hidden rounded-3xl border border-border/80 bg-card shadow-md dark:border-border/60">
-          {/* เรนเดอร์แผนที่ด้วย Suspense Boundary */}
-          <Suspense
-            fallback={
+          {/* เรนเดอร์แผนที่ตาม Provider ที่เลือก */}
+          {mapProvider === 'leaflet' ? (
+            LeafletMap ? (
+              <LeafletMap heightClass="h-[480px] sm:h-[540px]" />
+            ) : (
               <div className="flex h-[480px] w-full items-center justify-center rounded-3xl bg-muted/60 sm:h-[540px]">
                 <div className="flex flex-col items-center gap-3">
                   <Skeleton className="size-12 rounded-full" />
@@ -148,22 +156,16 @@ export function MapTeaserSection() {
                   </span>
                 </div>
               </div>
-            }
-          >
-            {isMounted ? (
-              mapProvider === 'leaflet' ? (
-                <RealLeafletMap heightClass="h-[480px] sm:h-[540px]" />
-              ) : (
-                <GoogleMapsEmbed heightClass="h-[480px] sm:h-[540px]" />
-              )
-            ) : (
-              <div className="flex h-[480px] w-full items-center justify-center rounded-3xl bg-muted/60 sm:h-[540px]">
-                <span className="text-sm font-medium text-muted-foreground">
-                  กำลังเตรียมแผนที่...
-                </span>
-              </div>
-            )}
-          </Suspense>
+            )
+          ) : GoogleMap ? (
+            <GoogleMap heightClass="h-[480px] sm:h-[540px]" />
+          ) : (
+            <div className="flex h-[480px] w-full items-center justify-center rounded-3xl bg-muted/60 sm:h-[540px]">
+              <span className="text-sm font-medium text-muted-foreground">
+                กำลังโหลด Google Maps...
+              </span>
+            </div>
+          )}
 
           {/* 3. การ์ดข้อมูลลอยตัวพร้อมฟังก์ชัน "ย่อ-ขยายได้ (Collapsible Nearby Panel)"
               วางไว้ที่ top-14 left-3 (มือถือ) / top-20 left-6 (เดสก์ท็อป) ไม่บังปุ่มซูมมุมบนซ้าย */}

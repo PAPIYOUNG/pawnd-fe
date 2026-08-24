@@ -9,6 +9,12 @@ interface ThemeToggleProps {
   showLabel?: boolean;
 }
 
+/**
+ * ThemeToggle Component (Client Component)
+ * - ปุ่มสลับโหมดมืด/โหมดสว่าง (Dark Mode / Light Mode)
+ * - ใช้ CSS-driven Transitions (dark:* classes) ป้องกันปัญหา Hydration Mismatch ระหว่าง Server และ Client
+ * - Touch target ขนาดอย่างน้อย 40x40px ตามมาตรฐาน Accessibility ของโปรเจกต์
+ */
 export function ThemeToggle({ className, showLabel = false }: ThemeToggleProps) {
   const { resolvedTheme, toggleTheme } = useTheme();
 
@@ -24,23 +30,13 @@ export function ThemeToggle({ className, showLabel = false }: ThemeToggleProps) 
       )}
     >
       <div className="relative flex size-5 items-center justify-center">
-        {/* Sun Icon for Light Mode */}
+        {/* Sun Icon for Light Mode (CSS-driven เพื่อป้องกัน Server/Client Hydration Mismatch) */}
         <Sun
-          className={cn(
-            'size-5 transition-all duration-300',
-            resolvedTheme === 'dark'
-              ? 'scale-0 rotate-90 opacity-0'
-              : 'scale-100 rotate-0 opacity-100 text-amber-500'
-          )}
+          className="size-5 transition-all duration-300 text-amber-500 scale-100 rotate-0 opacity-100 dark:scale-0 dark:rotate-90 dark:opacity-0"
         />
-        {/* Moon Icon for Dark Mode */}
+        {/* Moon Icon for Dark Mode (CSS-driven เพื่อป้องกัน Server/Client Hydration Mismatch) */}
         <Moon
-          className={cn(
-            'absolute size-5 transition-all duration-300',
-            resolvedTheme === 'dark'
-              ? 'scale-100 rotate-0 opacity-100 text-emerald-400'
-              : 'scale-0 -rotate-90 opacity-0'
-          )}
+          className="absolute size-5 transition-all duration-300 text-emerald-400 scale-0 -rotate-90 opacity-0 dark:scale-100 dark:rotate-0 dark:opacity-100"
         />
       </div>
 
