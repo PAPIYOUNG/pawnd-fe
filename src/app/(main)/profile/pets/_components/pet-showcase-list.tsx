@@ -40,7 +40,7 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
   };
 
   // จัดการการส่งข้อมูลฟอร์ม (สร้างใหม่ หรือ อัปเดต)
-  const handleSavePet = (data: CreatePetDto) => {
+  const handleSavePet = (data: CreatePetDto & { images?: any[] }) => {
     if (selectedPetForEdit) {
       // แก้ไขสัตว์เลี้ยงเดิม
       setPets((prev) =>
@@ -49,6 +49,8 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
             ? {
                 ...p,
                 ...data,
+                coverImageUrl: data.profileImageUrl || p.coverImageUrl,
+                images: data.images || p.images,
                 updatedAt: new Date().toISOString(),
               }
             : p
@@ -69,9 +71,11 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
         description: data.description || '',
         profileImageUrl: data.profileImageUrl,
         coverImageUrl:
-          data.type === 'DOG'
+          data.profileImageUrl ||
+          (data.type === 'DOG'
             ? 'https://images.unsplash.com/photo-1552053831-71594a27632d?q=80&w=1200&auto=format&fit=crop'
-            : 'https://images.unsplash.com/photo-1513360309081-38f076278f94?q=80&w=1200&auto=format&fit=crop',
+            : 'https://images.unsplash.com/photo-1513360309081-38f076278f94?q=80&w=1200&auto=format&fit=crop'),
+        images: data.images,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         qrCode: {

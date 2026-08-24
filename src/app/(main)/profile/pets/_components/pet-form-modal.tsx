@@ -1,17 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { X, PawPrint, Upload, Image as ImageIcon } from 'lucide-react';
+import { X, PawPrint } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PetProfile, CreatePetDto, PetType, PetGender } from '@/types/pet';
+import { PetProfile, CreatePetDto, PetImage } from '@/types/pet';
+import { PetImageGallery } from './pet-image-gallery';
 
-// Schema ตรวจสอบความถูกต้องของฟอร์มเพิ่ม/แก้ไขสัตว์เลี้ยงด้วย Zod
+// Schema ตรวจสอบความถูกต้องของฟอร์มสัตว์เลี้ยงด้วย Zod
 const petSchema = z.object({
   name: z.string().min(1, 'กรุณากรอกชื่อสัตว์เลี้ยง'),
   type: z.enum(['DOG', 'CAT', 'BIRD', 'HAMSTER', 'EXOTIC', 'OTHER']),
@@ -30,13 +31,17 @@ interface PetFormModalProps {
   isOpen: boolean;
   petToEdit?: PetProfile | null;
   onClose: () => void;
-  onSubmitPet: (data: CreatePetDto) => void;
+  onSubmitPet: (data: CreatePetDto & { images?: PetImage[] }) => void;
 }
 
 /**
  * PetFormModal Component (Client Component)
  * - Modal ฟอร์มสำหรับเพิ่มสัตว์เลี้ยงใหม่ หรือแก้ไขข้อมูลสัตว์เลี้ยงเดิม
- * - รองรับ Validation ด้วย React Hook Form + Zod Schema ตรงตาม AGENTS.md
+ * - รองรับระบบแกลเลอรีรูปภาพตามกฎของ Backend:
+ *   1. อัปโหลดรูปภาพได้สูงสุด 3 รูป (Max 3 Images per Pet)
+ *   2. กำหนดรูปภาพโปรไฟล์หลัก (Set Profile Image)
+ *   3. ลบรูปภาพเดี่ยวได้ (Delete Image)
+ *   4. รองรับไฟล์ภาพ JPEG, PNG, WEBP ขนาดไม่เกิน 5MB
  */
 export function PetFormModal({
   isOpen,
@@ -46,36 +51,150 @@ export function PetFormModal({
 }: PetFormModalProps) {
   const isEditing = !!petToEdit;
 
+  // State จัดการรูปภาพสัตว์เลี้ยงในฟอร์ม (จำลอง Image List)
+  const [petImages, setPetImages] = useState<PetImage[]>([]);
+  const [mainProfileImageUrl, setMainProfileImageUrl] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
     reset,
+    setValue,
   } = useForm<PetFormData>({
     resolver: zodResolver(petSchema),
     defaultValues: {
-      name: petToEdit?.name || '',
-      type: petToEdit?.type || 'CAT',
-      breed: petToEdit?.breed || '',
-      gender: petToEdit?.gender || 'FEMALE',
-      color: petToEdit?.color || '',
-      age: petToEdit?.age || 1,
-      distinctiveFeatures: petToEdit?.distinctiveFeatures || '',
-      description: petToEdit?.description || '',
-      profileImageUrl: petToEdit?.profileImageUrl || '',
+      name: '',
+      type: 'CAT',
+      breed: '',
+      gender: 'FEMALE',
+      color: '',
+      age: 1,
+      distinctiveFeatures: '',
+      description: '',
+      profileImageUrl: '',
     },
   });
 
+  // อัปเดตข้อมูลเมื่อเปิด Modal ขึ้นมาแก้ไข
+  useEffect(() => {
+    if (isOpen) {
+      if (petToEdit) {
+        reset({
+          name: petToEdit.name,
+          type: petToEdit.type,
+          breed: petToEdit.breed || '',
+          gender: petToEdit.gender || 'FEMALE',
+          color: petToEdit.color || '',
+          age: petToEdit.age ?? 1,
+          distinctiveFeatures: petToEdit.distinctiveFeatures || '',
+          description: petToEdit.description || '',
+          profileImageUrl: petToEdit.profileImageUrl || '',
+        });
+
+        const initialImgs: PetImage[] = petToEdit.images || [
+          {
+            id: `img-1-${petToEdit.id}`,
+            petId: petToEdit.id,
+            imageUrl:
+              petToEdit.profileImageUrl ||
+              'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=400&auto=format&fit=crop',
+            isProfile: true,
+            sortOrder: 0,
+            createdAt: new Date().toISOString(),
+          },
+        ];
+        setPetImages(initialImgs);
+        setMainProfileImageUrl(petToEdit.profileImageUrl || initialImgs[0]?.imageUrl || null);
+      } else {
+        reset({
+          name: '',
+          type: 'CAT',
+          breed: '',
+          gender: 'FEMALE',
+          color: '',
+          age: 1,
+          distinctiveFeatures: '',
+          description: '',
+          profileImageUrl: '',
+        });
+        setPetImages([]);
+        setMainProfileImageUrl(null);
+      }
+    }
+  }, [isOpen, petToEdit, reset]);
+
   if (!isOpen) return null;
 
+  // จัดการเมื่อมีการเลือกไฟล์รูปภาพใหม่
+  const handleUploadImages = (files: FileList) => {
+    const newImgs: PetImage[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const fakeUrl = URL.createObjectURL(file);
+      const isFirst = petImages.length === 0 && i === 0;
+
+      newImgs.push({
+        id: `img-new-${Date.now()}-${i}`,
+        petId: petToEdit?.id || 'temp',
+        imageUrl: fakeUrl,
+        isProfile: isFirst,
+        sortOrder: petImages.length + i,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    const updated = [...petImages, ...newImgs].slice(0, 3);
+    setPetImages(updated);
+
+    if (!mainProfileImageUrl && updated.length > 0) {
+      setMainProfileImageUrl(updated[0].imageUrl);
+      setValue('profileImageUrl', updated[0].imageUrl);
+    }
+  };
+
+  // กำหนดรูปภาพโปรไฟล์หลัก
+  const handleSetProfileImage = (imageId: string) => {
+    const target = petImages.find((img) => img.id === imageId);
+    if (!target) return;
+
+    setPetImages((prev) =>
+      prev.map((img) => ({
+        ...img,
+        isProfile: img.id === imageId,
+      }))
+    );
+    setMainProfileImageUrl(target.imageUrl);
+    setValue('profileImageUrl', target.imageUrl);
+  };
+
+  // ลบรูปภาพออกจากแกลเลอรี
+  const handleDeleteImage = (imageId: string) => {
+    const remaining = petImages.filter((img) => img.id !== imageId);
+    setPetImages(remaining);
+
+    // ถ้าลบรูปหลัก ให้เลื่อนรูปแรกที่เหลือเป็นรูปหลักแทนตามกฎของ Backend
+    if (remaining.length > 0) {
+      remaining[0].isProfile = true;
+      setMainProfileImageUrl(remaining[0].imageUrl);
+      setValue('profileImageUrl', remaining[0].imageUrl);
+    } else {
+      setMainProfileImageUrl(null);
+      setValue('profileImageUrl', '');
+    }
+  };
+
   const handleFormSubmit = (data: PetFormData) => {
+    const finalProfileImage =
+      mainProfileImageUrl ||
+      (data.type === 'DOG'
+        ? 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?q=80&w=400&auto=format&fit=crop'
+        : 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=400&auto=format&fit=crop');
+
     onSubmitPet({
       ...data,
-      profileImageUrl:
-        data.profileImageUrl ||
-        (data.type === 'DOG'
-          ? 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?q=80&w=400&auto=format&fit=crop'
-          : 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=400&auto=format&fit=crop'),
+      profileImageUrl: finalProfileImage,
+      images: petImages.length > 0 ? petImages : undefined,
     });
     reset();
     onClose();
@@ -87,7 +206,7 @@ export function PetFormModal({
       onClick={onClose}
     >
       <div
-        className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-border/80 bg-card p-6 shadow-2xl transition-all sm:p-7 dark:border-border"
+        className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-border/80 bg-card p-5 shadow-2xl transition-all sm:p-7 dark:border-border"
         onClick={(e) => e.stopPropagation()}
       >
         {/* ปุ่มปิด Modal */}
@@ -109,14 +228,26 @@ export function PetFormModal({
               {isEditing ? 'แก้ไขข้อมูลสัตว์เลี้ยง' : 'เพิ่มสัตว์เลี้ยงใหม่'}
             </h3>
             <p className="text-xs text-muted-foreground">
-              กรอกข้อมูลเพื่อสร้างโปรไฟล์และระบบ Smart QR Code
+              กรอกข้อมูลและอัปโหลดรูปภาพเพื่อสร้าง Smart QR Code
             </p>
           </div>
         </div>
 
         {/* ฟอร์มกรอกข้อมูล */}
         <form onSubmit={handleSubmit(handleFormSubmit)} className="mt-6 flex flex-col gap-4">
-          {/* ชื่อสัตว์เลี้ยง */}
+          {/* 1. ส่วนแกลเลอรีจัดการรูปภาพ (สูงสุด 3 รูปตามกฎ Backend) */}
+          <div className="rounded-2xl border border-border/60 bg-muted/20 p-3.5">
+            <PetImageGallery
+              images={petImages}
+              profileImageUrl={mainProfileImageUrl}
+              maxImages={3}
+              onUploadImages={handleUploadImages}
+              onSetProfileImage={handleSetProfileImage}
+              onDeleteImage={handleDeleteImage}
+            />
+          </div>
+
+          {/* 2. ชื่อสัตว์เลี้ยง */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="name" className="text-xs font-semibold">
               ชื่อสัตว์เลี้ยง <span className="text-destructive">*</span>
@@ -132,7 +263,7 @@ export function PetFormModal({
             )}
           </div>
 
-          {/* ประเภทและเพศ */}
+          {/* 3. ประเภทและเพศ */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="type" className="text-xs font-semibold">
@@ -168,7 +299,7 @@ export function PetFormModal({
             </div>
           </div>
 
-          {/* สายพันธุ์และสีขน */}
+          {/* 4. สายพันธุ์และสีขน */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="breed" className="text-xs font-semibold">
@@ -195,7 +326,7 @@ export function PetFormModal({
             </div>
           </div>
 
-          {/* อายุ */}
+          {/* 5. อายุ */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="age" className="text-xs font-semibold">
               อายุ (ปี)
@@ -210,7 +341,7 @@ export function PetFormModal({
             />
           </div>
 
-          {/* ลักษณะเด่น */}
+          {/* 6. ลักษณะเด่น */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="distinctiveFeatures" className="text-xs font-semibold">
               ลักษณะเด่น / จุดสังเกต
@@ -223,7 +354,7 @@ export function PetFormModal({
             />
           </div>
 
-          {/* ปุ่ม Submit */}
+          {/* 7. ปุ่ม Submit */}
           <div className="mt-4 flex gap-3">
             <Button
               type="button"
