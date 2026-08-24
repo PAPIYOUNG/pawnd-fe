@@ -102,11 +102,11 @@ export default function Header({
                 <span className="absolute top-2.5 right-2.5 size-2 rounded-full bg-destructive ring-2 ring-background" />
               </button>
 
-              {/* รูปโปรไฟล์ Avatar ของผู้ใช้งาน */}
+              {/* รูปโปรไฟล์ Avatar ของผู้ใช้งาน (คลิกเพื่อเข้าสู่ระบบโปรไฟล์และจัดการสัตว์เลี้ยง) */}
               <Link
-                href="/profile"
-                className="relative size-10 min-h-[40px] min-w-[40px] overflow-hidden rounded-full ring-2 ring-border transition-transform hover:scale-105"
-                title={userName}
+                href="/profile/pets"
+                className="relative size-10 min-h-[40px] min-w-[40px] overflow-hidden rounded-full ring-2 ring-border transition-transform hover:scale-105 active:scale-95"
+                title={`${userName} (โปรไฟล์สัตว์เลี้ยง)`}
               >
                 <Image
                   src={userAvatar}
