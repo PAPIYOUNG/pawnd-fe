@@ -292,9 +292,6 @@ export async function getReunitedStories(limit = 3): Promise<ReunitedStory[]> {
  * - จำลอง Delay 3 วินาทีเพื่อแสดง Skeleton Loading State ตามความต้องการของผู้ใช้
  */
 export async function getHomePageData(): Promise<HomePageData> {
-  // จำลอง Loading Delay 3 วินาทีสำหรับแสดง Skeleton UI
-  await new Promise((resolve) => setTimeout(resolve, 3000));
-
   const [stats, latestPosts, reunitedStories] = await Promise.all([
     getHomeStats(),
     getLatestPosts(8),
