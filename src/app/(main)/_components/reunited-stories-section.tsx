@@ -9,11 +9,17 @@ interface ReunitedStoriesSectionProps {
   stories: ReunitedStory[];
 }
 
+/**
+ * ReunitedStoriesSection Component
+ * - ส่วนแสดงเรื่องราวความสำเร็จในการช่วยเหลือและพาสัตว์เลี้ยงกลับบ้าน (Reunited Success Stories)
+ * - แสดงภาพถ่ายจริงของสัตว์เลี้ยงคู่กับเจ้าของ พร้อมข้อความรีวิว/ความประทับใจ
+ * - รองรับ Dark Mode และ Responsive Grid (1 คอลัมน์บนมือถือ, 3 คอลัมน์บนจอแท็บเล็ต/เดสก์ท็อป)
+ */
 export function ReunitedStoriesSection({ stories }: ReunitedStoriesSectionProps) {
   return (
     <section className="w-full bg-[#ECF5EE] py-12 transition-colors duration-300 sm:py-16 dark:bg-[#071E14]/70">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Section Header */}
+        {/* หัวข้อประจำ Section */}
         <div className="text-center">
           <h2 className="text-2xl font-bold tracking-tight text-[#164E36] sm:text-3xl dark:text-[#6EE7B7]">
             เรื่องราวความสำเร็จพากลับบ้าน
@@ -23,7 +29,7 @@ export function ReunitedStoriesSection({ stories }: ReunitedStoriesSectionProps)
           </p>
         </div>
 
-        {/* Stories Grid */}
+        {/* Stories Grid: วนลูปแสดงการ์ดความสำเร็จ 3 รายการ */}
         <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
           {stories.map((story) => (
             <Card
@@ -31,7 +37,7 @@ export function ReunitedStoriesSection({ stories }: ReunitedStoriesSectionProps)
               className="flex flex-col justify-between overflow-hidden rounded-3xl border border-white/80 bg-white shadow-xs transition-all duration-300 hover:-translate-y-1 hover:shadow-md dark:border-border/60 dark:bg-card"
             >
               <div>
-                {/* Photo of owner + pet */}
+                {/* ภาพถ่ายคู่ระหว่างเจ้าของและสัตว์เลี้ยง */}
                 <div className="relative aspect-[16/10] w-full overflow-hidden bg-muted">
                   <Image
                     src={story.coverImageUrl}
@@ -42,7 +48,7 @@ export function ReunitedStoriesSection({ stories }: ReunitedStoriesSectionProps)
                   />
                 </div>
 
-                {/* Story details */}
+                {/* รายละเอียดเรื่องราว: ชื่อสัตว์เลี้ยง, ชื่อเจ้าของ และข้อความคำบอกเล่า */}
                 <div className="p-5">
                   <h3 className="text-base font-bold text-foreground">
                     {story.petName} และ {story.ownerName}
@@ -53,7 +59,7 @@ export function ReunitedStoriesSection({ stories }: ReunitedStoriesSectionProps)
                 </div>
               </div>
 
-              {/* Read more link */}
+              {/* ลิงก์สำหรับกดเข้าไปอ่านเรื่องราวฉบับเต็ม */}
               <div className="p-5 pt-0">
                 <Link
                   href={story.detailUrl || `/posts/${story.id}`}
