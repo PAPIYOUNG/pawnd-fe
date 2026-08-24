@@ -16,6 +16,9 @@ interface HeaderProps {
   userAvatar?: string;
 }
 
+/**
+ * รายการลิงก์เมนูนำทางหลักของเว็บไซต์ (Main Navigation Links)
+ */
 const NAV_LINKS = [
   { href: '/', label: 'หน้าแรก' },
   { href: '/posts', label: 'ประกาศ' },
@@ -24,18 +27,27 @@ const NAV_LINKS = [
   { href: '/chat', label: 'แชท' },
 ];
 
+/**
+ * Header Component (Client Component)
+ * - แถบส่วนหัวด้านบนแบบ Sticky Navigation (ติดอยู่ด้านบนเสมอขณะเลื่อนหน้าจอ)
+ * - ฝั่งซ้าย: โลโก้แบรนด์ Pawnd
+ * - ตรงกลาง: ลิงก์เมนูนำทางหลักบน Desktop (แสดงสถานะ Active Link ตาม pathname)
+ * - ฝั่งขวา: ปุ่มสลับธีม (ThemeToggle), กระดิ่งแจ้งเตือน (Notification), รูปโปรไฟล์ผู้ใช้ และปุ่ม "+ แจ้งสัตว์เลี้ยงหาย"
+ * - รองรับ Mobile Drawer Menu และ Touch Target ขนาด >= 40x40px ตามมาตรฐาน Mobile-First
+ */
 export default function Header({
   isLoggedIn = true,
   userName = 'ผู้ใช้งาน',
   userAvatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop',
 }: HeaderProps) {
   const pathname = usePathname();
+  // State สำหรับเปิด/ปิดเมนู Drawer บนมือถือ
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Left: Brand Logo */}
+        {/* 1. โลโก้และชื่อแบรนด์ Pawnd ทางซ้าย */}
         <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">
           <Image
             src="/logo.png"
@@ -49,7 +61,7 @@ export default function Header({
           </span>
         </Link>
 
-        {/* Center: Desktop Navigation Links */}
+        {/* 2. เมนูนำทางบนหน้าจอ Desktop (กึ่งกลาง) */}
         <nav className="hidden md:flex items-center gap-7">
           {NAV_LINKS.map((link) => {
             const isActive =
@@ -73,14 +85,14 @@ export default function Header({
           })}
         </nav>
 
-        {/* Right: Actions, ThemeToggle & User Session */}
+        {/* 3. ส่วนเครื่องมือและข้อมูลผู้ใช้บน Desktop (ทางขวา) */}
         <div className="hidden sm:flex items-center gap-2.5">
-          {/* Dark / Light Theme Toggle Button */}
+          {/* ปุ่มสลับโหมดมืด / โหมดสว่าง (Dark / Light Theme Toggle) */}
           <ThemeToggle />
 
           {isLoggedIn ? (
             <>
-              {/* Notification Bell */}
+              {/* ปุ่มกระดิ่งแจ้งเตือนพร้อมจุดสีแดง (Notification Bell) */}
               <button
                 type="button"
                 aria-label="การแจ้งเตือน"
@@ -90,7 +102,7 @@ export default function Header({
                 <span className="absolute top-2.5 right-2.5 size-2 rounded-full bg-destructive ring-2 ring-background" />
               </button>
 
-              {/* User Profile Avatar */}
+              {/* รูปโปรไฟล์ Avatar ของผู้ใช้งาน */}
               <Link
                 href="/profile"
                 className="relative size-10 min-h-[40px] min-w-[40px] overflow-hidden rounded-full ring-2 ring-border transition-transform hover:scale-105"
@@ -104,7 +116,7 @@ export default function Header({
                 />
               </Link>
 
-              {/* + แจ้งสัตว์เลี้ยงหาย CTA */}
+              {/* ปุ่ม CTA: แจ้งสัตว์เลี้ยงหาย */}
               <Link
                 href="/posts/create?type=LOST"
                 className={cn(
@@ -117,6 +129,7 @@ export default function Header({
               </Link>
             </>
           ) : (
+            /* กรณี Guest ยังไม่ได้เข้าสู่ระบบ */
             <div className="flex items-center gap-2">
               <Link
                 href="/login"
@@ -140,7 +153,7 @@ export default function Header({
           )}
         </div>
 
-        {/* Mobile Right Bar (ThemeToggle + Hamburger Button) */}
+        {/* 4. แถบเครื่องมือบนมือถือ (ปุ่มสลับธีม + ปุ่มเปิดเมนู Hamburger) */}
         <div className="flex sm:hidden items-center gap-1.5">
           <ThemeToggle />
           <button
@@ -154,7 +167,7 @@ export default function Header({
         </div>
       </div>
 
-      {/* Mobile Drawer Menu */}
+      {/* 5. เมนู Drawer สำหรับหน้าจอมือถือ (เปิดขึ้นเมื่อกดปุ่ม Hamburger) */}
       {mobileMenuOpen && (
         <div className="border-b border-border bg-background px-4 py-4 sm:hidden">
           <nav className="flex flex-col gap-2">
@@ -172,7 +185,7 @@ export default function Header({
               </Link>
             ))}
 
-            {/* Mobile Theme Toggle Row */}
+            {/* แถวสลับธีมบนมือถือ */}
             <div className="flex items-center justify-between border-t border-border pt-3">
               <span className="text-sm font-medium text-muted-foreground">
                 ธีมการแสดงผล
@@ -180,7 +193,7 @@ export default function Header({
               <ThemeToggle showLabel={true} />
             </div>
 
-            {/* Mobile CTA */}
+            {/* ปุ่ม CTA แจ้งสัตว์หายบนมือถือ */}
             <div className="pt-2">
               <Link
                 href="/posts/create?type=LOST"
