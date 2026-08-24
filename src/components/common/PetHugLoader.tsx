@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { Mali } from 'next/font/google';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
@@ -17,8 +18,9 @@ interface PetHugLoaderProps {
 /**
  * PetHugLoader Component (Client Component)
  * - หน้าจอโหลดแอนิเมชัน Lottie ของแท้ "คนกอดน้องหมาน้องแมว (Pet Hug)" จาก LottieFiles
- * - ปรับตำแหน่งข้อความ: วางชื่อแบรนด์ "Pawnd" ตัวโตน่ารักไว้ด้านบนสุดตรงกลาง และดัดโค้งข้อความ "ช่วยน้อง กลับบ้านอย่างปลอดภัย" ครอบเหนือภาพ
- * - ขยายขนาดหลอดโหลด (Loading Bar) ให้ใหญ่ขึ้น หนาขึ้น ชัดเจนขึ้น 3-4 เท่า
+ * - ขยายขนาดโลโก้ PAWND (logo.png) ให้ใหญ่ขึ้นอย่างสมดุล (size-24 sm:size-28) โดดเด่น ชัดเจน มีมิติ
+ * - ข้อความ "ช่วยน้อง กลับบ้านอย่างปลอดภัย" ดัดโค้งครอบเหนือภาพแอนิเมชันด้วยฟอนต์ Mali
+ * - หลอดโหลด (Loading Bar) ขนาดใหญ่ หนา นุ่มนวล ชัดเจน
  * - รองรับทั้ง Light Mode (พื้นหลังนวลตา #ECF5EE) และ Dark Mode (รัตติกาลลุ่มลึก #071E14)
  */
 export function PetHugLoader({
@@ -32,12 +34,19 @@ export function PetHugLoader({
       {/* 1. วงแสงละมุนด้านหลัง (Soft Ambient Halo) */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-80 rounded-full bg-primary/10 blur-3xl pointer-events-none dark:bg-primary/20" />
 
-      {/* 2. กล่องรวมภาพและข้อความด้านบน */}
+      {/* 2. กล่องรวมโลโก้ ข้อความโค้ง และภาพแอนิเมชัน */}
       <div className={`relative flex flex-col items-center justify-center ${cuteMaliFont.className}`}>
-        {/* ชื่อแบรนด์ Pawnd เด่นๆ อยู่ด้านบนสุดตรงกลาง */}
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-wide text-[#164E36] drop-shadow-xs dark:text-[#34D399]">
-          Pawnd
-        </h1>
+        {/* โลโก้ PAWND ขยายขนาดใหญ่ โดดเด่น สมดุลกับภาพรวม (Enlarged Logo) */}
+        <div className="relative mb-2 flex items-center justify-center">
+          <Image
+            src="/logo.png"
+            alt="PAWND Logo"
+            width={120}
+            height={120}
+            className="size-24 sm:size-28 rounded-3xl object-contain drop-shadow-md transition-transform duration-300 hover:scale-105"
+            priority
+          />
+        </div>
 
         {/* ข้อความดัดโค้งครอบภาพแอนิเมชัน (Curved Subtitle Text) */}
         <div className="relative z-10 -mt-1 -mb-6 flex justify-center">
@@ -73,7 +82,7 @@ export function PetHugLoader({
         </div>
       </div>
 
-      {/* 3. หลอดโหลดด้านล่าง (Enlarged Loading Progress Bar - ขยายใหญ่ขึ้น 3-4 เท่า) */}
+      {/* 3. หลอดโหลดด้านล่าง (Enlarged Loading Progress Bar) */}
       <div className="mt-4 flex flex-col items-center">
         <div className="h-3 sm:h-3.5 w-64 sm:w-80 max-w-xs overflow-hidden rounded-full bg-[#164E36]/20 p-0.5 shadow-inner dark:bg-white/20">
           <div className="h-full w-full rounded-full bg-gradient-to-r from-[#10B981] via-[#059669] to-[#047857] shadow-xs animate-[loadingBar_2s_ease-in-out_infinite] dark:from-[#34D399] dark:to-[#10B981]" />
