@@ -18,9 +18,10 @@ interface PetHugLoaderProps {
 /**
  * PetHugLoader Component (Client Component)
  * - หน้าจอโหลดแอนิเมชัน Lottie ของแท้ "คนกอดน้องหมาน้องแมว (Pet Hug)" จาก LottieFiles
- * - ขยายขนาดโลโก้ PAWND (logo.png) ให้ใหญ่ขึ้นอย่างสมดุล (size-24 sm:size-28) โดดเด่น ชัดเจน มีมิติ
+ * - ลบกรอบสี่เหลี่ยมรอบโลโก้ออก 100% ให้เหลือเฉพาะตัวโลโก้โปร่งใส (Transparent PAWND Logo)
+ * - ขยายขนาดโลโก้ให้ใหญ่ขึ้นเด่นชัด (size-28 sm:size-36 หรือ 112px - 144px)
  * - ข้อความ "ช่วยน้อง กลับบ้านอย่างปลอดภัย" ดัดโค้งครอบเหนือภาพแอนิเมชันด้วยฟอนต์ Mali
- * - หลอดโหลด (Loading Bar) ขนาดใหญ่ หนา นุ่มนวล ชัดเจน
+ * - ขยายภาพแอนิเมชันและหลอดโหลด (Loading Bar) ให้สวยงาม สมดุล และลงตัว
  * - รองรับทั้ง Light Mode (พื้นหลังนวลตา #ECF5EE) และ Dark Mode (รัตติกาลลุ่มลึก #071E14)
  */
 export function PetHugLoader({
@@ -32,18 +33,18 @@ export function PetHugLoader({
       aria-label="กำลังโหลดหน้าเว็บ PAWND"
     >
       {/* 1. วงแสงละมุนด้านหลัง (Soft Ambient Halo) */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-80 rounded-full bg-primary/10 blur-3xl pointer-events-none dark:bg-primary/20" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-96 rounded-full bg-primary/10 blur-3xl pointer-events-none dark:bg-primary/20" />
 
       {/* 2. กล่องรวมโลโก้ ข้อความโค้ง และภาพแอนิเมชัน */}
       <div className={`relative flex flex-col items-center justify-center ${cuteMaliFont.className}`}>
-        {/* โลโก้ PAWND ขยายขนาดใหญ่ โดดเด่น สมดุลกับภาพรวม (Enlarged Logo) */}
-        <div className="relative mb-2 flex items-center justify-center">
+        {/* โลโก้ PAWND แบบตัดกรอบออก โปร่งใส 100% พร้อมขยายขนาดใหญ่สะใจ (size-28 sm:size-36) */}
+        <div className="relative mb-1 flex items-center justify-center">
           <Image
             src="/logo.png"
             alt="PAWND Logo"
-            width={120}
-            height={120}
-            className="size-24 sm:size-28 rounded-3xl object-contain drop-shadow-md transition-transform duration-300 hover:scale-105"
+            width={160}
+            height={160}
+            className="size-28 sm:size-36 object-contain drop-shadow-sm transition-transform duration-300 hover:scale-105"
             priority
           />
         </div>
@@ -51,15 +52,15 @@ export function PetHugLoader({
         {/* ข้อความดัดโค้งครอบภาพแอนิเมชัน (Curved Subtitle Text) */}
         <div className="relative z-10 -mt-1 -mb-6 flex justify-center">
           <svg
-            viewBox="0 0 360 65"
-            className="h-[55px] w-[290px] sm:h-[65px] sm:w-[340px] drop-shadow-xs"
+            viewBox="0 0 380 65"
+            className="h-[55px] w-[300px] sm:h-[65px] sm:w-[360px] drop-shadow-xs"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
           >
             {/* เส้นทางโค้งที่กว้างและสมดุล (Wider Balanced Arc) */}
             <path
               id="cuteArchPath"
-              d="M 15 58 Q 180 8 345 58"
+              d="M 15 58 Q 190 8 365 58"
               fill="none"
             />
             {/* ข้อความวางตามแนวเส้นโค้ง */}
@@ -71,8 +72,8 @@ export function PetHugLoader({
           </svg>
         </div>
 
-        {/* ภาพแอนิเมชัน Lottie Pet Hug (พื้นหลังโปร่งใส 100%) */}
-        <div className="relative flex size-60 sm:size-72 items-center justify-center">
+        {/* ภาพแอนิเมชัน Lottie Pet Hug (พื้นหลังโปร่งใส 100% ขยายใหญ่ขึ้น) */}
+        <div className="relative flex size-64 sm:size-80 items-center justify-center">
           <DotLottieReact
             src={lottieSrc}
             loop
