@@ -1,6 +1,9 @@
 import { authFetch } from '@/lib/api/auth-fetch';
 import {
   DashboardSummary,
+  GetPetByIdResponse,
+  GetPetsParams,
+  GetPetsResponse,
   GetPostByIdResponse,
   GetPostsParams,
   GetPostsResponse,
@@ -83,6 +86,26 @@ export const AdminApi = {
     return await authFetch<UpdatePostStatusResponse>(`/admin/posts/${id}`, {
       method: 'PATCH',
       body: { status },
+    });
+  },
+  // ดึงรายการสัตว์เลี้ยงทั้งหมดในระบบแบบแบ่งหน้า พร้อมรองรับ filter type/search
+  async getPets(params: GetPetsParams = {}) {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', String(params.page));
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.type) query.set('type', params.type);
+    if (params.search) query.set('search', params.search);
+
+    const queryString = query.toString();
+    return await authFetch<GetPetsResponse>(
+      `/admin/pets${queryString ? `?${queryString}` : ''}`,
+      { method: 'GET' },
+    );
+  },
+  // ดึงข้อมูลสัตว์เลี้ยงแบบละเอียด 1 ตัว สำหรับหน้ารายละเอียดสัตว์เลี้ยง
+  async getPetById(id: string) {
+    return await authFetch<GetPetByIdResponse>(`/admin/pets/${id}`, {
+      method: 'GET',
     });
   },
   // สั่งให้ AI ค้นหาคู่จับคู่ใหม่สำหรับประกาศนี้ (re-run matching engine)

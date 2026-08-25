@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   FileWarning,
   LayoutGrid,
+  PawPrint,
   Settings,
   Users,
 } from 'lucide-react';
@@ -14,6 +15,7 @@ import { cn } from '@/lib/utils';
 const NAV_ITEMS = [
   { label: 'จัดการผู้ใช้งาน', href: '/admin/users', icon: Users },
   { label: 'จัดการประกาศสัตว์หาย', href: '/admin/posts', icon: FileWarning },
+  { label: 'จัดการสัตว์เลี้ยง', href: '/admin/pets', icon: PawPrint },
   { label: 'รายงานความไม่เหมาะสม', href: '/admin/reports', icon: FileWarning },
   { label: 'ตั้งค่าระบบ', href: '/admin/settings', icon: Settings },
 ] as const;

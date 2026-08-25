@@ -303,3 +303,75 @@ export interface GetPostByIdResponse {
   post: AdminPostDetail;
   aiMatches: AdminAiMatchItem[];
 }
+
+/**
+ * AdminPetListItem
+ * - ข้อมูลสัตว์เลี้ยง 1 รายการในตาราง "จัดการสัตว์เลี้ยง" ของแอดมิน
+ * - ตรงตาม select fields ของ Backend endpoint `GET /admin/pets`
+ */
+export interface AdminPetListItem {
+  id: string;
+  name: string;
+  type: PetType;
+  breed: string | null;
+  gender: PetGender | null;
+  profileImageUrl: string | null;
+  createdAt: string;
+  owner: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+}
+
+export interface GetPetsResponse {
+  pets: AdminPetListItem[];
+  pagination: PaginationMeta;
+}
+
+export interface GetPetsParams {
+  page?: number;
+  limit?: number;
+  type?: PetType;
+  search?: string;
+}
+
+/**
+ * AdminPetDetail
+ * - ข้อมูลสัตว์เลี้ยงแบบละเอียด 1 ตัว จาก Backend endpoint `GET /admin/pets/:id`
+ */
+export interface AdminPetDetail {
+  id: string;
+  name: string;
+  type: PetType;
+  breed: string | null;
+  gender: PetGender | null;
+  color: string | null;
+  age: number | null;
+  distinctiveFeatures: string | null;
+  description: string | null;
+  profileImageUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  owner: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  images: {
+    id: string;
+    imageUrl: string;
+    isProfile: boolean;
+  }[];
+  qrCode: {
+    id: string;
+    qrToken: string;
+    isActive: boolean;
+  } | null;
+}
+
+export interface GetPetByIdResponse {
+  pet: AdminPetDetail;
+}

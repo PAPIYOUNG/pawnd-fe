@@ -7,6 +7,9 @@ import { ApiError } from '@/lib/api/api-error';
 import { ErrorActionResult } from '@/lib/api/types/action.type';
 import {
   DashboardSummary,
+  GetPetByIdResponse,
+  GetPetsParams,
+  GetPetsResponse,
   GetPostByIdResponse,
   GetPostsParams,
   GetPostsResponse,
@@ -167,6 +170,44 @@ export async function updatePostStatusAction(
     const result = await AdminApi.updatePostStatus(id, status);
     revalidatePath('/admin/posts');
     return result;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: error.statusCode === 404 ? 'NOT_FOUND' : 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// ดึงรายการสัตว์เลี้ยงทั้งหมดสำหรับหน้าจัดการสัตว์เลี้ยง (แบบแบ่งหน้า พร้อม filter)
+// สำเร็จ -> คืนค่า GetPetsResponse, ล้มเหลว -> คืนค่า ErrorActionResult ให้หน้าเพจแสดง Error State
+export async function getPetsAction(
+  params: GetPetsParams = {},
+): Promise<GetPetsResponse | ErrorActionResult> {
+  try {
+    return await AdminApi.getPets(params);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// ดึงข้อมูลสัตว์เลี้ยงแบบละเอียด 1 ตัว สำหรับหน้ารายละเอียดสัตว์เลี้ยง
+// สำเร็จ -> คืนค่า GetPetByIdResponse, ไม่พบสัตว์เลี้ยง -> code 'NOT_FOUND', ล้มเหลวอื่น -> code 'API_ERROR'
+export async function getPetByIdAction(
+  id: string,
+): Promise<GetPetByIdResponse | ErrorActionResult> {
+  try {
+    return await AdminApi.getPetById(id);
   } catch (error) {
     if (error instanceof ApiError) {
       return {
