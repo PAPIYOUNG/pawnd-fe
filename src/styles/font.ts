@@ -1,6 +1,6 @@
-import { Noto_Sans } from 'next/font/google';
+import { Noto_Sans_Thai } from 'next/font/google';
 
-export const notoSans = Noto_Sans({
-  subsets: ['latin'],
+export const notoSans = Noto_Sans_Thai({
+  subsets: ['latin', 'thai'],
   variable: '--font-sans',
 });
