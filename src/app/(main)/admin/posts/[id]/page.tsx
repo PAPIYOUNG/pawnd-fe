@@ -371,11 +371,9 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start justify-between gap-3 text-sm">
-      <span className="shrink-0 text-muted-foreground">{label}</span>
-      <span className="text-right font-medium break-words text-foreground">
-        {value}
-      </span>
+    <div className="flex items-start gap-3 text-sm">
+      <span className="w-44 shrink-0 text-muted-foreground">{label}</span>
+      <span className="font-medium break-words text-foreground">{value}</span>
     </div>
   );
 }
