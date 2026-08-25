@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useCallback, useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
+import Script from 'next/script';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,7 +13,27 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { GoogleIcon, LineIcon } from '@/components/auth/BrandIcons';
 
-import { loginAction, verifyLoginOtpAction } from '../_actions/login.actions';
+import {
+  loginAction,
+  verifyLoginOtpAction,
+  loginWithGoogleAction,
+} from '../_actions/login.actions';
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential: string }) => void;
+          }) => void;
+          prompt: () => void;
+        };
+      };
+    };
+  }
+}
 
 const loginSchema = z.object({
   email: z.string().min(1, 'กรุณากรอกอีเมล').email('รูปแบบอีเมลไม่ถูกต้อง'),
@@ -71,8 +92,12 @@ export function LoginForm() {
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [googleNotice, setGoogleNotice] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  const [googleReady, setGoogleReady] = useState(false);
+  const [isGooglePending, startGoogleTransition] = useTransition();
 
   const {
     register,
@@ -85,6 +110,7 @@ export function LoginForm() {
 
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
+    setGoogleNotice(null);
     const result = await loginAction(values);
 
     if (!result.success) {
@@ -109,6 +135,46 @@ export function LoginForm() {
         setOtpError(result.message);
       }
     });
+  };
+
+  const handleGoogleCredential = useCallback((credential: string) => {
+    setFormError(null);
+    setGoogleNotice(null);
+    startGoogleTransition(async () => {
+      const result = await loginWithGoogleAction(credential);
+
+      if (!result.success) {
+        setFormError(result.message);
+        return;
+      }
+      if ('needsVerification' in result) {
+        setGoogleNotice(result.message);
+        return;
+      }
+      if (result.needsOtp) {
+        setTempToken(result.tempToken);
+        setStep('otp');
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!googleReady || !window.google) return;
+
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      console.error('NEXT_PUBLIC_GOOGLE_CLIENT_ID is not set');
+      return;
+    }
+
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: (response) => handleGoogleCredential(response.credential),
+    });
+  }, [googleReady, handleGoogleCredential]);
+
+  const handleGoogleButtonClick = () => {
+    window.google?.accounts.id.prompt();
   };
 
   if (step === 'otp') {
@@ -150,110 +216,133 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex w-full flex-col gap-5">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">เข้าสู่ระบบ</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          ยินดีต้อนรับกลับมา! กรุณากรอกข้อมูลเพื่อเข้าสู่ระบบตามหาสัตว์เลี้ยงหาย
-        </p>
-      </div>
-
-      {formError && (
-        <p className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {formError}
-        </p>
-      )}
-
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="email">อีเมล</Label>
-        <Input
-          id="email"
-          type="email"
-          placeholder="example@email.com"
-          aria-invalid={!!errors.email}
-          {...register('email')}
-        />
-        {errors.email && (
-          <p className="text-xs text-destructive">{errors.email.message}</p>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="password">รหัสผ่าน</Label>
-          <Link
-            href="/forgot-password"
-            className="text-xs font-medium text-primary hover:underline"
-          >
-            ลืมรหัสผ่าน?
-          </Link>
+    <>
+      <Script
+        src="https://accounts.google.com/gsi/client"
+        strategy="afterInteractive"
+        onLoad={() => setGoogleReady(true)}
+      />
+      <form onSubmit={onSubmit} className="flex w-full flex-col gap-5">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">เข้าสู่ระบบ</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            ยินดีต้อนรับกลับมา!
+            กรุณากรอกข้อมูลเพื่อเข้าสู่ระบบตามหาสัตว์เลี้ยงหาย
+          </p>
         </div>
-        <div className="relative">
+
+        {formError && (
+          <p className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {formError}
+          </p>
+        )}
+
+        {googleNotice && (
+          <p className="rounded-xl bg-primary/10 px-3 py-2 text-sm text-primary">
+            {googleNotice}
+          </p>
+        )}
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="email">อีเมล</Label>
           <Input
-            id="password"
-            type={showPassword ? 'text' : 'password'}
-            placeholder="กรอกรหัสผ่านของคุณ"
-            className="pr-10"
-            aria-invalid={!!errors.password}
-            {...register('password')}
+            id="email"
+            type="email"
+            placeholder="example@email.com"
+            aria-invalid={!!errors.email}
+            {...register('email')}
           />
-          <button
-            type="button"
-            onClick={() => setShowPassword((v) => !v)}
-            aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
-            className="absolute top-1/2 right-1 flex size-6 -translate-y-1/2 items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground"
-          >
-            {showPassword ? (
-              <EyeOff className="size-3.5" />
-            ) : (
-              <Eye className="size-3.5" />
-            )}
-          </button>
+          {errors.email && (
+            <p className="text-xs text-destructive">{errors.email.message}</p>
+          )}
         </div>
-        {errors.password && (
-          <p className="text-xs text-destructive">{errors.password.message}</p>
-        )}
-      </div>
 
-      <Button
-        type="submit"
-        size="lg"
-        className="w-full"
-        disabled={isSubmitting}
-      >
-        {isSubmitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
-      </Button>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">รหัสผ่าน</Label>
+            <Link
+              href="/forgot-password"
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              ลืมรหัสผ่าน?
+            </Link>
+          </div>
+          <div className="relative">
+            <Input
+              id="password"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="กรอกรหัสผ่านของคุณ"
+              className="pr-10"
+              aria-invalid={!!errors.password}
+              {...register('password')}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+              className="absolute top-1/2 right-1 flex size-6 -translate-y-1/2 items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground"
+            >
+              {showPassword ? (
+                <EyeOff className="size-3.5" />
+              ) : (
+                <Eye className="size-3.5" />
+              )}
+            </button>
+          </div>
+          {errors.password && (
+            <p className="text-xs text-destructive">
+              {errors.password.message}
+            </p>
+          )}
+        </div>
 
-      <div className="flex items-center gap-3">
-        <span className="h-px flex-1 bg-border" />
-        <span className="text-xs text-muted-foreground">หรือ</span>
-        <span className="h-px flex-1 bg-border" />
-      </div>
-
-      {/* TODO: ต่อ Google Identity SDK / LINE OAuth redirect ในงานถัดไป */}
-      <Button type="button" variant="outline" size="lg" className="w-full">
-        <GoogleIcon className="size-4" />
-        เข้าสู่ระบบด้วย Google
-      </Button>
-
-      <Button
-        type="button"
-        size="lg"
-        className="w-full bg-[#06C755] text-white hover:bg-[#05b34c]"
-      >
-        <LineIcon className="size-4" />
-        เข้าสู่ระบบด้วย LINE
-      </Button>
-
-      <p className="text-center text-sm text-muted-foreground">
-        ยังไม่มีบัญชี?{' '}
-        <Link
-          href="/register"
-          className="font-medium text-primary hover:underline"
+        <Button
+          type="submit"
+          size="lg"
+          className="w-full"
+          disabled={isSubmitting}
         >
-          สมัครสมาชิก
-        </Link>
-      </p>
-    </form>
+          {isSubmitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
+        </Button>
+
+        <div className="flex items-center gap-3">
+          <span className="h-px flex-1 bg-border" />
+          <span className="text-xs text-muted-foreground">หรือ</span>
+          <span className="h-px flex-1 bg-border" />
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          className="w-full"
+          disabled={isGooglePending || !googleReady}
+          onClick={handleGoogleButtonClick}
+        >
+          <GoogleIcon className="size-4" />
+          {isGooglePending ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบด้วย Google'}
+        </Button>
+
+        {/* TODO: ต่อ LINE OAuth redirect ในงานถัดไป */}
+        <Button
+          type="button"
+          size="lg"
+          className="w-full bg-[#06C755] text-white hover:bg-[#05b34c]"
+        >
+          <LineIcon className="size-4" />
+          เข้าสู่ระบบด้วย LINE
+        </Button>
+
+        <p className="text-center text-sm text-muted-foreground">
+          ยังไม่มีบัญชี?{' '}
+          <Link
+            href="/register"
+            className="font-medium text-primary hover:underline"
+          >
+            สมัครสมาชิก
+          </Link>
+        </p>
+      </form>
+    </>
   );
 }

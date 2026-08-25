@@ -27,3 +27,18 @@ export function isOtpRequired(
 ): response is LoginOtpRequiredResponse {
   return 'tempToken' in response;
 }
+
+export interface GooglePendingVerificationResponse {
+  message: string;
+}
+
+export type GoogleLoginResponse =
+  | LoginTokensResponse
+  | LoginOtpRequiredResponse
+  | GooglePendingVerificationResponse;
+
+export function isPendingEmailVerification(
+  response: GoogleLoginResponse,
+): response is GooglePendingVerificationResponse {
+  return !('tempToken' in response) && !('accessToken' in response);
+}

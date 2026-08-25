@@ -1,5 +1,5 @@
 import { apiFetch } from '@/lib/api/api-fetch';
-import { LoginResponse, SessionUser } from '@/types/auth';
+import { LoginResponse, SessionUser, GoogleLoginResponse } from '@/types/auth';
 
 export interface LoginPayload {
   email: string;
@@ -51,5 +51,18 @@ export async function getMeRequest(
   return apiFetch<GetMeResponse>('/auth/me', {
     method: 'GET',
     token: accessToken,
+  });
+}
+
+export interface GoogleLoginPayload {
+  idToken: string;
+}
+
+export async function loginWithGoogleRequest(
+  payload: GoogleLoginPayload,
+): Promise<GoogleLoginResponse> {
+  return apiFetch<GoogleLoginResponse>('/auth/google', {
+    method: 'POST',
+    body: { ...payload },
   });
 }

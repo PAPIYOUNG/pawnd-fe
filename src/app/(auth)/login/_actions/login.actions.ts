@@ -8,16 +8,27 @@ import { ErrorActionResult } from '@/lib/action/action.type';
 import {
   loginRequest,
   verifyTwoFactorRequest,
+  loginWithGoogleRequest,
   LoginPayload,
   VerifyTwoFactorPayload,
   getMeRequest,
 } from '@/services/auth.service';
-import { isOtpRequired, LoginTokensResponse } from '@/types/auth';
+import {
+  isOtpRequired,
+  isPendingEmailVerification,
+  LoginTokensResponse,
+} from '@/types/auth';
 
 type LoginActionResult =
   | ErrorActionResult
   | { success: true; needsOtp: true; tempToken: string }
   | { success: true; needsOtp: false };
+
+type GoogleLoginActionResult =
+  | ErrorActionResult
+  | { success: true; needsOtp: true; tempToken: string }
+  | { success: true; needsOtp: false }
+  | { success: true; needsVerification: true; message: string };
 
 function toErrorResult(err: unknown, fallback: string): ErrorActionResult {
   if (err instanceof ApiError) {
@@ -47,6 +58,35 @@ export async function loginAction(
     response = await loginRequest(payload);
   } catch (err) {
     return toErrorResult(err, 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+  }
+
+  if (isOtpRequired(response)) {
+    return { success: true, needsOtp: true, tempToken: response.tempToken };
+  }
+
+  await establishSession(response);
+  redirect('/');
+}
+
+export async function loginWithGoogleAction(
+  idToken: string,
+): Promise<GoogleLoginActionResult> {
+  let response;
+  try {
+    response = await loginWithGoogleRequest({ idToken });
+  } catch (err) {
+    return toErrorResult(
+      err,
+      'เข้าสู่ระบบด้วย Google ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
+    );
+  }
+
+  if (isPendingEmailVerification(response)) {
+    return {
+      success: true,
+      needsVerification: true,
+      message: response.message,
+    };
   }
 
   if (isOtpRequired(response)) {
