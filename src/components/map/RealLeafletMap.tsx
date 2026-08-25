@@ -124,6 +124,8 @@ interface MapPostMarkerProps {
   icon: L.DivIcon;
   /** callback stable สำหรับลงทะเบียน Leaflet marker instance */
   onMarkerReady: (postId: string, marker: L.Marker | null) => void;
+  /** ตั้ง guard ก่อน marker click เริ่ม flyTo */
+  beginProgrammaticMovement: (publishViewportOnEnd: boolean) => void;
 }
 
 interface ProgrammaticMovementState {
@@ -131,6 +133,35 @@ interface ProgrammaticMovementState {
   active: boolean;
   /** true เฉพาะ movement ที่ควรโหลด viewport ใหม่หลังเคลื่อนที่จบ */
   publishViewportOnEnd: boolean;
+}
+
+interface MapFocusTarget {
+  /** พิกัด Leaflet และ zoom เป้าหมายสำหรับ marker/current location */
+  center: L.LatLng;
+  zoom: number;
+  /** false เมื่อแผนที่อยู่ที่พิกัดและ zoom เป้าหมายแล้ว */
+  requiresMovement: boolean;
+}
+
+/**
+ * สร้างเป้าหมาย focus ด้วยเกณฑ์เดียวกันสำหรับ marker, nearby card และ location
+ * เพื่อไม่สั่ง flyTo ซ้ำเมื่อ center อยู่ห่างไม่ถึงครึ่งเมตรและ zoom เพียงพอแล้ว
+ */
+function getMapFocusTarget(
+  map: L.Map,
+  latitude: number,
+  longitude: number,
+  minimumZoom: number,
+): MapFocusTarget {
+  const center = L.latLng(latitude, longitude);
+  const zoom = Math.max(map.getZoom(), minimumZoom);
+
+  return {
+    center,
+    zoom,
+    requiresMovement:
+      map.distance(map.getCenter(), center) >= 0.5 || map.getZoom() !== zoom,
+  };
 }
 
 /**
@@ -276,22 +307,18 @@ function CurrentLocationController({
     }
     lastCenteredLocationRef.current = locationKey;
 
-    const targetZoom = Math.max(map.getZoom(), 14);
-    const isAlreadyFocused =
-      map.distance(
-        map.getCenter(),
-        L.latLng(currentLocation.latitude, currentLocation.longitude),
-      ) < 0.5 && map.getZoom() === targetZoom;
-    if (isAlreadyFocused) {
+    const focusTarget = getMapFocusTarget(
+      map,
+      currentLocation.latitude,
+      currentLocation.longitude,
+      14,
+    );
+    if (!focusTarget.requiresMovement) {
       return;
     }
 
     beginProgrammaticMovement(true);
-    map.flyTo(
-      [currentLocation.latitude, currentLocation.longitude],
-      targetZoom,
-      { animate: true },
-    );
+    map.flyTo(focusTarget.center, focusTarget.zoom, { animate: true });
   }, [beginProgrammaticMovement, currentLocation, map]);
 
   return null;
@@ -334,13 +361,14 @@ function SelectedPostController({
       return;
     }
 
-    const target: L.LatLngExpression = [latitude, longitude];
-    const targetZoom = Math.max(map.getZoom(), SELECTED_POST_ZOOM);
-    const isAlreadyFocused =
-      map.distance(map.getCenter(), L.latLng(latitude, longitude)) < 0.5 &&
-      map.getZoom() === targetZoom;
+    const focusTarget = getMapFocusTarget(
+      map,
+      latitude,
+      longitude,
+      SELECTED_POST_ZOOM,
+    );
 
-    if (isAlreadyFocused) {
+    if (!focusTarget.requiresMovement) {
       marker.openPopup();
       return;
     }
@@ -351,7 +379,7 @@ function SelectedPostController({
 
     map.once('moveend', openSelectedPopup);
     beginProgrammaticMovement(true);
-    map.flyTo(target, targetZoom, { animate: true });
+    map.flyTo(focusTarget.center, focusTarget.zoom, { animate: true });
 
     return () => {
       map.off('moveend', openSelectedPopup);
@@ -447,7 +475,13 @@ function MapPostPopup({ feature }: MapPostPopupProps) {
 }
 
 /** Marker ของประกาศที่ลงทะเบียน instance ผ่าน ref callback โดยไม่ set state */
-function MapPostMarker({ feature, icon, onMarkerReady }: MapPostMarkerProps) {
+function MapPostMarker({
+  feature,
+  icon,
+  onMarkerReady,
+  beginProgrammaticMovement,
+}: MapPostMarkerProps) {
+  const map = useMap();
   const [longitude, latitude] = feature.geometry.coordinates;
   const postId = feature.properties.id;
   const handleMarkerRef = useCallback(
@@ -456,9 +490,32 @@ function MapPostMarker({ feature, icon, onMarkerReady }: MapPostMarkerProps) {
     },
     [onMarkerReady, postId],
   );
+  const handleMarkerClick = useCallback(() => {
+    const focusTarget = getMapFocusTarget(
+      map,
+      latitude,
+      longitude,
+      SELECTED_POST_ZOOM,
+    );
+    if (!focusTarget.requiresMovement) {
+      return;
+    }
+
+    beginProgrammaticMovement(true);
+    map.flyTo(focusTarget.center, focusTarget.zoom, { animate: true });
+  }, [beginProgrammaticMovement, latitude, longitude, map]);
+  const eventHandlers = useMemo<L.LeafletEventHandlerFnMap>(
+    () => ({ click: handleMarkerClick }),
+    [handleMarkerClick],
+  );
 
   return (
-    <Marker ref={handleMarkerRef} position={[latitude, longitude]} icon={icon}>
+    <Marker
+      ref={handleMarkerRef}
+      position={[latitude, longitude]}
+      icon={icon}
+      eventHandlers={eventHandlers}
+    >
       <MapPostPopup feature={feature} />
     </Marker>
   );
@@ -784,6 +841,7 @@ export default function RealLeafletMap({
                 isSelected && selectedMarkerIcon ? selectedMarkerIcon : icon
               }
               onMarkerReady={handleMarkerReady}
+              beginProgrammaticMovement={beginProgrammaticMovement}
             />
           );
         })}
