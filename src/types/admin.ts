@@ -375,3 +375,93 @@ export interface AdminPetDetail {
 export interface GetPetByIdResponse {
   pet: AdminPetDetail;
 }
+
+/**
+ * ReportStatus
+ * - สถานะการตรวจสอบรายงาน (Content Report) ตรงตาม `ReportStatus` enum ของ Backend
+ * - `PENDING` = รอตรวจสอบ, `REVIEWED` = ตรวจสอบแล้วแต่ไม่ดำเนินการ,
+ *   `REJECTED` = ตรวจสอบแล้วแต่ไม่นับเป็นการละเมิด (ยกคำร้อง), `ACTION_TAKEN` = ดำเนินการแล้ว (เช่น ซ่อนเนื้อหา)
+ */
+export type ReportStatus = 'PENDING' | 'REVIEWED' | 'REJECTED' | 'ACTION_TAKEN';
+
+/**
+ * AdminReportedContentSummary
+ * - ข้อมูลเนื้อหาที่ถูกรายงาน (โพสต์ชุมชน หรือ คอมเมนต์) แบบย่อ สำหรับแสดงพรีวิวในตารางจัดการรายงาน
+ * - `isHidden` สะท้อนผลจาก Backend endpoint `PATCH /admin/reports/:id` เมื่อแอดมินเลือก `hideContent: true`
+ */
+export interface AdminReportedContentSummary {
+  id: string;
+  content: string;
+  isHidden: boolean;
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
+}
+
+export interface AdminReportedCommunityPost extends AdminReportedContentSummary {
+  images: { imageUrl: string }[];
+}
+
+/**
+ * AdminReportListItem
+ * - รายงาน (Content Report) 1 รายการในตาราง "จัดการรายงาน" ของแอดมิน
+ * - ตรงตาม select fields ของ Backend endpoint `GET /admin/reports`
+ * - `communityPost` และ `comment` มีได้เพียงอย่างใดอย่างหนึ่งเท่านั้น (ขึ้นกับว่ารายงานอันไหนถูกรายงาน)
+ * - `reviewer`/`reviewedAt` เป็น `null` จนกว่าแอดมินจะตรวจสอบรายงานนี้
+ */
+export interface AdminReportListItem {
+  id: string;
+  reportType: string;
+  reason: string;
+  status: ReportStatus;
+  createdAt: string;
+  reviewedAt: string | null;
+  reporter: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  reviewer: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  } | null;
+  communityPost: AdminReportedCommunityPost | null;
+  comment: AdminReportedContentSummary | null;
+}
+
+export interface GetReportsResponse {
+  totalReports: number;
+  reports: AdminReportListItem[];
+}
+
+/**
+ * ReviewReportPayload
+ * - Body ที่ส่งไปยัง Backend endpoint `PATCH /admin/reports/:id` (ตรงตาม `ReviewReportDto`)
+ * - `hideContent: true` จะซ่อนโพสต์/คอมเมนต์ที่ถูกรายงานทันที (เฉพาะรายการที่ยังไม่เคยตรวจสอบ)
+ */
+export interface ReviewReportPayload {
+  status: ReportStatus;
+  hideContent?: boolean;
+}
+
+/**
+ * ReviewReportResult
+ * - ผลลัพธ์จาก Backend endpoint `PATCH /admin/reports/:id`
+ */
+export interface ReviewReportResult {
+  id: string;
+  reportType: string;
+  reason: string;
+  status: ReportStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+}
+
+export interface ReviewReportResponse {
+  report: ReviewReportResult;
+}

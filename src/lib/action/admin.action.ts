@@ -13,10 +13,13 @@ import {
   GetPostByIdResponse,
   GetPostsParams,
   GetPostsResponse,
+  GetReportsResponse,
   GetUserByIdResponse,
   GetUsersParams,
   GetUsersResponse,
   MonthlyTrendPoint,
+  ReviewReportPayload,
+  ReviewReportResponse,
   UpdatePostStatusResponse,
   UpdateUserStatusResponse,
 } from '@/types/admin';
@@ -208,6 +211,47 @@ export async function getPetByIdAction(
 ): Promise<GetPetByIdResponse | ErrorActionResult> {
   try {
     return await AdminApi.getPetById(id);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: error.statusCode === 404 ? 'NOT_FOUND' : 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// ดึงรายการรายงาน (Content Report) ทั้งหมดสำหรับหน้าจัดการรายงาน
+// สำเร็จ -> คืนค่า GetReportsResponse, ล้มเหลว -> คืนค่า ErrorActionResult ให้หน้าเพจแสดง Error State
+export async function getReportsAction(): Promise<
+  GetReportsResponse | ErrorActionResult
+> {
+  try {
+    return await AdminApi.getReports();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// ตรวจสอบรายงาน: เปลี่ยนสถานะเป็น REVIEWED/ACTION_TAKEN และซ่อนเนื้อหาที่ถูกรายงาน (ถ้าเลือก)
+// สำเร็จ -> revalidate หน้ารายการรายงาน แล้วคืนค่า ReviewReportResponse
+export async function reviewReportAction(
+  id: string,
+  payload: ReviewReportPayload,
+): Promise<ReviewReportResponse | ErrorActionResult> {
+  try {
+    const result = await AdminApi.reviewReport(id, payload);
+    revalidatePath('/admin/reports');
+    return result;
   } catch (error) {
     if (error instanceof ApiError) {
       return {

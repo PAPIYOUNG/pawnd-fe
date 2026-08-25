@@ -7,10 +7,13 @@ import {
   GetPostByIdResponse,
   GetPostsParams,
   GetPostsResponse,
+  GetReportsResponse,
   GetUserByIdResponse,
   GetUsersParams,
   GetUsersResponse,
   MonthlyTrendPoint,
+  ReviewReportPayload,
+  ReviewReportResponse,
   UpdatePostStatusResponse,
   UpdateUserStatusResponse,
 } from '@/types/admin';
@@ -106,6 +109,20 @@ export const AdminApi = {
   async getPetById(id: string) {
     return await authFetch<GetPetByIdResponse>(`/admin/pets/${id}`, {
       method: 'GET',
+    });
+  },
+  // ดึงรายการรายงาน (Content Report) ทั้งหมดในระบบ สำหรับหน้าจัดการรายงาน
+  // หมายเหตุ: Backend endpoint นี้ยังไม่รองรับ pagination/filter จึงคืนค่ารายการทั้งหมดในครั้งเดียว
+  async getReports() {
+    return await authFetch<GetReportsResponse>('/admin/reports', {
+      method: 'GET',
+    });
+  },
+  // ตรวจสอบรายงาน: เปลี่ยนสถานะเป็น REVIEWED/ACTION_TAKEN และซ่อนเนื้อหาที่ถูกรายงาน (ถ้าเลือก)
+  async reviewReport(id: string, payload: ReviewReportPayload) {
+    return await authFetch<ReviewReportResponse>(`/admin/reports/${id}`, {
+      method: 'PATCH',
+      body: { ...payload },
     });
   },
   // สั่งให้ AI ค้นหาคู่จับคู่ใหม่สำหรับประกาศนี้ (re-run matching engine)
