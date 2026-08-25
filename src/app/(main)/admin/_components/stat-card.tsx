@@ -14,8 +14,8 @@ const TONE_CLASSES: Record<StatTone, string> = {
 interface StatCardProps {
   label: string;
   value: string;
-  changeLabel: string;
-  changeDirection: 'up' | 'down';
+  changeLabel?: string;
+  changeDirection?: 'up' | 'down';
   icon: LucideIcon;
   tone: StatTone;
 }
@@ -42,14 +42,16 @@ export function StatCard({
         </span>
       </div>
       <span className="text-2xl font-bold text-foreground">{value}</span>
-      <span
-        className={cn(
-          'text-xs font-medium',
-          changeDirection === 'up' ? 'text-emerald-600' : 'text-red-600'
-        )}
-      >
-        {changeLabel}
-      </span>
+      {changeLabel && (
+        <span
+          className={cn(
+            'text-xs font-medium',
+            changeDirection === 'up' ? 'text-emerald-600' : 'text-red-600'
+          )}
+        >
+          {changeLabel}
+        </span>
+      )}
     </div>
   );
 }

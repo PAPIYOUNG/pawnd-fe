@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { FileText, Flag, UserPlus, Users } from 'lucide-react';
+import { FileText, Flag, PawPrint, Users } from 'lucide-react';
 
 import { MonthlyTrendChart } from './_components/monthly-trend-chart';
 import { QuickActionsCard } from './_components/quick-actions-card';
@@ -11,59 +11,32 @@ export const metadata: Metadata = {
   title: 'Admin Dashboard',
 };
 
-// แปลงตัวเลขเปอร์เซ็นต์การเปลี่ยนแปลงเป็น Label ภาษาไทย พร้อมเครื่องหมาย + / -
-function formatChangeLabel(changePercent: number, period: string) {
-  const sign = changePercent >= 0 ? '+' : '';
-  return `${sign}${changePercent.toFixed(1)}% ${period}`;
-}
-
 // สร้างรายการข้อมูลสำหรับการ์ดสถิติ (StatCard) จากข้อมูลสรุปที่ได้จาก Backend
+// หมายเหตุ: Backend ยังไม่มีค่าเปอร์เซ็นต์การเปลี่ยนแปลง (trend) จึงแสดงเฉพาะจำนวนรวม
 function buildStats(summary: DashboardSummary) {
   return [
     {
       label: 'ผู้ใช้ทั้งหมด',
-      value: `${summary.totalUsers.toLocaleString('th-TH')} คน`,
-      changeLabel: formatChangeLabel(
-        summary.totalUsersChangePercent,
-        'จากเดือนก่อน',
-      ),
-      changeDirection: summary.totalUsersChangePercent >= 0 ? 'up' : 'down',
+      value: `${summary.users.total.toLocaleString('th-TH')} คน`,
       icon: Users,
       tone: 'emerald',
     },
     {
       label: 'โพสต์ทั้งหมด',
-      value: `${summary.totalPosts.toLocaleString('th-TH')} รายการ`,
-      changeLabel: formatChangeLabel(
-        summary.totalPostsChangePercent,
-        'จากเดือนก่อน',
-      ),
-      changeDirection: summary.totalPostsChangePercent >= 0 ? 'up' : 'down',
+      value: `${summary.posts.total.toLocaleString('th-TH')} รายการ`,
       icon: FileText,
       tone: 'blue',
     },
     {
       label: 'รายงานรอตรวจสอบ',
-      value: `${summary.pendingReports.toLocaleString('th-TH')} เคส`,
-      changeLabel: formatChangeLabel(
-        summary.pendingReportsChangePercent,
-        'จากสัปดาห์ก่อน',
-      ),
-      changeDirection:
-        summary.pendingReportsChangePercent >= 0 ? 'up' : 'down',
+      value: `${summary.reports.pending.toLocaleString('th-TH')} เคส`,
       icon: Flag,
       tone: 'red',
     },
     {
-      label: 'สมาชิกใหม่วันนี้',
-      value: `${summary.newMembersToday.toLocaleString('th-TH')} คน`,
-      changeLabel: formatChangeLabel(
-        summary.newMembersTodayChangePercent,
-        'เมื่อเทียบเมื่อวาน',
-      ),
-      changeDirection:
-        summary.newMembersTodayChangePercent >= 0 ? 'up' : 'down',
-      icon: UserPlus,
+      label: 'สัตว์เลี้ยงทั้งหมด',
+      value: `${summary.pets.total.toLocaleString('th-TH')} ตัว`,
+      icon: PawPrint,
       tone: 'amber',
     },
   ] as const;

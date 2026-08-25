@@ -2,16 +2,52 @@
  * DashboardSummary
  * - รูปแบบข้อมูลสรุปภาพรวมที่ได้จาก Backend endpoint `GET /admin/dashboard`
  * - ใช้แสดงผลในการ์ดสถิติ (StatCard) ของหน้าแดชบอร์ดผู้ดูแลระบบ
- * - ค่า `*ChangePercent` เป็นเปอร์เซ็นต์การเปลี่ยนแปลงเทียบกับช่วงเวลาก่อนหน้า
- *   (ค่าบวก = เพิ่มขึ้น, ค่าลบ = ลดลง)
+ * - หมายเหตุ: Backend ไม่ได้ส่งค่าเปอร์เซ็นต์การเปลี่ยนแปลง (trend) มาด้วย
+ *   จึงแสดงเฉพาะจำนวนรวม ไม่มี Label เปรียบเทียบช่วงเวลาก่อนหน้า
  */
 export interface DashboardSummary {
-  totalUsers: number;
-  totalUsersChangePercent: number;
-  totalPosts: number;
-  totalPostsChangePercent: number;
-  pendingReports: number;
-  pendingReportsChangePercent: number;
-  newMembersToday: number;
-  newMembersTodayChangePercent: number;
+  users: {
+    total: number;
+    active: number;
+    pendingVerification: number;
+    suspended: number;
+    blacklisted: number;
+  };
+  pets: {
+    total: number;
+  };
+  posts: {
+    total: number;
+    lost: number;
+    found: number;
+    active: number;
+    reunited: number;
+    hidden: number;
+  };
+  community: {
+    totalPosts: number;
+    hiddenPosts: number;
+    totalComments: number;
+    hiddenComments: number;
+  };
+  reports: {
+    total: number;
+    pending: number;
+    reviewed: number;
+    actionTaken: number;
+    recent: RecentPendingReport[];
+  };
+}
+
+export interface RecentPendingReport {
+  id: string;
+  reportType: string;
+  reason: string;
+  status: string;
+  createdAt: string;
+  reporter: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
 }
