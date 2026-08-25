@@ -87,6 +87,8 @@ interface RealLeafletMapProps {
 interface MapViewportObserverProps {
   /** callback ที่รับ bounds ล่าสุดหลังผู้ใช้เลื่อนหรือซูมแผนที่ */
   onChange: (viewport: MapViewportState) => void;
+  /** สถานะ movement ที่โค้ดเป็นผู้เริ่ม เพื่อแยกออกจากการลาก/ซูมของผู้ใช้ */
+  programmaticMovementRef: React.RefObject<ProgrammaticMovementState>;
 }
 
 interface MapPostPopupProps {
@@ -97,6 +99,8 @@ interface MapPostPopupProps {
 interface CurrentLocationControllerProps {
   /** พิกัดใหม่ที่จะใช้เลื่อนและซูมแผนที่ */
   currentLocation?: CurrentLocation | null;
+  /** ตั้ง guard ก่อนเริ่ม flyTo และให้ publish viewport หนึ่งครั้งเมื่อจบ */
+  beginProgrammaticMovement: (publishViewportOnEnd: boolean) => void;
 }
 
 interface SelectedPostControllerProps {
@@ -108,6 +112,8 @@ interface SelectedPostControllerProps {
   requestToken: number;
   /** marker instances ที่ใช้เปิด popup โดยไม่สร้าง React state เพิ่ม */
   markerRefs: React.RefObject<Map<string, L.Marker>>;
+  /** ตั้ง guard ก่อนเริ่ม flyTo และให้ publish viewport หนึ่งครั้งเมื่อจบ */
+  beginProgrammaticMovement: (publishViewportOnEnd: boolean) => void;
 }
 
 interface MapPostMarkerProps {
@@ -116,6 +122,13 @@ interface MapPostMarkerProps {
   icon: L.DivIcon;
   /** callback stable สำหรับลงทะเบียน Leaflet marker instance */
   onMarkerReady: (postId: string, marker: L.Marker | null) => void;
+}
+
+interface ProgrammaticMovementState {
+  /** true ระหว่าง flyTo/current-location/popup auto-pan */
+  active: boolean;
+  /** true เฉพาะ movement ที่ควรโหลด viewport ใหม่หลังเคลื่อนที่จบ */
+  publishViewportOnEnd: boolean;
 }
 
 /**
@@ -166,6 +179,7 @@ function readViewportState(map: L.Map): MapViewportState {
       east: bounds.getEast(),
     },
     center: [mapCenter.lat, mapCenter.lng],
+    zoom: map.getZoom(),
   };
 }
 
@@ -186,21 +200,49 @@ function isSameViewport(
     isNearlyEqual(previous.bounds.north, next.bounds.north) &&
     isNearlyEqual(previous.bounds.east, next.bounds.east) &&
     isNearlyEqual(previous.center[0], next.center[0]) &&
-    isNearlyEqual(previous.center[1], next.center[1])
+    isNearlyEqual(previous.center[1], next.center[1]) &&
+    isNearlyEqual(previous.zoom, next.zoom)
   );
 }
 
 /**
  * ฟังการเปลี่ยน viewport ของแผนที่และส่ง bounds แรกทันทีหลัง map พร้อมใช้งาน
  */
-function MapViewportObserver({ onChange }: MapViewportObserverProps) {
+function MapViewportObserver({
+  onChange,
+  programmaticMovementRef,
+}: MapViewportObserverProps) {
   const map = useMap();
   const emitViewport = useCallback(() => {
     onChange(readViewportState(map));
   }, [map, onChange]);
+  const handleMoveEnd = useCallback(() => {
+    const movement = programmaticMovementRef.current;
+    if (movement.active) {
+      const shouldPublish = movement.publishViewportOnEnd;
+      movement.active = false;
+      movement.publishViewportOnEnd = false;
+
+      if (!shouldPublish) {
+        return;
+      }
+    }
+
+    emitViewport();
+  }, [emitViewport, programmaticMovementRef]);
+  const handleAutoPanStart = useCallback(() => {
+    const movement = programmaticMovementRef.current;
+    if (!movement.active) {
+      movement.active = true;
+      movement.publishViewportOnEnd = false;
+    }
+  }, [programmaticMovementRef]);
   const eventHandlers = useMemo<L.LeafletEventHandlerFnMap>(
-    () => ({ moveend: emitViewport }),
-    [emitViewport],
+    () => ({
+      autopanstart: handleAutoPanStart,
+      moveend: handleMoveEnd,
+    }),
+    [handleAutoPanStart, handleMoveEnd],
   );
 
   useMapEvents(eventHandlers);
@@ -215,6 +257,7 @@ function MapViewportObserver({ onChange }: MapViewportObserverProps) {
 /** เลื่อนแผนที่ไปยัง current location ทุกครั้งที่ผู้ใช้ขอพิกัดสำเร็จ */
 function CurrentLocationController({
   currentLocation,
+  beginProgrammaticMovement,
 }: CurrentLocationControllerProps) {
   const map = useMap();
   const lastCenteredLocationRef = useRef<string | null>(null);
@@ -231,12 +274,23 @@ function CurrentLocationController({
     }
     lastCenteredLocationRef.current = locationKey;
 
+    const targetZoom = Math.max(map.getZoom(), 14);
+    const isAlreadyFocused =
+      map.distance(
+        map.getCenter(),
+        L.latLng(currentLocation.latitude, currentLocation.longitude),
+      ) < 0.5 && map.getZoom() === targetZoom;
+    if (isAlreadyFocused) {
+      return;
+    }
+
+    beginProgrammaticMovement(true);
     map.flyTo(
       [currentLocation.latitude, currentLocation.longitude],
-      Math.max(map.getZoom(), 14),
+      targetZoom,
       { animate: true },
     );
-  }, [currentLocation, map]);
+  }, [beginProgrammaticMovement, currentLocation, map]);
 
   return null;
 }
@@ -251,6 +305,7 @@ function SelectedPostController({
   longitude,
   requestToken,
   markerRefs,
+  beginProgrammaticMovement,
 }: SelectedPostControllerProps) {
   const map = useMap();
   const lastHandledSelectionRef = useRef<string | null>(null);
@@ -293,12 +348,21 @@ function SelectedPostController({
     };
 
     map.once('moveend', openSelectedPopup);
+    beginProgrammaticMovement(true);
     map.flyTo(target, targetZoom, { animate: true });
 
     return () => {
       map.off('moveend', openSelectedPopup);
     };
-  }, [latitude, longitude, map, markerRefs, postId, requestToken]);
+  }, [
+    beginProgrammaticMovement,
+    latitude,
+    longitude,
+    map,
+    markerRefs,
+    postId,
+    requestToken,
+  ]);
 
   return null;
 }
@@ -426,8 +490,26 @@ export default function RealLeafletMap({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [retryToken, setRetryToken] = useState(0);
   const lastViewportRef = useRef<MapViewportState | null>(null);
+  const programmaticMovementRef = useRef<ProgrammaticMovementState>({
+    active: false,
+    publishViewportOnEnd: false,
+  });
   const markerRefs = useRef(new Map<string, L.Marker>());
   const currentLocationIcon = useMemo(() => createCurrentLocationIcon(), []);
+
+  /**
+   * เริ่ม movement จากโค้ดโดยแก้เฉพาะ ref เพื่อไม่สร้าง render loop
+   * หากมี movement ซ้อนกันจะคงคำสั่ง publish viewport ที่สำคัญกว่าไว้
+   */
+  const beginProgrammaticMovement = useCallback(
+    (publishViewportOnEnd: boolean) => {
+      const movement = programmaticMovementRef.current;
+      movement.active = true;
+      movement.publishViewportOnEnd =
+        movement.publishViewportOnEnd || publishViewportOnEnd;
+    },
+    [],
+  );
 
   /** ลงทะเบียน marker instance เพื่อให้ selection controller เปิด popup ได้โดยตรง */
   const handleMarkerReady = useCallback(
@@ -647,14 +729,21 @@ export default function RealLeafletMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           maxZoom={19}
         />
-        <MapViewportObserver onChange={handleViewportChange} />
-        <CurrentLocationController currentLocation={currentLocation} />
+        <MapViewportObserver
+          onChange={handleViewportChange}
+          programmaticMovementRef={programmaticMovementRef}
+        />
+        <CurrentLocationController
+          currentLocation={currentLocation}
+          beginProgrammaticMovement={beginProgrammaticMovement}
+        />
         <SelectedPostController
           postId={selectedPostId ?? null}
           latitude={selectedFeature?.geometry.coordinates[1]}
           longitude={selectedFeature?.geometry.coordinates[0]}
           requestToken={selectionRequestToken}
           markerRefs={markerRefs}
+          beginProgrammaticMovement={beginProgrammaticMovement}
         />
 
         {/* marker สีน้ำเงินของผู้ใช้ ไม่มีการส่งหรือบันทึกพิกัดนอก React state */}
