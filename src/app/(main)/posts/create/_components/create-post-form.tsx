@@ -183,70 +183,72 @@ export function CreatePostForm() {
         </div>
       )}
 
-      {/* 2. ตัวระบุความคืบหน้า 2-Step Wizard (Streamlined Progress Bar) */}
-      <div className="flex items-center justify-between rounded-2xl border border-border/80 bg-card p-3.5 shadow-2xs sm:p-5">
-        {/* Step 1 */}
-        <button
-          type="button"
-          onClick={() => setCurrentStep(1)}
-          className="flex items-center gap-2.5 text-left group cursor-pointer"
-        >
-          <div
-            className={cn(
-              'flex size-8 items-center justify-center rounded-full text-xs font-bold shadow-xs transition-colors',
-              currentStep === 1
-                ? 'bg-emerald-700 text-white'
-                : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400'
-            )}
+      {/* 2. ตัวระบุความคืบหน้า 2-Step Wizard (ขยับเข้ามาตรงกลางให้กระชับและสมดุล) */}
+      <div className="flex items-center justify-center rounded-3xl border border-border/80 bg-card p-4 shadow-2xs sm:p-5">
+        <div className="flex items-center justify-center gap-3 sm:gap-6 max-w-lg w-full">
+          {/* Step 1 */}
+          <button
+            type="button"
+            onClick={() => setCurrentStep(1)}
+            className="flex items-center gap-2.5 text-left group cursor-pointer shrink-0"
           >
-            {currentStep === 2 ? <Check className="size-4 stroke-[3]" /> : '1'}
-          </div>
-          <div className="flex flex-col">
-            <span
+            <div
               className={cn(
-                'text-xs font-bold sm:text-sm transition-colors',
+                'flex size-8.5 items-center justify-center rounded-full text-xs font-bold shadow-xs transition-colors',
                 currentStep === 1
-                  ? 'text-emerald-800 dark:text-emerald-400'
-                  : 'text-foreground'
+                  ? 'bg-emerald-700 text-white ring-4 ring-emerald-600/15'
+                  : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400'
               )}
             >
-              1. กรอกข้อมูลสัตว์เลี้ยง
-            </span>
-            <span className="text-[10px] text-muted-foreground hidden sm:inline">
-              รูปภาพและรายละเอียด
-            </span>
-          </div>
-        </button>
+              {currentStep === 2 ? <Check className="size-4 stroke-[3]" /> : '1'}
+            </div>
+            <div className="flex flex-col">
+              <span
+                className={cn(
+                  'text-xs font-bold sm:text-sm transition-colors',
+                  currentStep === 1
+                    ? 'text-emerald-800 dark:text-emerald-400'
+                    : 'text-foreground'
+                )}
+              >
+                ข้อมูลสัตว์เลี้ยง
+              </span>
+              <span className="text-[10px] text-muted-foreground hidden sm:inline">
+                รูปภาพและรายละเอียด
+              </span>
+            </div>
+          </button>
 
-        {/* เส้นเชื่อมต่อระหว่าง Step */}
-        <div className="mx-4 h-0.5 flex-1 bg-border/80 sm:mx-8" />
+          {/* เส้นเชื่อมต่อระหว่าง Step (ความยาวพอดี ไม่ห่างเกินไป) */}
+          <div className="h-0.5 w-12 sm:w-20 bg-border rounded-full shrink-0" />
 
-        {/* Step 2 */}
-        <div className="flex items-center gap-2.5 text-left">
-          <div
-            className={cn(
-              'flex size-8 items-center justify-center rounded-full text-xs font-bold shadow-xs transition-colors',
-              currentStep === 2
-                ? 'bg-emerald-700 text-white'
-                : 'bg-muted text-muted-foreground'
-            )}
-          >
-            2
-          </div>
-          <div className="flex flex-col">
-            <span
+          {/* Step 2 */}
+          <div className="flex items-center gap-2.5 text-left shrink-0">
+            <div
               className={cn(
-                'text-xs font-bold sm:text-sm transition-colors',
+                'flex size-8.5 items-center justify-center rounded-full text-xs font-bold shadow-xs transition-colors',
                 currentStep === 2
-                  ? 'text-emerald-800 dark:text-emerald-400'
-                  : 'text-muted-foreground'
+                  ? 'bg-emerald-700 text-white ring-4 ring-emerald-600/15'
+                  : 'bg-muted text-muted-foreground'
               )}
             >
-              2. ตรวจสอบ & ยืนยัน
-            </span>
-            <span className="text-[10px] text-muted-foreground hidden sm:inline">
-              ดูตัวอย่างก่อนเผยแพร่
-            </span>
+              2
+            </div>
+            <div className="flex flex-col">
+              <span
+                className={cn(
+                  'text-xs font-bold sm:text-sm transition-colors',
+                  currentStep === 2
+                    ? 'text-emerald-800 dark:text-emerald-400'
+                    : 'text-muted-foreground'
+                )}
+              >
+                ตรวจสอบ & ยืนยัน
+              </span>
+              <span className="text-[10px] text-muted-foreground hidden sm:inline">
+                ดูตัวอย่างก่อนเผยแพร่
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -560,36 +562,22 @@ export function CreatePostForm() {
             </div>
 
             {/* แถบ Action ด้านล่างของ Step 1 */}
-            <div className="lg:col-span-12 flex items-center justify-between border-t border-dashed border-border/80 pt-5 mt-2">
+            <div className="lg:col-span-12 flex items-center justify-between border-t border-dashed border-border/80 pt-6 mt-2">
               <Link
                 href="/posts"
-                className="text-xs font-bold text-muted-foreground hover:text-foreground sm:text-sm underline-offset-4 hover:underline"
+                className="inline-flex h-11 items-center justify-center rounded-full sm:rounded-2xl border border-destructive/40 bg-destructive/5 px-6 text-xs font-bold text-destructive transition-all hover:bg-destructive/15 hover:border-destructive/60 active:scale-95 sm:text-sm"
               >
                 ยกเลิก
               </Link>
 
-              <div className="flex items-center gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowToast('บันทึกฉบับร่างเรียบร้อยแล้ว');
-                    setTimeout(() => setShowToast(null), 3000);
-                  }}
-                  className="h-11 rounded-full sm:rounded-2xl border-emerald-700/60 px-5 text-xs font-bold text-emerald-800 sm:text-sm hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950"
-                >
-                  บันทึกฉบับร่าง
-                </Button>
-
-                {/* ปุ่มไปยังขั้นตอนตรวจสอบ */}
-                <Button
-                  type="submit"
-                  className="h-11 rounded-full sm:rounded-2xl bg-emerald-800 px-6 text-xs font-bold text-white shadow-md transition-transform hover:scale-105 hover:bg-emerald-900 sm:text-sm"
-                >
-                  <span>ตรวจสอบก่อนยืนยัน</span>
-                  <ArrowRight className="ml-1.5 size-4" />
-                </Button>
-              </div>
+              {/* ปุ่มไปยังขั้นตอนตรวจสอบ */}
+              <Button
+                type="submit"
+                className="h-11 rounded-full sm:rounded-2xl bg-emerald-800 px-7 text-xs font-bold text-white shadow-md transition-transform hover:scale-105 hover:bg-emerald-900 sm:text-sm"
+              >
+                <span>ตรวจสอบก่อนยืนยัน</span>
+                <ArrowRight className="ml-1.5 size-4" />
+              </Button>
             </div>
           </form>
         </div>
@@ -754,29 +742,15 @@ export function CreatePostForm() {
               <span>กลับไปแก้ไขข้อมูล</span>
             </Button>
 
-            {/* ปุ่มบันทึกฉบับร่าง & ปุ่มยืนยันและเผยแพร่ประกาศ */}
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setShowToast('บันทึกฉบับร่างเรียบร้อยแล้ว');
-                  setTimeout(() => setShowToast(null), 3000);
-                }}
-                className="h-11 rounded-full sm:rounded-2xl border-emerald-700/60 px-5 text-xs font-bold text-emerald-800 sm:text-sm hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950"
-              >
-                บันทึกฉบับร่าง
-              </Button>
-
-              <Button
-                type="button"
-                onClick={handleFinalPublish}
-                className="h-11 rounded-full sm:rounded-2xl bg-emerald-800 px-7 text-xs font-bold text-white shadow-lg transition-transform hover:scale-105 hover:bg-emerald-900 sm:text-sm"
-              >
-                <Sparkles className="mr-1.5 size-4" />
-                <span>ยืนยันและเผยแพร่ประกาศ</span>
-              </Button>
-            </div>
+            {/* ปุ่มยืนยันและเผยแพร่ประกาศ */}
+            <Button
+              type="button"
+              onClick={handleFinalPublish}
+              className="h-11 rounded-full sm:rounded-2xl bg-emerald-800 px-7 text-xs font-bold text-white shadow-lg transition-transform hover:scale-105 hover:bg-emerald-900 sm:text-sm"
+            >
+              <Sparkles className="mr-1.5 size-4" />
+              <span>ยืนยันและเผยแพร่ประกาศ</span>
+            </Button>
           </div>
         </div>
       )}
