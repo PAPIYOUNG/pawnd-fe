@@ -1,47 +1,13 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
-import { Eye, EyeOff } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { GoogleIcon, LineIcon } from '@/components/auth/BrandIcons';
-
-function PasswordInput({
-  id,
-  placeholder,
-}: {
-  id: string;
-  placeholder: string;
-}) {
-  const [visible, setVisible] = useState(false);
-
-  return (
-    <div className="relative">
-      <Input
-        id={id}
-        type={visible ? 'text' : 'password'}
-        placeholder={placeholder}
-        className="pr-10"
-      />
-      <button
-        type="button"
-        onClick={() => setVisible((v) => !v)}
-        aria-label={visible ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
-        className="absolute top-1/2 right-1 flex size-6 -translate-y-1/2 items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground"
-      >
-        {visible ? (
-          <EyeOff className="size-3.5" />
-        ) : (
-          <Eye className="size-3.5" />
-        )}
-      </button>
-    </div>
-  );
-}
+import { PasswordInput } from '@/components/auth/PasswordInput';
 
 export function RegisterForm() {
   return (

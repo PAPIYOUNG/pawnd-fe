@@ -53,3 +53,29 @@ export async function getMeRequest(
     token: accessToken,
   });
 }
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export async function forgotPasswordRequest(
+  payload: ForgotPasswordPayload,
+): Promise<{ message: string }> {
+  return apiFetch('/auth/forgot-password', {
+    method: 'POST',
+    body: { ...payload },
+  });
+}
+
+export interface ResetPasswordPayload {
+  token: string;
+  newPassword: string;
+}
+
+export async function resetPasswordRequest(
+  payload: ResetPasswordPayload,
+): Promise<{ message: string }> {
+  return apiFetch('/auth/reset-password', {
+    method: 'POST',
+    body: { ...payload },
+  });
+}
