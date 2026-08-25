@@ -35,7 +35,7 @@ export function StatCard({
         <span
           className={cn(
             'flex size-7 items-center justify-center rounded-full',
-            TONE_CLASSES[tone]
+            TONE_CLASSES[tone],
           )}
         >
           <Icon className="size-3.5" />
@@ -46,7 +46,7 @@ export function StatCard({
         <span
           className={cn(
             'text-xs font-medium',
-            changeDirection === 'up' ? 'text-emerald-600' : 'text-red-600'
+            changeDirection === 'up' ? 'text-emerald-600' : 'text-red-600',
           )}
         >
           {changeLabel}

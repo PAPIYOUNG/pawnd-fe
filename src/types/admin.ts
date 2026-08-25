@@ -51,3 +51,15 @@ export interface RecentPendingReport {
     lastName: string;
   };
 }
+
+/**
+ * MonthlyTrendPoint
+ * - รูปแบบข้อมูล 1 เดือนจาก Backend endpoint `GET /admin/dashboard/monthly-trend?year=<year>`
+ * - `month` คือเลขเดือน 1-12, ค่าที่เหลือคือจำนวนโพสต์ Lost / Found / Reunited ของเดือนนั้น
+ */
+export interface MonthlyTrendPoint {
+  month: number;
+  lost: number;
+  found: number;
+  reunited: number;
+}

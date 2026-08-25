@@ -2,14 +2,19 @@ import { Metadata } from 'next';
 import { FileText, Flag, PawPrint, Users } from 'lucide-react';
 
 import { MonthlyTrendChart } from './_components/monthly-trend-chart';
-import { QuickActionsCard } from './_components/quick-actions-card';
 import { StatCard } from './_components/stat-card';
-import { summaryAction } from '@/lib/action/admin.action';
+import { monthlyTrendAction, summaryAction } from '@/lib/action/admin.action';
 import { DashboardSummary } from '@/types/admin';
 
 export const metadata: Metadata = {
   title: 'Admin Dashboard',
 };
+
+const YEAR_FILTER_RANGE = 5;
+
+interface AdminPageProps {
+  searchParams: Promise<{ year?: string }>;
+}
 
 // สร้างรายการข้อมูลสำหรับการ์ดสถิติ (StatCard) จากข้อมูลสรุปที่ได้จาก Backend
 // หมายเหตุ: Backend ยังไม่มีค่าเปอร์เซ็นต์การเปลี่ยนแปลง (trend) จึงแสดงเฉพาะจำนวนรวม
@@ -42,32 +47,19 @@ function buildStats(summary: DashboardSummary) {
   ] as const;
 }
 
-export default async function AdminPage() {
-  const summary = await summaryAction();
+export default async function AdminPage({ searchParams }: AdminPageProps) {
+  const currentYear = new Date().getFullYear();
+  const requestedYear = Number((await searchParams).year);
+  const year = Number.isInteger(requestedYear) ? requestedYear : currentYear;
+  const years = Array.from(
+    { length: YEAR_FILTER_RANGE },
+    (_, index) => currentYear - index,
+  );
 
-  // Error State: เรียก API ไม่สำเร็จ ให้แสดงข้อความที่สุภาพแทน Raw Error
-  if ('success' in summary) {
-    return (
-      <div className="flex flex-col gap-6 p-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            แดชบอร์ดผู้ดูแลระบบ
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            สถิติการใช้งานและภาพรวม Pawnd และกิจกรรมล่าสุดนี้
-          </p>
-        </div>
-        <div className="flex flex-col items-center justify-center gap-2 rounded-3xl border border-destructive/20 bg-destructive/5 p-10 text-center">
-          <span className="text-sm font-medium text-destructive">
-            ไม่สามารถโหลดข้อมูลสรุปแดชบอร์ดได้
-          </span>
-          <p className="text-xs text-muted-foreground">{summary.message}</p>
-        </div>
-      </div>
-    );
-  }
-
-  const stats = buildStats(summary);
+  const [summary, monthlyTrend] = await Promise.all([
+    summaryAction(),
+    monthlyTrendAction(year),
+  ]);
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -85,18 +77,30 @@ export default async function AdminPage() {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat) => (
-          <StatCard key={stat.label} {...stat} />
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <MonthlyTrendChart />
+      {'success' in summary ? (
+        // Error State: เรียก API สรุปภาพรวมไม่สำเร็จ ให้แสดงข้อความที่สุภาพแทน Raw Error
+        <div className="flex flex-col items-center justify-center gap-2 rounded-3xl border border-destructive/20 bg-destructive/5 p-10 text-center">
+          <span className="text-sm font-medium text-destructive">
+            ไม่สามารถโหลดข้อมูลสรุปแดชบอร์ดได้
+          </span>
+          <p className="text-xs text-muted-foreground">{summary.message}</p>
         </div>
-        <QuickActionsCard />
-      </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {buildStats(summary).map((stat) => (
+            <StatCard key={stat.label} {...stat} />
+          ))}
+        </div>
+      )}
+
+      <MonthlyTrendChart
+        data={'success' in monthlyTrend ? [] : monthlyTrend}
+        errorMessage={
+          'success' in monthlyTrend ? monthlyTrend.message : undefined
+        }
+        year={year}
+        years={years}
+      />
     </div>
   );
 }
