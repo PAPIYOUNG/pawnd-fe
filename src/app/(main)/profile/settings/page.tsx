@@ -1,16 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { Settings, Bell, Shield, Lock, Trash2, CheckCircle2 } from 'lucide-react';
+import { Bell, Shield, Lock, CheckCircle2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 
 /**
  * SettingsPage Component (Client Component)
  * - หน้าตั้งค่าระบบและบัญชีผู้ใช้งาน (User & System Settings)
- * - รองรับการเปิด-ปิดการแจ้งเตือน, การยืนยันสองชั้น (2FA), เปลี่ยนรหัสผ่าน ตรงตาม Backend DTO
+ * - รองรับการเปิด-ปิดการแจ้งเตือน, การยืนยันสองชั้น (2FA) ด้วย Toggle Switch สไตล์เลื่อนซ้าย-ขวา
+ * - แบบฟอร์มเปลี่ยนรหัสผ่าน
  */
 export default function SettingsPage() {
   const [notificationEnabled, setNotificationEnabled] = useState(true);
@@ -47,7 +49,7 @@ export default function SettingsPage() {
           การแจ้งเตือนและความปลอดภัย
         </h3>
 
-        {/* สวิตช์การแจ้งเตือน */}
+        {/* สวิตช์การแจ้งเตือน (Toggle Switch เลื่อนเปิด-ปิด) */}
         <div className="flex items-center justify-between border-b border-border/50 pb-4">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -60,15 +62,14 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
-          <input
-            type="checkbox"
+          <Switch
             checked={notificationEnabled}
-            onChange={(e) => setNotificationEnabled(e.target.checked)}
-            className="size-5 accent-primary cursor-pointer"
+            onCheckedChange={setNotificationEnabled}
+            aria-label="เปิด-ปิดการแจ้งเตือนในระบบ"
           />
         </div>
 
-        {/* สวิตช์ 2FA */}
+        {/* สวิตช์ 2FA (Toggle Switch เลื่อนเปิด-ปิด) */}
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -83,11 +84,10 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
-          <input
-            type="checkbox"
+          <Switch
             checked={twoFactorEnabled}
-            onChange={(e) => setTwoFactorEnabled(e.target.checked)}
-            className="size-5 accent-primary cursor-pointer"
+            onCheckedChange={setTwoFactorEnabled}
+            aria-label="เปิด-ปิดการยืนยันตัวตนสองชั้น"
           />
         </div>
       </div>

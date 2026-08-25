@@ -1,18 +1,20 @@
+'use client';
+
+import Image from 'next/image';
 import Link from 'next/link';
-import { Eye, Clock, FileText, ChevronRight } from 'lucide-react';
+import { Eye, MapPin, Calendar, FileText, ArrowRight } from 'lucide-react';
 
 import { LatestPostItem } from '@/types/post';
-import { cn } from '@/lib/utils';
 
 interface UserPostHistoryTableProps {
   posts?: LatestPostItem[];
 }
 
 /**
- * UserPostHistoryTable Component (Server Component)
- * - ตารางแสดง "ประวัติการแจ้งประกาศตามหา" (Lost & Found Posts History Table)
- * - บน Desktop: แสดงผลเป็นตารางข้อมูล (Table View) คมชัด เรียบหรู
- * - บน Mobile: แสดงผลเป็นการ์ดรายการ (Mobile Card View) อ่านง่าย พอดีจอ ไม่ต้องเลื่อนจอซ้ายขวา
+ * UserPostHistoryTable Component (Client Component)
+ * - แสดงประวัติการสร้างประกาศตามหาของฉันในรูปแบบการ์ด (Rich Post Card Grid)
+ * - มีรูปภาพสัตว์เลี้ยง, ป้าย LOST/FOUND, ป้ายสถานะการตามหา, พิกัดสถานที่, วันที่ และยอดผู้เข้าชม
+ * - ปุ่มลัดไปยังใบปลิว (Flyer), ไทม์ไลน์ประกาศ (Timeline/Progress) และหน้ารายละเอียดประกาศ
  */
 export function UserPostHistoryTable({ posts = [] }: UserPostHistoryTableProps) {
   // ฟังก์ชันกำหนดป้ายสถานะ
@@ -20,24 +22,24 @@ export function UserPostHistoryTable({ posts = [] }: UserPostHistoryTableProps) 
     if (idx === 0) {
       return {
         label: 'กำลังตามหา',
-        className: 'bg-destructive/10 text-destructive',
+        className: 'bg-destructive text-white',
       };
     }
     if (idx === 1 || idx === 3) {
       return {
         label: 'พากลับบ้านแล้ว',
-        className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+        className: 'bg-emerald-600 text-white',
       };
     }
     if (idx === 2) {
       return {
         label: 'ปิดประกาศแล้ว',
-        className: 'bg-slate-500/10 text-slate-600 dark:text-slate-400',
+        className: 'bg-slate-600 text-white',
       };
     }
     return {
-      label: 'ส่งมอบเจ้าของ',
-      className: 'bg-teal-500/10 text-teal-600 dark:text-teal-400',
+      label: 'พากลับบ้านแล้ว',
+      className: 'bg-teal-600 text-white',
     };
   };
 
@@ -47,119 +49,137 @@ export function UserPostHistoryTable({ posts = [] }: UserPostHistoryTableProps) 
   };
 
   return (
-    <div className="flex flex-col gap-3.5 sm:gap-4">
+    <div className="flex flex-col gap-4">
+      {/* ส่วนหัวของ Section */}
       <div className="flex items-center justify-between">
         <h3 className="text-base font-bold tracking-tight text-foreground sm:text-xl">
           ประวัติการแจ้งประกาศตามหา
         </h3>
         <Link
           href="/posts/create?type=LOST"
-          className="text-xs font-semibold text-primary transition-colors hover:underline sm:text-sm"
+          className="text-xs font-bold text-primary transition-colors hover:underline sm:text-sm"
         >
           + สร้างประกาศใหม่
         </Link>
       </div>
 
-      {/* 1. มุมมองแบบการ์ดบนหน้าจอมือถือ (Mobile Card List View - แสดงเฉพาะ < md) */}
-      <div className="flex flex-col gap-2.5 md:hidden">
+      {/* เมื่อไม่มีประวัติประกาศ */}
+      {posts.length === 0 && (
+        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-border/80 bg-card/40 p-8 text-center">
+          <p className="text-sm font-semibold text-muted-foreground">
+            ยังไม่มีประวัติการสร้างประกาศตามหา
+          </p>
+          <Link
+            href="/posts/create"
+            className="mt-3 rounded-2xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-xs hover:bg-primary/90"
+          >
+            สร้างประกาศแรกของคุณ
+          </Link>
+        </div>
+      )}
+
+      {/* กริดการ์ดประวัติประกาศตามหา (Grid View 1-3 Columns) */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {posts.map((post, idx) => {
           const status = getStatusBadge(idx);
           const views = getMockViews(idx);
+          const isLost = post.type === 'LOST';
 
           return (
-            <Link
+            <div
               key={post.id}
-              href={`/posts/${post.id}`}
-              className="group flex flex-col gap-2 rounded-2xl border border-border/80 bg-card p-3.5 shadow-2xs transition-all hover:border-primary/50"
+              className="group flex flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xs transition-all hover:border-primary/50 hover:shadow-md"
             >
-              <div className="flex items-center justify-between gap-2">
-                <span
-                  className={cn(
-                    'inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold',
-                    status.className
-                  )}
-                >
-                  {status.label}
-                </span>
-                <span className="text-[11px] text-muted-foreground">
-                  {post.timeAgo}
-                </span>
+              {/* รูปภาพสัตว์เลี้ยงพร้อมป้ายสถานะคู่ (LOST/FOUND และ Status Badge) */}
+              <div className="relative h-44 w-full overflow-hidden bg-muted">
+                <Image
+                  src={
+                    post.coverImageUrl ||
+                    'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?q=80&w=600&auto=format&fit=crop'
+                  }
+                  alt={post.petName}
+                  fill
+                  className="object-cover transition-transform duration-300 group-hover:scale-105"
+                />
+
+                {/* ป้ายประเภทประกาศมุมซ้ายบน */}
+                <div className="absolute top-3 left-3">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-black text-white shadow-xs ${
+                      isLost ? 'bg-amber-500' : 'bg-blue-600'
+                    }`}
+                  >
+                    {isLost ? 'LOST' : 'FOUND'}
+                  </span>
+                </div>
+
+                {/* ป้ายสถานะการติดตามมุมขวาบน */}
+                <div className="absolute top-3 right-3">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold shadow-xs ${status.className}`}
+                  >
+                    {status.label}
+                  </span>
+                </div>
               </div>
 
-              <span className="font-bold text-foreground group-hover:text-primary line-clamp-1 text-sm">
-                {post.petName}
-              </span>
-
-              <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-border/40 pt-2">
-                <span className="flex items-center gap-1">
-                  <Eye className="size-3.5 text-primary" />
-                  ยอดดู {views}
-                </span>
-                <ChevronRight className="size-4 text-muted-foreground group-hover:text-primary transition-transform group-hover:translate-x-0.5" />
-              </div>
-            </Link>
-          );
-        })}
-      </div>
-
-      {/* 2. มุมมองแบบตารางบนคอมพิวเตอร์ (Desktop Table View - แสดงเฉพาะ >= md) */}
-      <div className="hidden overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xs md:block dark:border-border/60">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-border/60 bg-muted/40 text-xs font-semibold text-muted-foreground">
-            <tr>
-              <th scope="col" className="px-6 py-4">
-                ชื่อประกาศ / หัวข้อสถานะการติดตาม
-              </th>
-              <th scope="col" className="px-6 py-4">
-                สถานะ
-              </th>
-              <th scope="col" className="px-6 py-4">
-                วันที่สร้าง
-              </th>
-              <th scope="col" className="px-6 py-4 text-right">
-                ยอดผู้เข้าดู
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/60">
-            {posts.map((post, idx) => {
-              const status = getStatusBadge(idx);
-              const views = getMockViews(idx);
-
-              return (
-                <tr
-                  key={post.id}
-                  className="group transition-colors hover:bg-muted/40"
+              {/* เนื้อหาการ์ด */}
+              <div className="flex flex-1 flex-col p-4">
+                <Link
+                  href={`/posts/${post.id}`}
+                  className="font-bold text-foreground transition-colors hover:text-primary line-clamp-1 text-sm sm:text-base"
                 >
-                  <td className="px-6 py-4 font-medium text-foreground">
+                  {post.petName}
+                </Link>
+
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {post.petType === 'CAT' ? 'แมว' : 'สุนัข'} • {post.breed || 'ไม่ระบุพันธุ์'}
+                </p>
+
+                {/* พิกัดสถานที่และวันที่สร้าง */}
+                <div className="mt-3 flex flex-col gap-1.5 text-xs text-muted-foreground border-t border-border/60 pt-3">
+                  <span className="flex items-center gap-1.5 truncate">
+                    <MapPin className="size-3.5 text-primary shrink-0" />
+                    <span className="truncate">{post.locationDetail || post.province}</span>
+                  </span>
+                  <span className="flex items-center gap-1.5 truncate">
+                    <Calendar className="size-3.5 text-muted-foreground shrink-0" />
+                    <span className="truncate">{post.timeAgo}</span>
+                  </span>
+                </div>
+
+                {/* แถบล่างสุด: ยอดดู และปุ่มทางลัด */}
+                <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
+                  {/* ยอดดู */}
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Eye className="size-3.5 text-primary" />
+                    {views}
+                  </span>
+
+                  {/* ปุ่มทางลัด: ใบปลิว & ไทม์ไลน์ */}
+                  <div className="flex items-center gap-1.5">
+                    <Link
+                      href={`/posts/${post.id}/flyer`}
+                      className="rounded-xl border border-border/80 bg-muted/50 px-2.5 py-1 text-[11px] font-bold text-foreground transition-colors hover:bg-primary/20 hover:text-primary"
+                      title="ดูใบปลิว"
+                    >
+                      <FileText className="mr-1 inline size-3" />
+                      ใบปลิว
+                    </Link>
+
                     <Link
                       href={`/posts/${post.id}`}
-                      className="transition-colors group-hover:text-primary hover:underline line-clamp-1"
+                      className="flex size-7 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-transform hover:scale-105"
+                      title="ดูรายละเอียด"
                     >
-                      {post.petName}
+                      <ArrowRight className="size-3.5" />
                     </Link>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={cn(
-                        'inline-flex items-center rounded-md px-2.5 py-1 text-xs font-bold',
-                        status.className
-                      )}
-                    >
-                      {status.label}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-xs text-muted-foreground">
-                    {post.timeAgo}
-                  </td>
-                  <td className="px-6 py-4 text-right text-xs font-medium text-muted-foreground">
-                    {views}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
