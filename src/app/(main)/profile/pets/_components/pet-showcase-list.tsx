@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Plus, Heart } from 'lucide-react';
 
-import { PetProfile, CreatePetDto } from '@/types/pet';
+import { PetProfile, CreatePetDto, PetImage } from '@/types/pet';
 import { PetCard } from './pet-card';
 import { PetQrModal } from './pet-qr-modal';
 import { PetFormModal } from './pet-form-modal';
@@ -40,7 +40,7 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
   };
 
   // จัดการการส่งข้อมูลฟอร์ม (สร้างใหม่ หรือ อัปเดต)
-  const handleSavePet = (data: CreatePetDto & { images?: any[] }) => {
+  const handleSavePet = (data: CreatePetDto & { images?: PetImage[] }) => {
     if (selectedPetForEdit) {
       // แก้ไขสัตว์เลี้ยงเดิม
       setPets((prev) =>
@@ -190,12 +190,15 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
       />
 
       {/* Modal ฟอร์มเพิ่ม/แก้ไขข้อมูลสัตว์เลี้ยง */}
-      <PetFormModal
-        isOpen={isFormOpen}
-        petToEdit={selectedPetForEdit}
-        onClose={() => setIsFormOpen(false)}
-        onSubmitPet={handleSavePet}
-      />
+      {isFormOpen && (
+        <PetFormModal
+          key={selectedPetForEdit?.id || 'new'}
+          isOpen={isFormOpen}
+          petToEdit={selectedPetForEdit}
+          onClose={() => setIsFormOpen(false)}
+          onSubmitPet={handleSavePet}
+        />
+      )}
     </div>
   );
 }

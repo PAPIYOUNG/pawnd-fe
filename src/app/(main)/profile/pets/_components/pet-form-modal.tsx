@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -52,47 +52,11 @@ export function PetFormModal({
   const isEditing = !!petToEdit;
 
   // State จัดการรูปภาพสัตว์เลี้ยงในฟอร์ม (จำลอง Image List)
-  const [petImages, setPetImages] = useState<PetImage[]>([]);
-  const [mainProfileImageUrl, setMainProfileImageUrl] = useState<string | null>(null);
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-    reset,
-    setValue,
-  } = useForm<PetFormData>({
-    resolver: zodResolver(petSchema),
-    defaultValues: {
-      name: '',
-      type: 'CAT',
-      breed: '',
-      gender: 'FEMALE',
-      color: '',
-      age: 1,
-      distinctiveFeatures: '',
-      description: '',
-      profileImageUrl: '',
-    },
-  });
-
-  // อัปเดตข้อมูลเมื่อเปิด Modal ขึ้นมาแก้ไข
-  useEffect(() => {
-    if (isOpen) {
-      if (petToEdit) {
-        reset({
-          name: petToEdit.name,
-          type: petToEdit.type,
-          breed: petToEdit.breed || '',
-          gender: petToEdit.gender || 'FEMALE',
-          color: petToEdit.color || '',
-          age: petToEdit.age ?? 1,
-          distinctiveFeatures: petToEdit.distinctiveFeatures || '',
-          description: petToEdit.description || '',
-          profileImageUrl: petToEdit.profileImageUrl || '',
-        });
-
-        const initialImgs: PetImage[] = petToEdit.images || [
+  const [petImages, setPetImages] = useState<PetImage[]>(() => {
+    if (!petToEdit) return [];
+    return petToEdit.images && petToEdit.images.length > 0
+      ? petToEdit.images
+      : [
           {
             id: `img-1-${petToEdit.id}`,
             petId: petToEdit.id,
@@ -104,25 +68,31 @@ export function PetFormModal({
             createdAt: new Date().toISOString(),
           },
         ];
-        setPetImages(initialImgs);
-        setMainProfileImageUrl(petToEdit.profileImageUrl || initialImgs[0]?.imageUrl || null);
-      } else {
-        reset({
-          name: '',
-          type: 'CAT',
-          breed: '',
-          gender: 'FEMALE',
-          color: '',
-          age: 1,
-          distinctiveFeatures: '',
-          description: '',
-          profileImageUrl: '',
-        });
-        setPetImages([]);
-        setMainProfileImageUrl(null);
-      }
-    }
-  }, [isOpen, petToEdit, reset]);
+  });
+  const [mainProfileImageUrl, setMainProfileImageUrl] = useState<string | null>(
+    () => petToEdit?.profileImageUrl || petImages[0]?.imageUrl || null
+  );
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    reset,
+    setValue,
+  } = useForm<PetFormData>({
+    resolver: zodResolver(petSchema),
+    defaultValues: {
+      name: petToEdit?.name || '',
+      type: petToEdit?.type || 'CAT',
+      breed: petToEdit?.breed || '',
+      gender: petToEdit?.gender || 'FEMALE',
+      color: petToEdit?.color || '',
+      age: petToEdit?.age ?? 1,
+      distinctiveFeatures: petToEdit?.distinctiveFeatures || '',
+      description: petToEdit?.description || '',
+      profileImageUrl: petToEdit?.profileImageUrl || '',
+    },
+  });
 
   if (!isOpen) return null;
 

@@ -93,14 +93,14 @@ export default function Header({
           {isLoggedIn ? (
             <>
               {/* ปุ่มกระดิ่งแจ้งเตือนพร้อมจุดสีแดง (Notification Bell) */}
-              <button
-                type="button"
+              <Link
+                href="/notifications"
                 aria-label="การแจ้งเตือน"
                 className="relative flex size-10 min-h-[40px] min-w-[40px] items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-muted hover:text-foreground active:scale-95"
               >
                 <Bell className="size-5" />
                 <span className="absolute top-2.5 right-2.5 size-2 rounded-full bg-destructive ring-2 ring-background" />
-              </button>
+              </Link>
 
               {/* รูปโปรไฟล์ Avatar ของผู้ใช้งาน (คลิกเพื่อเข้าสู่ระบบโปรไฟล์และจัดการสัตว์เลี้ยง) */}
               <Link
