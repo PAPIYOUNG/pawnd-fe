@@ -1,8 +1,17 @@
-export async function summaryAction(): Promise<ErrorActionResult> {
+import { AdminApi } from '@/lib/api/admin.api';
+import { ApiError } from '@/lib/api/api-error';
+import { ErrorActionResult } from '@/lib/api/types/action.type';
+import { DashboardSummary } from '@/types/admin';
+
+// ดึงข้อมูลสรุปภาพรวมสำหรับหน้าแดชบอร์ดผู้ดูแลระบบ
+// สำเร็จ -> คืนค่า DashboardSummary, ล้มเหลว -> คืนค่า ErrorActionResult ให้หน้าเพจแสดง Error State
+export async function summaryAction(): Promise<
+  DashboardSummary | ErrorActionResult
+> {
   try {
-    await FriendApi.unfriend(friendId);
+    return await AdminApi.dashboardSummary();
   } catch (error) {
-    if (error instanceof APiError) {
+    if (error instanceof ApiError) {
       return {
         success: false,
         message: error.message,
@@ -11,5 +20,4 @@ export async function summaryAction(): Promise<ErrorActionResult> {
     }
     throw error;
   }
-  redirect('/friends');
 }
