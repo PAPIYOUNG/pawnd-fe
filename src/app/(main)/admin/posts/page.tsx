@@ -1,4 +1,6 @@
 import { Metadata } from 'next';
+import Link from 'next/link';
+import { Eye } from 'lucide-react';
 
 import { PostStatusControl } from './_components/post-status-control';
 import { PostsFilterBar } from './_components/posts-filter-bar';
@@ -123,7 +125,12 @@ function PostRow({ post }: { post: AdminPostListItem }) {
         {post.id.slice(0, 8)}
       </td>
       <td className="py-3 pr-4 font-semibold text-foreground">
-        {post.petName}
+        <Link
+          href={`/admin/posts/${post.id}`}
+          className="hover:text-primary hover:underline"
+        >
+          {post.petName}
+        </Link>
         {post.breed && (
           <p className="mt-0.5 text-xs font-normal text-muted-foreground">
             {post.breed}
@@ -151,7 +158,17 @@ function PostRow({ post }: { post: AdminPostListItem }) {
         {formatThaiShortDate(post.createdAt)}
       </td>
       <td className="py-3 pl-4">
-        <PostStatusControl postId={post.id} initialStatus={post.status} />
+        <div className="flex flex-col items-end gap-2">
+          <Link
+            href={`/admin/posts/${post.id}`}
+            title="ดูรายละเอียดประกาศ"
+            aria-label={`ดูรายละเอียดประกาศ ${post.petName}`}
+            className="flex size-8 items-center justify-center rounded-full bg-muted text-foreground hover:bg-muted/70"
+          >
+            <Eye className="size-4" />
+          </Link>
+          <PostStatusControl postId={post.id} initialStatus={post.status} />
+        </div>
       </td>
     </tr>
   );

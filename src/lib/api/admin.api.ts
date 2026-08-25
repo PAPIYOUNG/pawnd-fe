@@ -1,6 +1,7 @@
 import { authFetch } from '@/lib/api/auth-fetch';
 import {
   DashboardSummary,
+  GetPostByIdResponse,
   GetPostsParams,
   GetPostsResponse,
   GetUserByIdResponse,
@@ -70,6 +71,12 @@ export const AdminApi = {
       `/admin/posts${queryString ? `?${queryString}` : ''}`,
       { method: 'GET' },
     );
+  },
+  // ดึงข้อมูลประกาศแบบละเอียด 1 รายการ สำหรับหน้ารายละเอียดประกาศ
+  async getPostById(id: string) {
+    return await authFetch<GetPostByIdResponse>(`/admin/posts/${id}`, {
+      method: 'GET',
+    });
   },
   // เปลี่ยนสถานะประกาศ (เช่น ปิดประกาศ / ซ่อนประกาศ / ทำเครื่องหมายพากลับบ้านแล้ว / ลบ)
   async updatePostStatus(id: string, status: PostStatus) {

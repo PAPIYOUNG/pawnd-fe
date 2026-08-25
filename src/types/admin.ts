@@ -1,6 +1,6 @@
 import { UserRole } from './auth';
 import { UserStatus } from './user';
-import { PetType, PostStatus, PostType } from './post';
+import { PetGender, PetType, PostStatus, PostType } from './post';
 
 /**
  * DashboardSummary
@@ -212,4 +212,59 @@ export interface UpdatePostStatusResult {
 
 export interface UpdatePostStatusResponse {
   post: UpdatePostStatusResult;
+}
+
+/**
+ * AdminPostDetail
+ * - ข้อมูลประกาศ Lost/Found แบบละเอียด 1 รายการ จาก Backend endpoint `GET /admin/posts/:id`
+ * - `rewardAmount` เป็น Prisma Decimal ซึ่งถูก serialize เป็น string เสมอเมื่อส่งผ่าน JSON
+ * - `currentLocation` เป็นฟิลด์ภายในของ Backend ที่ยังไม่มีสัญญา (contract) รูปแบบชัดเจน
+ *   จึงเก็บไว้เป็น `unknown` และไม่นำไปแสดงผลใน UI จนกว่าจะทราบโครงสร้างที่แน่ชัด
+ */
+export interface AdminPostDetail {
+  id: string;
+  type: PostType;
+  status: PostStatus;
+  petName: string;
+  petType: PetType;
+  breed: string | null;
+  gender: PetGender | null;
+  color: string | null;
+  distinctiveFeatures: string | null;
+  description: string | null;
+  eventDate: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  province: string | null;
+  district: string | null;
+  subdistrict: string | null;
+  locationDescription: string | null;
+  rewardAmount: string | null;
+  currentLocation: unknown;
+  contactPhone: string | null;
+  contactLineId: string | null;
+  contactEmail: string | null;
+  viewCount: number;
+  reunitedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  pet: {
+    id: string;
+    name: string;
+  } | null;
+  images: {
+    id: string;
+    imageUrl: string;
+    sortOrder: number;
+  }[];
+}
+
+export interface GetPostByIdResponse {
+  post: AdminPostDetail;
 }

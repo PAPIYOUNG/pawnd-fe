@@ -7,6 +7,7 @@ import { ApiError } from '@/lib/api/api-error';
 import { ErrorActionResult } from '@/lib/api/types/action.type';
 import {
   DashboardSummary,
+  GetPostByIdResponse,
   GetPostsParams,
   GetPostsResponse,
   GetUserByIdResponse,
@@ -131,6 +132,25 @@ export async function getPostsAction(
         success: false,
         message: error.message,
         code: 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// ดึงข้อมูลประกาศแบบละเอียด 1 รายการ สำหรับหน้ารายละเอียดประกาศ
+// สำเร็จ -> คืนค่า GetPostByIdResponse, ไม่พบประกาศ -> code 'NOT_FOUND', ล้มเหลวอื่น -> code 'API_ERROR'
+export async function getPostByIdAction(
+  id: string,
+): Promise<GetPostByIdResponse | ErrorActionResult> {
+  try {
+    return await AdminApi.getPostById(id);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: error.statusCode === 404 ? 'NOT_FOUND' : 'API_ERROR',
       };
     }
     throw error;
