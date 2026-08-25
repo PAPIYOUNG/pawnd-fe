@@ -1,110 +1,65 @@
 import { Metadata } from 'next';
-import Link from 'next/link';
-import {
-  LayoutDashboard,
-  TrendingUp,
-  Activity,
-  Heart,
-  Megaphone,
-  CheckCircle,
-  Bell,
-  Sparkles,
-  MapPin,
-  ArrowRight,
-  ShieldCheck,
-} from 'lucide-react';
-
 import { getCurrentUser } from '@/services/user.service';
-import { UserStatsGrid } from '../profile/_components/user-stats-grid';
-import { UserMyPetsGrid } from '../profile/_components/user-my-pets-grid';
-import { UserPostHistoryTable } from '../profile/_components/user-post-history-table';
-import { Button } from '@/components/ui/button';
+import { ProfileSidebar } from '@/components/layout/ProfileSidebar';
+import { DashboardMetrics } from './_components/dashboard-metrics';
+import { DashboardMyPosts } from './_components/dashboard-my-posts';
+import { DashboardAiMatches } from './_components/dashboard-ai-matches';
 
 export const metadata: Metadata = {
-  title: 'แดชบอร์ดหลัก | PAWND',
-  description: 'แดชบอร์ดสรุปภาพรวมระบบ ประกาศ และการจับคู่สัตว์เลี้ยงด้วย AI',
+  title: 'แดชบอร์ด | PAWND',
+  description: 'แดชบอร์ดจัดการสัตว์เลี้ยง ประกาศตามหา และผลลัพธ์ AI Smart Matching',
 };
 
 /**
  * DashboardMainPage (Server Component - RSC)
- * - โครงสร้างหน้าแดชบอร์ดหลักของระบบ (Main Dashboard)
- * - แสดงสถิติรวม แบนเนอร์สถานะ AI Matching กิจกรรมล่าสุด และทางลัดจัดการ
+ * - หน้าแดชบอร์ดหลักของผู้ใช้ (User Dashboard) ตรงตามดีไซน์ UI ในภาพตัวอย่าง
+ * - ฝั่งซ้าย: ProfileSidebar เมนูหลัก 4 รายการ (แดชบอร์ด, โปรไฟล์ผู้ใช้, โปรไฟล์สัตว์เลี้ยง, ตั้งค่าระบบ)
+ * - ฝั่งขวา:
+ *   1. ส่วนหัว: แดชบอร์ด + ข้อความต้อนรับ
+ *   2. การ์ดสถิติ 4 ใบ (สัตว์เลี้ยงของฉัน, ประกาศที่ใช้งาน, กลับบ้านแล้ว, ข้อความที่ยังไม่อ่าน)
+ *   3. คอลัมน์ซ้าย: ประกาศตามหาของฉัน (My Posts) พร้อมปุ่ม Action ดูใบปลิว, แก้ไข, ลบ
+ *   4. คอลัมน์ขวา: สรุปผลการจับคู่ AI (AI Matching Summary)
  */
 export default async function DashboardMainPage() {
   const user = await getCurrentUser();
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-      {/* 1. ส่วนหัวของหน้าแดชบอร์ด */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-7xl flex-col md:flex-row">
+      {/* 1. Sidebar เมนูนำทางด้านซ้าย */}
+      <ProfileSidebar user={user} />
+
+      {/* 2. เนื้อหาแดชบอร์ดหลักด้านขวา */}
+      <main className="flex-1 overflow-x-hidden p-4 sm:p-6 lg:p-8 flex flex-col gap-6 sm:gap-8">
+        {/* ส่วนหัวแดชบอร์ด */}
         <div>
-          <div className="flex items-center gap-2 text-primary">
-            <LayoutDashboard className="size-5" />
-            <span className="text-xs font-bold uppercase tracking-wider">
-              Main Dashboard
-            </span>
-          </div>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-            แดชบอร์ดภาพรวมระบบ
+          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            แดชบอร์ด
           </h1>
           <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-            ยินดีต้อนรับ คุณ{user.firstName} • ติดตามสถานะสัตว์เลี้ยงและประกาศแบบเรียลไทม์
+            สวัสดี คุณ{user.firstName}! ยินดีต้อนรับสู่ระบบการจัดการสัตว์เลี้ยงของคุณ
           </p>
         </div>
 
-        {/* ทางลัด CTA */}
-        <div className="flex items-center gap-2.5">
-          <Link href="/posts/create">
-            <Button className="h-10 rounded-2xl bg-primary px-4 text-xs font-semibold text-primary-foreground shadow-md hover:bg-primary/90">
-              <Megaphone className="mr-1.5 size-4" />
-              <span>สร้างประกาศแจ้งหาย</span>
-            </Button>
-          </Link>
-          <Link href="/profile/pets">
-            <Button variant="outline" className="h-10 rounded-2xl px-4 text-xs font-semibold">
-              <Heart className="mr-1.5 size-4 text-primary" />
-              <span>โปรไฟล์สัตว์เลี้ยง</span>
-            </Button>
-          </Link>
-        </div>
-      </div>
+        {/* แถวที่ 1: การ์ดสถิติ 4 ใบ */}
+        <DashboardMetrics
+          totalPets={user.stats?.totalPets || 3}
+          activePosts={user.stats?.totalLostPosts || 2}
+          totalReunited={user.stats?.totalReunited || 5}
+          unreadMessages={12}
+          dogCount={2}
+          catCount={1}
+        />
 
-      {/* 2. แบนเนอร์สถานะระบบ AI Smart Matching */}
-      <div className="flex flex-col items-start justify-between gap-4 rounded-3xl border border-emerald-500/30 bg-emerald-500/10 p-5 sm:flex-row sm:items-center dark:bg-emerald-950/25">
-        <div className="flex items-center gap-3.5">
-          <div className="flex size-11 items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-xs">
-            <Sparkles className="size-6" />
+        {/* แถวที่ 2: ประกาศตามหาของฉัน (7 Cols) และ สรุป AI Matching (5 Cols) */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <div className="lg:col-span-7">
+            <DashboardMyPosts />
           </div>
-          <div>
-            <h3 className="font-bold text-foreground">
-              AI Smart Matching System (Active)
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              ระบบกำลังสแกนเปรียบเทียบภาพสัตว์เลี้ยงและพิกัดแผนที่เพื่อจับคู่เคสอัตโนมัติ
-            </p>
+          <div className="lg:col-span-5">
+            <DashboardAiMatches />
           </div>
         </div>
-        <Link
-          href="/matches"
-          className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 hover:underline dark:text-emerald-300"
-        >
-          <span>ดูผลการจับคู่ AI</span>
-          <ArrowRight className="size-3.5" />
-        </Link>
-      </div>
-
-      {/* 3. สถิติ 3 กล่องข้อมูล */}
-      <UserStatsGrid
-        totalPets={user.stats?.totalPets}
-        totalLostPosts={user.stats?.totalLostPosts}
-        totalReunited={user.stats?.totalReunited}
-      />
-
-      {/* 4. สัตว์เลี้ยงของฉัน */}
-      <UserMyPetsGrid pets={user.pets} />
-
-      {/* 5. ประวัติและสถานะประกาศ */}
-      <UserPostHistoryTable posts={user.postsHistory} />
+      </main>
     </div>
   );
 }
