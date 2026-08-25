@@ -428,9 +428,29 @@ function MapPostPopup({ feature }: MapPostPopupProps) {
   const location = [properties.district, properties.province]
     .filter(Boolean)
     .join(', ');
+  /**
+   * Leaflet สร้างปุ่มปิดเองเมื่อ popup ถูกเพิ่มลงแผนที่ จึงกำหนดชื่อที่อ่านได้
+   * สำหรับ screen reader หลัง element พร้อม โดยไม่เปลี่ยนกลไกปิดเดิมของ Leaflet
+   */
+  const handlePopupAdd = useCallback((event: L.LeafletEvent) => {
+    const popup = event.target as L.Popup;
+    const closeButton = popup
+      .getElement()
+      ?.querySelector<HTMLAnchorElement>('.leaflet-popup-close-button');
+
+    closeButton?.setAttribute('aria-label', 'ปิดรายละเอียดประกาศ');
+  }, []);
+  const popupEventHandlers = useMemo<L.LeafletEventHandlerFnMap>(
+    () => ({ add: handlePopupAdd }),
+    [handlePopupAdd],
+  );
 
   return (
-    <Popup className="pawnd-map-popup" maxWidth={260}>
+    <Popup
+      className="pawnd-map-popup [&_.leaflet-popup-close-button]:!top-2 [&_.leaflet-popup-close-button]:!right-2 [&_.leaflet-popup-close-button]:!flex [&_.leaflet-popup-close-button]:!size-9 [&_.leaflet-popup-close-button]:!items-center [&_.leaflet-popup-close-button]:!justify-center [&_.leaflet-popup-close-button]:!rounded-full [&_.leaflet-popup-close-button]:!border [&_.leaflet-popup-close-button]:!border-border [&_.leaflet-popup-close-button]:!bg-background [&_.leaflet-popup-close-button]:!text-foreground [&_.leaflet-popup-close-button]:!shadow-sm [&_.leaflet-popup-close-button]:transition-colors [&_.leaflet-popup-close-button]:hover:!bg-muted [&_.leaflet-popup-close-button]:focus-visible:!outline-none [&_.leaflet-popup-close-button]:focus-visible:!ring-3 [&_.leaflet-popup-close-button]:focus-visible:!ring-ring/40 dark:[&_.leaflet-popup-content-wrapper]:!border dark:[&_.leaflet-popup-content-wrapper]:!border-border dark:[&_.leaflet-popup-content-wrapper]:!bg-card dark:[&_.leaflet-popup-content-wrapper]:!text-card-foreground dark:[&_.leaflet-popup-content-wrapper]:!shadow-xl dark:[&_.leaflet-popup-tip]:!border dark:[&_.leaflet-popup-tip]:!border-border dark:[&_.leaflet-popup-tip]:!bg-card dark:[&_.leaflet-popup-tip]:!shadow-lg"
+      maxWidth={260}
+      eventHandlers={popupEventHandlers}
+    >
       <article className="w-56 overflow-hidden rounded-xl bg-card text-card-foreground">
         {/* รูปภาพปกของประกาศหรือ placeholder เมื่อไม่มีรูป */}
         <div className="relative h-28 overflow-hidden rounded-xl bg-muted">
@@ -452,20 +472,26 @@ function MapPostPopup({ feature }: MapPostPopupProps) {
 
         {/* รายละเอียดสำคัญที่ช่วยตัดสินใจเปิดดูประกาศต่อ */}
         <div className="space-y-1.5 px-1 pt-3">
-          <p className="text-xs font-semibold text-primary">
+          <p
+            className={`text-xs font-bold ${
+              properties.postType === 'LOST'
+                ? 'text-destructive'
+                : 'text-primary dark:text-chart-2'
+            }`}
+          >
             {POST_TYPE_LABEL[properties.postType]}
           </p>
-          <h3 className="line-clamp-1 text-base font-bold">
+          <h3 className="line-clamp-1 text-base font-bold text-foreground">
             {properties.petName ?? 'ไม่ระบุชื่อสัตว์เลี้ยง'}
           </h3>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs font-medium text-foreground/75">
             {PET_TYPE_LABEL[properties.petType]}
             {properties.breed ? ` · ${properties.breed}` : ''}
           </p>
-          <p className="line-clamp-1 text-xs text-muted-foreground">
+          <p className="line-clamp-1 text-xs font-medium text-foreground/75">
             {location || 'ไม่ระบุพื้นที่'}
           </p>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[11px] font-medium text-foreground/75">
             วันที่ประกาศ: {formatPostDate(properties.eventDate)}
           </p>
         </div>
@@ -473,7 +499,7 @@ function MapPostPopup({ feature }: MapPostPopupProps) {
         {/* ลิงก์ไปหน้า Pet Post Detail ตาม route ที่มีอยู่ใน frontend */}
         <Link
           href={`/posts/${properties.id}`}
-          className="mt-3 flex min-h-10 items-center justify-center rounded-xl bg-primary px-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/85"
+          className="mt-3 flex min-h-10 items-center justify-center rounded-xl bg-primary px-3 text-xs font-semibold !text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
         >
           ดูรายละเอียดประกาศ
         </Link>
