@@ -124,25 +124,6 @@ function UserRow({ user }: { user: AdminUserListItem }) {
           >
             <Eye className="size-4" />
           </Link>
-          {/* ยังไม่มี API สำหรับเปิดใช้งาน/ลบผู้ใช้งาน ปุ่มนี้จึงเป็น UI เตรียมไว้ก่อน (disabled) */}
-          <button
-            type="button"
-            disabled
-            title="ยังไม่รองรับ (รอ API จาก Backend)"
-            aria-label={`เปิดใช้งาน ${user.firstName} ${user.lastName}`}
-            className="flex size-8 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Check className="size-4" />
-          </button>
-          <button
-            type="button"
-            disabled
-            title="ยังไม่รองรับ (รอ API จาก Backend)"
-            aria-label={`ลบ ${user.firstName} ${user.lastName}`}
-            className="flex size-8 items-center justify-center rounded-full bg-destructive/15 text-destructive disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Trash2 className="size-4" />
-          </button>
         </div>
       </td>
     </tr>
