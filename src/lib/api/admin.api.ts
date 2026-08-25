@@ -1,6 +1,7 @@
 import { authFetch } from '@/lib/api/auth-fetch';
 import {
   DashboardSummary,
+  GetUserByIdResponse,
   GetUsersParams,
   GetUsersResponse,
   MonthlyTrendPoint,
@@ -34,5 +35,11 @@ export const AdminApi = {
       `/admin/users${queryString ? `?${queryString}` : ''}`,
       { method: 'GET' },
     );
+  },
+  // ดึงข้อมูลผู้ใช้งานแบบละเอียด 1 คน สำหรับหน้ารายละเอียดผู้ใช้งาน
+  async getUserById(id: string) {
+    return await authFetch<GetUserByIdResponse>(`/admin/users/${id}`, {
+      method: 'GET',
+    });
   },
 };

@@ -1,45 +1,18 @@
 import { Metadata } from 'next';
-import { Check, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { Check, Eye, Trash2 } from 'lucide-react';
 
 import { UsersPagination } from './_components/users-pagination';
+import { getUserRoleLabel, USER_STATUS_LABEL } from './_lib/user-labels';
 import { getUsersAction } from '@/lib/action/admin.action';
 import { formatThaiShortDate } from '@/lib/utils';
 import { AdminUserListItem } from '@/types/admin';
-import { UserRole } from '@/types/auth';
-import { UserStatus } from '@/types/user';
 
 export const metadata: Metadata = {
   title: 'จัดการผู้ใช้งาน | Admin',
 };
 
 const PAGE_SIZE = 20;
-
-// ป้ายสถานะผู้ใช้งาน ตรงตาม UserStatus ของ Backend (src/types/user.ts)
-const STATUS_LABEL: Record<UserStatus, { text: string; className: string }> = {
-  ACTIVE: { text: 'ปกติ', className: 'bg-emerald-500/10 text-emerald-600' },
-  PENDING_EMAIL_VERIFICATION: {
-    text: 'รอยืนยันอีเมล',
-    className: 'bg-amber-500/10 text-amber-600',
-  },
-  SUSPENDED: {
-    text: 'ระงับบัญชี',
-    className: 'bg-red-500/10 text-red-600',
-  },
-  BLACKLISTED: {
-    text: 'ขึ้นบัญชีดำ',
-    className: 'bg-red-500/10 text-red-600',
-  },
-  DELETED: {
-    text: 'ถูกลบ',
-    className: 'bg-muted text-muted-foreground',
-  },
-};
-
-// ป้ายบทบาทที่รู้จัก ส่วนค่าที่ backend ส่งมานอกเหนือจากนี้จะแสดงค่าดิบแทน (ไม่เดา label เอง)
-const ROLE_LABEL: Partial<Record<UserRole, string>> = {
-  USER: 'สมาชิกทั่วไป',
-  ADMIN: 'ผู้ดูแลระบบ',
-};
 
 interface AdminUsersPageProps {
   searchParams: Promise<{ page?: string }>;
@@ -110,8 +83,8 @@ export default async function AdminUsersPage({
 }
 
 function UserRow({ user }: { user: AdminUserListItem }) {
-  const status = STATUS_LABEL[user.status];
-  const roleLabel = ROLE_LABEL[user.role] ?? user.role;
+  const status = USER_STATUS_LABEL[user.status];
+  const roleLabel = getUserRoleLabel(user.role);
 
   return (
     <tr className="border-b border-border/60 last:border-0">
@@ -122,7 +95,12 @@ function UserRow({ user }: { user: AdminUserListItem }) {
         {user.id.slice(0, 8)}
       </td>
       <td className="py-3 pr-4 font-semibold text-foreground">
-        {user.firstName} {user.lastName}
+        <Link
+          href={`/admin/users/${user.id}`}
+          className="hover:text-primary hover:underline"
+        >
+          {user.firstName} {user.lastName}
+        </Link>
       </td>
       <td className="py-3 pr-4 text-muted-foreground">{user.email}</td>
       <td className="py-3 pr-4 text-muted-foreground">{roleLabel}</td>
@@ -138,6 +116,14 @@ function UserRow({ user }: { user: AdminUserListItem }) {
       </td>
       <td className="py-3 pl-4">
         <div className="flex items-center justify-end gap-2">
+          <Link
+            href={`/admin/users/${user.id}`}
+            title="ดูรายละเอียดผู้ใช้งาน"
+            aria-label={`ดูรายละเอียด ${user.firstName} ${user.lastName}`}
+            className="flex size-8 items-center justify-center rounded-full bg-muted text-foreground hover:bg-muted/70"
+          >
+            <Eye className="size-4" />
+          </Link>
           {/* ยังไม่มี API สำหรับเปิดใช้งาน/ลบผู้ใช้งาน ปุ่มนี้จึงเป็น UI เตรียมไว้ก่อน (disabled) */}
           <button
             type="button"

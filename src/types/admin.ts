@@ -104,3 +104,36 @@ export interface GetUsersParams {
   role?: UserRole;
   search?: string;
 }
+
+/**
+ * AdminUserDetail
+ * - ข้อมูลผู้ใช้งานแบบละเอียด 1 คน จาก Backend endpoint `GET /admin/users/:id`
+ */
+export interface AdminUserDetail {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  address: string | null;
+  lineId: string | null;
+  avatarUrl: string | null;
+  role: UserRole;
+  status: UserStatus;
+  emailVerifiedAt: string | null;
+  notificationEnabled: boolean;
+  twoFactorEnabled: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count: {
+    pets: number;
+    petPosts: number;
+    communityPosts: number;
+    submittedContentReports: number;
+  };
+}
+
+export interface GetUserByIdResponse {
+  user: AdminUserDetail;
+}

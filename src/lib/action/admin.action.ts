@@ -3,6 +3,7 @@ import { ApiError } from '@/lib/api/api-error';
 import { ErrorActionResult } from '@/lib/api/types/action.type';
 import {
   DashboardSummary,
+  GetUserByIdResponse,
   GetUsersParams,
   GetUsersResponse,
   MonthlyTrendPoint,
@@ -59,6 +60,25 @@ export async function getUsersAction(
         success: false,
         message: error.message,
         code: 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// ดึงข้อมูลผู้ใช้งานแบบละเอียด 1 คน สำหรับหน้ารายละเอียดผู้ใช้งาน
+// สำเร็จ -> คืนค่า GetUserByIdResponse, ไม่พบผู้ใช้ -> code 'NOT_FOUND', ล้มเหลวอื่น -> code 'API_ERROR'
+export async function getUserByIdAction(
+  id: string,
+): Promise<GetUserByIdResponse | ErrorActionResult> {
+  try {
+    return await AdminApi.getUserById(id);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: error.statusCode === 404 ? 'NOT_FOUND' : 'API_ERROR',
       };
     }
     throw error;

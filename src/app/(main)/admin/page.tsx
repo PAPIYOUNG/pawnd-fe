@@ -2,8 +2,8 @@ import { Metadata } from 'next';
 import { FileText, Flag, PawPrint, Users } from 'lucide-react';
 
 import { MonthlyTrendChart } from './_components/monthly-trend-chart';
-import { StatCard } from './_components/stat-card';
 import { monthlyTrendAction, summaryAction } from '@/lib/action/admin.action';
+import { StatCard } from '@/components/admin/stat-card';
 import { DashboardSummary } from '@/types/admin';
 
 export const metadata: Metadata = {
