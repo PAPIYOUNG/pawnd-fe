@@ -33,6 +33,7 @@ import type { PostType } from '@/types/post';
 
 const DEFAULT_CENTER: [number, number] = [13.7563, 100.5018];
 const DEFAULT_ZOOM = 11;
+const SELECTED_POST_ZOOM = 15;
 const VIEWPORT_DEBOUNCE_MS = 350;
 const VIEWPORT_COMPARISON_EPSILON = 1e-7;
 const MAP_POST_LIMIT = 200;
@@ -73,6 +74,10 @@ interface RealLeafletMapProps {
   isLocating?: boolean;
   /** ข้อความที่อ่านง่ายเมื่อขอพิกัดไม่สำเร็จ */
   locationError?: string | null;
+  /** post id จากการ์ดที่ต้องเลื่อนแผนที่ไปหาและเปิด popup */
+  selectedPostId?: string | null;
+  /** token เปลี่ยนทุก click เพื่อรองรับการเลือก post เดิมซ้ำ */
+  selectionRequestToken?: number;
   /** ส่งสถานะข้อมูลชุดเดียวกันให้ sidebar แสดงรายการประกาศ */
   onDataStateChange?: (state: MapDataState) => void;
   /** ส่ง viewport ปัจจุบันให้หน้าหลักคำนวณระยะทางของรายการ */
@@ -94,20 +99,44 @@ interface CurrentLocationControllerProps {
   currentLocation?: CurrentLocation | null;
 }
 
+interface SelectedPostControllerProps {
+  /** post id และพิกัดที่ได้จาก feature ชุดเดียวกับ marker */
+  postId: string | null;
+  latitude?: number;
+  longitude?: number;
+  /** ลำดับคำสั่งเลือกจากการ click การ์ด */
+  requestToken: number;
+  /** marker instances ที่ใช้เปิด popup โดยไม่สร้าง React state เพิ่ม */
+  markerRefs: React.RefObject<Map<string, L.Marker>>;
+}
+
+interface MapPostMarkerProps {
+  /** feature และ icon ที่ใช้สร้าง marker หนึ่งจุด */
+  feature: MapPostFeature;
+  icon: L.DivIcon;
+  /** callback stable สำหรับลงทะเบียน Leaflet marker instance */
+  onMarkerReady: (postId: string, marker: L.Marker | null) => void;
+}
+
 /**
  * สร้างไอคอน marker แบบเบาและไม่พึ่งไฟล์รูปของ Leaflet ที่อาจหายจาก bundler
  * ใช้ semantic CSS variables ของระบบเพื่อแยกสถานะ LOST และ FOUND
  */
-function createMarkerIcon(postType: PostType): L.DivIcon {
+function createMarkerIcon(postType: PostType, isSelected = false): L.DivIcon {
   const markerColor =
     postType === 'LOST' ? 'var(--destructive)' : 'var(--primary)';
+  const markerSize = isSelected ? 42 : 34;
+  const markerAnchor = markerSize / 2;
+  const selectionRing = isSelected
+    ? ',0 0 0 6px color-mix(in oklch, var(--primary) 25%, transparent)'
+    : '';
 
   return L.divIcon({
     className: '',
-    html: `<span style="display:flex;width:34px;height:34px;align-items:center;justify-content:center;border-radius:9999px;background:${markerColor};border:3px solid var(--background);box-shadow:0 3px 8px color-mix(in oklch, var(--foreground) 22%, transparent);"><span style="display:block;width:8px;height:8px;border-radius:9999px;background:var(--primary-foreground);"></span></span>`,
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
-    popupAnchor: [0, -17],
+    html: `<span style="display:flex;width:${markerSize}px;height:${markerSize}px;align-items:center;justify-content:center;border-radius:9999px;background:${markerColor};border:3px solid var(--background);box-shadow:0 3px 8px color-mix(in oklch, var(--foreground) 22%, transparent)${selectionRing};"><span style="display:block;width:8px;height:8px;border-radius:9999px;background:var(--primary-foreground);"></span></span>`,
+    iconSize: [markerSize, markerSize],
+    iconAnchor: [markerAnchor, markerAnchor],
+    popupAnchor: [0, -markerAnchor],
   });
 }
 
@@ -213,6 +242,68 @@ function CurrentLocationController({
 }
 
 /**
+ * รับคำสั่งจากการ์ดแล้ว flyTo ไปยัง marker ก่อนเปิด popup
+ * ไม่มีการ set React state ใน Leaflet event และใช้ token guard กัน effect ซ้ำ
+ */
+function SelectedPostController({
+  postId,
+  latitude,
+  longitude,
+  requestToken,
+  markerRefs,
+}: SelectedPostControllerProps) {
+  const map = useMap();
+  const lastHandledSelectionRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (
+      !postId ||
+      latitude === undefined ||
+      longitude === undefined ||
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude)
+    ) {
+      return;
+    }
+
+    const selectionKey = `${postId}:${requestToken}`;
+    if (lastHandledSelectionRef.current === selectionKey) {
+      return;
+    }
+    lastHandledSelectionRef.current = selectionKey;
+
+    const marker = markerRefs.current.get(postId);
+    if (!marker) {
+      return;
+    }
+
+    const target: L.LatLngExpression = [latitude, longitude];
+    const targetZoom = Math.max(map.getZoom(), SELECTED_POST_ZOOM);
+    const isAlreadyFocused =
+      map.distance(map.getCenter(), L.latLng(latitude, longitude)) < 0.5 &&
+      map.getZoom() === targetZoom;
+
+    if (isAlreadyFocused) {
+      marker.openPopup();
+      return;
+    }
+
+    const openSelectedPopup = () => {
+      marker.openPopup();
+    };
+
+    map.once('moveend', openSelectedPopup);
+    map.flyTo(target, targetZoom, { animate: true });
+
+    return () => {
+      map.off('moveend', openSelectedPopup);
+    };
+  }, [latitude, longitude, map, markerRefs, postId, requestToken]);
+
+  return null;
+}
+
+/**
  * แปลงวันที่ ISO จาก Backend เป็นรูปแบบภาษาไทยที่อ่านง่ายใน popup
  */
 function formatPostDate(value: string): string {
@@ -289,6 +380,24 @@ function MapPostPopup({ feature }: MapPostPopupProps) {
   );
 }
 
+/** Marker ของประกาศที่ลงทะเบียน instance ผ่าน ref callback โดยไม่ set state */
+function MapPostMarker({ feature, icon, onMarkerReady }: MapPostMarkerProps) {
+  const [longitude, latitude] = feature.geometry.coordinates;
+  const postId = feature.properties.id;
+  const handleMarkerRef = useCallback(
+    (marker: L.Marker | null) => {
+      onMarkerReady(postId, marker);
+    },
+    [onMarkerReady, postId],
+  );
+
+  return (
+    <Marker ref={handleMarkerRef} position={[latitude, longitude]} icon={icon}>
+      <MapPostPopup feature={feature} />
+    </Marker>
+  );
+}
+
 /**
  * RealLeafletMap เป็น Client Component สำหรับแสดงแผนที่ OpenStreetMap
  * โดยโหลด marker จาก Backend ตาม viewport และ debounce การเปลี่ยน bounds
@@ -305,6 +414,8 @@ export default function RealLeafletMap({
   onRequestCurrentLocation,
   isLocating = false,
   locationError,
+  selectedPostId,
+  selectionRequestToken = 0,
   onDataStateChange,
   onViewportChange,
 }: RealLeafletMapProps) {
@@ -315,7 +426,23 @@ export default function RealLeafletMap({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [retryToken, setRetryToken] = useState(0);
   const lastViewportRef = useRef<MapViewportState | null>(null);
+  const markerRefs = useRef(new Map<string, L.Marker>());
   const currentLocationIcon = useMemo(() => createCurrentLocationIcon(), []);
+
+  /** ลงทะเบียน marker instance เพื่อให้ selection controller เปิด popup ได้โดยตรง */
+  const handleMarkerReady = useCallback(
+    (postId: string, marker: L.Marker | null) => {
+      if (marker) {
+        if (markerRefs.current.get(postId) !== marker) {
+          markerRefs.current.set(postId, marker);
+        }
+        return;
+      }
+
+      markerRefs.current.delete(postId);
+    },
+    [],
+  );
 
   /** เก็บ bounds ล่าสุดจาก Leaflet เพื่อให้ effect ถัดไปจัดการ debounce */
   const handleViewportChange = useCallback(
@@ -486,6 +613,24 @@ export default function RealLeafletMap({
     return icons;
   }, [features]);
 
+  /** หา feature ที่เลือกด้วย post id เพื่อใช้พิกัดจริงชุดเดียวกับ marker */
+  const selectedFeature = useMemo(
+    () =>
+      selectedPostId
+        ? (features.find(
+            (feature) => feature.properties.id === selectedPostId,
+          ) ?? null)
+        : null,
+    [features, selectedPostId],
+  );
+  const selectedMarkerIcon = useMemo(
+    () =>
+      selectedFeature
+        ? createMarkerIcon(selectedFeature.properties.postType, true)
+        : null,
+    [selectedFeature],
+  );
+
   return (
     <div
       className={`relative z-0 w-full overflow-hidden rounded-3xl ${heightClass}`}
@@ -504,6 +649,13 @@ export default function RealLeafletMap({
         />
         <MapViewportObserver onChange={handleViewportChange} />
         <CurrentLocationController currentLocation={currentLocation} />
+        <SelectedPostController
+          postId={selectedPostId ?? null}
+          latitude={selectedFeature?.geometry.coordinates[1]}
+          longitude={selectedFeature?.geometry.coordinates[0]}
+          requestToken={selectionRequestToken}
+          markerRefs={markerRefs}
+        />
 
         {/* marker สีน้ำเงินของผู้ใช้ ไม่มีการส่งหรือบันทึกพิกัดนอก React state */}
         {currentLocation && (
@@ -529,14 +681,17 @@ export default function RealLeafletMap({
             return null;
           }
 
+          const isSelected = feature.properties.id === selectedPostId;
+
           return (
-            <Marker
+            <MapPostMarker
               key={feature.properties.id}
-              position={[latitude, longitude]}
-              icon={icon}
-            >
-              <MapPostPopup feature={feature} />
-            </Marker>
+              feature={feature}
+              icon={
+                isSelected && selectedMarkerIcon ? selectedMarkerIcon : icon
+              }
+              onMarkerReady={handleMarkerReady}
+            />
           );
         })}
       </MapContainer>
