@@ -66,3 +66,59 @@ export async function loginWithGoogleRequest(
     body: { ...payload },
   });
 }
+
+export interface RegisterPayload {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+}
+
+export interface RegisterResponse {
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: string;
+    status: string;
+    createdAt: string;
+  };
+  message: string;
+}
+
+export async function registerRequest(
+  payload: RegisterPayload,
+): Promise<RegisterResponse> {
+  return apiFetch<RegisterResponse>('/auth/register', {
+    method: 'POST',
+    body: { ...payload },
+  });
+}
+
+export interface VerifyEmailPayload {
+  email: string;
+  otp: string;
+}
+
+export async function verifyEmailRequest(
+  payload: VerifyEmailPayload,
+): Promise<{ message: string }> {
+  return apiFetch('/auth/verify-email', {
+    method: 'POST',
+    body: { ...payload },
+  });
+}
+
+export interface ResendVerificationPayload {
+  email: string;
+}
+
+export async function resendVerificationRequest(
+  payload: ResendVerificationPayload,
+): Promise<{ message: string }> {
+  return apiFetch('/auth/resend-verification', {
+    method: 'POST',
+    body: { ...payload },
+  });
+}

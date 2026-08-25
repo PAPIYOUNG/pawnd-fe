@@ -7,17 +7,16 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Eye, EyeOff } from 'lucide-react';
-
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { GoogleIcon, LineIcon } from '@/components/auth/BrandIcons';
-
 import {
   loginAction,
   verifyLoginOtpAction,
   loginWithGoogleAction,
 } from '../_actions/login.actions';
+import { OtpBoxes } from '@/components/auth/OtpBoxes';
 
 declare global {
   interface Window {
@@ -41,50 +40,6 @@ const loginSchema = z.object({
 });
 
 type LoginValues = z.infer<typeof loginSchema>;
-
-const OTP_LENGTH = 6;
-
-function OtpBoxes({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (next: string) => void;
-}) {
-  const digits = value.split('');
-
-  return (
-    <div className="flex items-center justify-between gap-2">
-      {Array.from({ length: OTP_LENGTH }).map((_, index) => (
-        <input
-          key={index}
-          inputMode="numeric"
-          maxLength={1}
-          value={digits[index] ?? ''}
-          onChange={(e) => {
-            const char = e.target.value.replace(/\D/g, '').slice(-1);
-            const next = digits.slice();
-            next[index] = char;
-            onChange(next.join('').slice(0, OTP_LENGTH));
-            if (
-              char &&
-              e.target.nextElementSibling instanceof HTMLInputElement
-            ) {
-              e.target.nextElementSibling.focus();
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Backspace' && !digits[index]) {
-              const prev = e.currentTarget.previousElementSibling;
-              if (prev instanceof HTMLInputElement) prev.focus();
-            }
-          }}
-          className="h-12 w-12 rounded-2xl border border-border bg-input/50 text-center text-lg font-semibold outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-        />
-      ))}
-    </div>
-  );
-}
 
 export function LoginForm() {
   const [step, setStep] = useState<'login' | 'otp'>('login');
@@ -125,7 +80,7 @@ export function LoginForm() {
 
   const handleVerifyOtp = () => {
     setOtpError(null);
-    if (otp.length !== OTP_LENGTH) {
+    if (otp.length !== 6) {
       setOtpError('กรุณากรอกรหัส OTP ให้ครบ 6 หลัก');
       return;
     }
