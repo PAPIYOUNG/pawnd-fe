@@ -1,0 +1,259 @@
+'use client';
+
+import { useState, useTransition } from 'react';
+import Link from 'next/link';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Eye, EyeOff } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { GoogleIcon, LineIcon } from '@/components/auth/BrandIcons';
+
+import { loginAction, verifyLoginOtpAction } from '../_actions/login.actions';
+
+const loginSchema = z.object({
+  email: z.string().min(1, 'กรุณากรอกอีเมล').email('รูปแบบอีเมลไม่ถูกต้อง'),
+  password: z.string().min(1, 'กรุณากรอกรหัสผ่าน'),
+});
+
+type LoginValues = z.infer<typeof loginSchema>;
+
+const OTP_LENGTH = 6;
+
+function OtpBoxes({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const digits = value.split('');
+
+  return (
+    <div className="flex items-center justify-between gap-2">
+      {Array.from({ length: OTP_LENGTH }).map((_, index) => (
+        <input
+          key={index}
+          inputMode="numeric"
+          maxLength={1}
+          value={digits[index] ?? ''}
+          onChange={(e) => {
+            const char = e.target.value.replace(/\D/g, '').slice(-1);
+            const next = digits.slice();
+            next[index] = char;
+            onChange(next.join('').slice(0, OTP_LENGTH));
+            if (
+              char &&
+              e.target.nextElementSibling instanceof HTMLInputElement
+            ) {
+              e.target.nextElementSibling.focus();
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Backspace' && !digits[index]) {
+              const prev = e.currentTarget.previousElementSibling;
+              if (prev instanceof HTMLInputElement) prev.focus();
+            }
+          }}
+          className="h-12 w-12 rounded-2xl border border-border bg-input/50 text-center text-lg font-semibold outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+        />
+      ))}
+    </div>
+  );
+}
+
+export function LoginForm() {
+  const [step, setStep] = useState<'login' | 'otp'>('login');
+  const [tempToken, setTempToken] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: '', password: '' },
+  });
+
+  const onSubmit = handleSubmit(async (values) => {
+    setFormError(null);
+    const result = await loginAction(values);
+
+    if (!result.success) {
+      setFormError(result.message);
+      return;
+    }
+    if (result.needsOtp) {
+      setTempToken(result.tempToken);
+      setStep('otp');
+    }
+  });
+
+  const handleVerifyOtp = () => {
+    setOtpError(null);
+    if (otp.length !== OTP_LENGTH) {
+      setOtpError('กรุณากรอกรหัส OTP ให้ครบ 6 หลัก');
+      return;
+    }
+    startTransition(async () => {
+      const result = await verifyLoginOtpAction({ tempToken, otp });
+      if (!result.success) {
+        setOtpError(result.message);
+      }
+    });
+  };
+
+  if (step === 'otp') {
+    return (
+      <div className="flex w-full flex-col gap-5">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">
+            ยืนยันการเข้าสู่ระบบ
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            เราได้ส่งรหัส OTP ไปยังอีเมลของคุณ กรุณากรอกรหัส 6
+            หลักเพื่อเข้าสู่ระบบ
+          </p>
+        </div>
+
+        <OtpBoxes value={otp} onChange={setOtp} />
+
+        {otpError && <p className="text-sm text-destructive">{otpError}</p>}
+
+        <Button
+          type="button"
+          size="lg"
+          className="w-full"
+          disabled={isPending}
+          onClick={handleVerifyOtp}
+        >
+          {isPending ? 'กำลังยืนยัน...' : 'ยืนยันรหัส OTP'}
+        </Button>
+
+        <button
+          type="button"
+          onClick={() => setStep('login')}
+          className="text-center text-sm text-muted-foreground hover:text-foreground"
+        >
+          ← กลับไปเข้าสู่ระบบใหม่
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="flex w-full flex-col gap-5">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">เข้าสู่ระบบ</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          ยินดีต้อนรับกลับมา! กรุณากรอกข้อมูลเพื่อเข้าสู่ระบบตามหาสัตว์เลี้ยงหาย
+        </p>
+      </div>
+
+      {formError && (
+        <p className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {formError}
+        </p>
+      )}
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="email">อีเมล</Label>
+        <Input
+          id="email"
+          type="email"
+          placeholder="example@email.com"
+          aria-invalid={!!errors.email}
+          {...register('email')}
+        />
+        {errors.email && (
+          <p className="text-xs text-destructive">{errors.email.message}</p>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="password">รหัสผ่าน</Label>
+          <Link
+            href="/forgot-password"
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            ลืมรหัสผ่าน?
+          </Link>
+        </div>
+        <div className="relative">
+          <Input
+            id="password"
+            type={showPassword ? 'text' : 'password'}
+            placeholder="กรอกรหัสผ่านของคุณ"
+            className="pr-10"
+            aria-invalid={!!errors.password}
+            {...register('password')}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+            className="absolute top-1/2 right-1 flex size-6 -translate-y-1/2 items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground"
+          >
+            {showPassword ? (
+              <EyeOff className="size-3.5" />
+            ) : (
+              <Eye className="size-3.5" />
+            )}
+          </button>
+        </div>
+        {errors.password && (
+          <p className="text-xs text-destructive">{errors.password.message}</p>
+        )}
+      </div>
+
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        disabled={isSubmitting}
+      >
+        {isSubmitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
+      </Button>
+
+      <div className="flex items-center gap-3">
+        <span className="h-px flex-1 bg-border" />
+        <span className="text-xs text-muted-foreground">หรือ</span>
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
+      {/* TODO: ต่อ Google Identity SDK / LINE OAuth redirect ในงานถัดไป */}
+      <Button type="button" variant="outline" size="lg" className="w-full">
+        <GoogleIcon className="size-4" />
+        เข้าสู่ระบบด้วย Google
+      </Button>
+
+      <Button
+        type="button"
+        size="lg"
+        className="w-full bg-[#06C755] text-white hover:bg-[#05b34c]"
+      >
+        <LineIcon className="size-4" />
+        เข้าสู่ระบบด้วย LINE
+      </Button>
+
+      <p className="text-center text-sm text-muted-foreground">
+        ยังไม่มีบัญชี?{' '}
+        <Link
+          href="/register"
+          className="font-medium text-primary hover:underline"
+        >
+          สมัครสมาชิก
+        </Link>
+      </p>
+    </form>
+  );
+}
