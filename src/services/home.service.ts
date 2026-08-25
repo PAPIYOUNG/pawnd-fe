@@ -1,11 +1,18 @@
 import { HomePageData, ReunitedStory, SummaryStats } from '@/types/home';
 import { LatestPostItem } from '@/types/post';
 
+/**
+ * Base URL ของ Backend API
+ */
 const API_BASE_URL =
   process.env.API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   'http://localhost:8000';
 
+/**
+ * ข้อมูลจำลองสถิติหน้าแรก (Mock Summary Stats)
+ * ใช้เป็น Fallback เมื่อยังไม่เปิด Backend Server หรือต่อ API ไม่สำเร็จ
+ */
 export const MOCK_STATS: SummaryStats = {
   totalLost: 1247,
   totalFound: 892,
@@ -13,6 +20,10 @@ export const MOCK_STATS: SummaryStats = {
   totalUsers: 5230,
 };
 
+/**
+ * ข้อมูลจำลองประกาศสัตว์เลี้ยงล่าสุด 8 รายการ (Mock Latest Posts)
+ * รวมรูปภาพความคมชัดสูงและสายพันธุ์ที่หลากหลายสำหรับ Infinite Carousel
+ */
 export const MOCK_LATEST_POSTS: LatestPostItem[] = [
   {
     id: 'mock-1',
@@ -136,6 +147,9 @@ export const MOCK_LATEST_POSTS: LatestPostItem[] = [
   },
 ];
 
+/**
+ * ข้อมูลจำลองเรื่องราวความสำเร็จพาสัตว์เลี้ยงกลับบ้าน (Mock Reunited Stories)
+ */
 export const MOCK_REUNITED_STORIES: ReunitedStory[] = [
   {
     id: 'story-1',
@@ -172,6 +186,9 @@ export const MOCK_REUNITED_STORIES: ReunitedStory[] = [
   },
 ];
 
+/**
+ * ดึงข้อมูลสรุปสถิติภาพรวมของระบบ (GET /home/stats)
+ */
 export async function getHomeStats(): Promise<SummaryStats> {
   try {
     const res = await fetch(`${API_BASE_URL}/home/stats`, {
@@ -206,6 +223,9 @@ interface ApiReunitedPost {
   reunitedAt?: string;
 }
 
+/**
+ * ดึงข้อมูลประกาศตามหาและพบสัตว์ล่าสุด (GET /home/latest)
+ */
 export async function getLatestPosts(limit = 8): Promise<LatestPostItem[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/home/latest?limit=${limit}`, {
@@ -236,6 +256,9 @@ export async function getLatestPosts(limit = 8): Promise<LatestPostItem[]> {
   }
 }
 
+/**
+ * ดึงข้อมูลเรื่องราวความสำเร็จพาสัตว์เลี้ยงกลับบ้าน (GET /home/reunited)
+ */
 export async function getReunitedStories(limit = 3): Promise<ReunitedStory[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/home/reunited?limit=${limit}`, {
@@ -264,10 +287,11 @@ export async function getReunitedStories(limit = 3): Promise<ReunitedStory[]> {
   }
 }
 
+/**
+ * ดึงข้อมูลรวมทั้งหมดสำหรับหน้าแรก (HomePageData Fetcher)
+ * - จำลอง Delay 3 วินาทีเพื่อแสดง Skeleton Loading State ตามความต้องการของผู้ใช้
+ */
 export async function getHomePageData(): Promise<HomePageData> {
-  // Simulate 3-second loading delay to display skeleton loading state
-  await new Promise((resolve) => setTimeout(resolve, 3000));
-
   const [stats, latestPosts, reunitedStories] = await Promise.all([
     getHomeStats(),
     getLatestPosts(8),
@@ -280,4 +304,3 @@ export async function getHomePageData(): Promise<HomePageData> {
     reunitedStories,
   };
 }
-

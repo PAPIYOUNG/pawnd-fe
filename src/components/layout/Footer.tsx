@@ -8,12 +8,22 @@ import {
   TwitterIcon,
 } from '@/components/auth/BrandIcons';
 
+/**
+ * Footer Component
+ * - ส่วนท้ายของเว็บไซต์ (Global Footer) ธีมเขียวเข้มของ PAWND (#133E2B)
+ * - ประกอบด้วย 4 ส่วนหลัก:
+ *   1. โลโก้แบรนด์ และคำแถลงพันธกิจของแพลตฟอร์ม
+ *   2. ลิงก์สิทธิ์ลัด (Quick Links)
+ *   3. เมนูช่วยเหลือและเครื่องมือ (Help & Tools)
+ *   4. ช่องทางโซเชียลมีเดีย (Telegram, Instagram, Facebook, Twitter/X)
+ *   5. แถบลิขสิทธิ์และข้อความปิดท้ายด้านล่าง
+ */
 export default function Footer() {
   return (
     <footer className="w-full bg-[#133E2B] text-white">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-5">
-          {/* Brand & Slogan Column */}
+          {/* คอลัมน์ที่ 1: โลโก้แบรนด์และสโลแกน (กว้าง 2 คอลัมน์บน Desktop) */}
           <div className="flex flex-col gap-4 lg:col-span-2">
             <Link href="/" className="flex items-center gap-2.5">
               <Image
@@ -32,7 +42,7 @@ export default function Footer() {
             </p>
           </div>
 
-          {/* Quick Links Column */}
+          {/* คอลัมน์ที่ 2: ลิงก์เมนูลัด (Quick Links) */}
           <div className="flex flex-col gap-3">
             <h3 className="text-sm font-semibold tracking-wider text-white">
               สิทธิ์ลัด
@@ -61,7 +71,7 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Help & Tools Column */}
+          {/* คอลัมน์ที่ 3: เมนูช่วยเหลือและแนะนำการใช้งาน (Help & Tools) */}
           <div className="flex flex-col gap-3">
             <h3 className="text-sm font-semibold tracking-wider text-white">
               ช่วยเหลือ
@@ -90,12 +100,13 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Social Links Column */}
+          {/* คอลัมน์ที่ 4: ช่องทางโซเชียลมีเดีย (Social Media Icons) */}
           <div className="flex flex-col gap-3">
             <h3 className="text-sm font-semibold tracking-wider text-white">
               ติดตามเราได้ที่
             </h3>
             <div className="flex items-center gap-2.5">
+              {/* Telegram */}
               <a
                 href="https://t.me"
                 target="_blank"
@@ -105,6 +116,8 @@ export default function Footer() {
               >
                 <TelegramIcon className="size-4" />
               </a>
+
+              {/* Instagram */}
               <a
                 href="https://instagram.com"
                 target="_blank"
@@ -114,6 +127,8 @@ export default function Footer() {
               >
                 <InstagramIcon className="size-4" />
               </a>
+
+              {/* Facebook */}
               <a
                 href="https://facebook.com"
                 target="_blank"
@@ -123,6 +138,8 @@ export default function Footer() {
               >
                 <FacebookIcon className="size-4" />
               </a>
+
+              {/* Twitter / X */}
               <a
                 href="https://twitter.com"
                 target="_blank"
@@ -136,7 +153,7 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Bottom Bar */}
+        {/* แถบลิขสิทธิ์ด้านล่างสุด (Bottom Bar) */}
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-6 text-xs text-white/60 sm:flex-row">
           <p>© 2026 Pawnd Thailand. All rights reserved.</p>
           <p className="flex items-center gap-1">

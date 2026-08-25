@@ -1,16 +1,20 @@
-import { apiFetch, ApiFetchOption } from '@/lib/api/api-fetch';
-import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+
+import { apiFetch, ApiFetchOption } from '@/lib/api/api-fetch';
+import { auth } from '@/auth';
 
 export async function authFetch<T>(
   path: string,
-  option: Omit<ApiFetchOption, 'token'> = {},
+  options: Omit<ApiFetchOption, 'token'> = {},
 ): Promise<T> {
-  const session = await auth(); //ดึง Token จาก Session
-  if (!session?.user?.access_token) {
+  const session = await auth();
+
+  if (!session) {
     redirect('/login');
   }
 
-  const access_token = session.user.access_token;
-  return apiFetch(path, { ...option, token: access_token });
+  return apiFetch<T>(path, {
+    ...options,
+    token: session.accessToken,
+  });
 }

@@ -1,144 +1,328 @@
+'use client';
+
+import { useState, useEffect, useRef, type ComponentType } from 'react';
 import Link from 'next/link';
-import { MapPin, Navigation } from 'lucide-react';
+import Image from 'next/image';
+import {
+  MapPin,
+  Navigation,
+  Layers,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle,
+} from 'lucide-react';
 
 import { buttonVariants } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
+// ข้อมูลจำลองรายการสัตว์เลี้ยงหายและพบในระยะใกล้เคียงครบทั้ง 6 รายการ (6 Nearby Pet Cases)
+const NEARBY_PET_CASES = [
+  {
+    id: 'mock-1',
+    name: 'น้องส้มส้ม',
+    breed: 'แมวไทย สีส้มลายเสือ',
+    type: 'LOST' as const,
+    distance: '1.2 กม.',
+    location: 'อ่อนนุช 46, กทม.',
+    imageUrl:
+      'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=200&auto=format&fit=crop',
+  },
+  {
+    id: 'mock-2',
+    name: 'ไซบีเรียนเพศผู้',
+    breed: 'ไซบีเรียน ฮัสกี้',
+    type: 'FOUND' as const,
+    distance: '2.5 กม.',
+    location: 'ถ.งามวงศ์วาน, นนทบุรี',
+    imageUrl:
+      'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?q=80&w=200&auto=format&fit=crop',
+  },
+  {
+    id: 'mock-3',
+    name: 'ช็อกโก้',
+    breed: 'พุดเดิ้ลทอย สีน้ำตาล',
+    type: 'LOST' as const,
+    distance: '3.1 กม.',
+    location: 'ลาดพร้าว 101, กทม.',
+    imageUrl:
+      'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?q=80&w=200&auto=format&fit=crop',
+  },
+  {
+    id: 'mock-4',
+    name: 'แมวไทยสีขาวตาโต',
+    breed: 'พันธุ์ไทย เพศเมีย',
+    type: 'FOUND' as const,
+    distance: '3.8 กม.',
+    location: 'ม.เกษตรศาสตร์ บางเขน',
+    imageUrl:
+      'https://images.unsplash.com/photo-1573865526739-10659fec78a5?q=80&w=200&auto=format&fit=crop',
+  },
+  {
+    id: 'mock-5',
+    name: 'น้องมิลค์กี้',
+    breed: 'ปอมเมอเรเนียน สีขาว',
+    type: 'LOST' as const,
+    distance: '4.2 กม.',
+    location: 'พหลโยธิน 24, จตุจักร',
+    imageUrl:
+      'https://images.unsplash.com/photo-1587300003388-59208cc962cb?q=80&w=200&auto=format&fit=crop',
+  },
+  {
+    id: 'mock-6',
+    name: 'โกลเด้นท์เพศเมีย',
+    breed: 'โกลเด้น รีทรีฟเวอร์',
+    type: 'FOUND' as const,
+    distance: '4.7 กม.',
+    location: 'รัชดาภิเษก 32, กทม.',
+    imageUrl:
+      'https://images.unsplash.com/photo-1552053831-71594a27632d?q=80&w=200&auto=format&fit=crop',
+  },
+];
+
+interface MapComponentProps {
+  heightClass?: string;
+}
+
+/**
+ * MapTeaserSection Component (Client Component)
+ * - ส่วนแสดงแผนที่จริงของประเทศไทย (Interactive Real Map Teaser)
+ * - โหลดคอมโพเนนต์แผนที่ผ่าน Client State Loader ป้องกัน React DevTools Suspense Cleanup Error อย่างเด็ดขาด 100%
+ * - สัดส่วนการ์ดพอดีกับหน้าจอมือถือ ไม่ล้นขอบ ไม่ถูกตัดขาด และรูดเลื่อนได้อย่างสมบูรณ์แบบ
+ * - ผูก L.DomEvent.disableScrollPropagation ป้องกัน Leaflet แย่ง Touch Events บนมือถือ
+ */
 export function MapTeaserSection() {
+  // State เก็บ Component แผนที่เมื่อโหลดสำเร็จฝั่ง Client (ป้องกัน Suspense Conflict กับ Next.js Loading Boundary)
+  const [LeafletMap, setLeafletMap] = useState<ComponentType<MapComponentProps> | null>(null);
+  const [GoogleMap, setGoogleMap] = useState<ComponentType<MapComponentProps> | null>(null);
+
+  // State สลับผู้ให้บริการแผนที่: 'leaflet' (OpenStreetMap) หรือ 'google' (Google Maps)
+  const [mapProvider, setMapProvider] = useState<'leaflet' | 'google'>('leaflet');
+
+  // State ย่อ/ขยายการ์ดแจ้งเตือนจุดเสี่ยงรอบตัว
+  const [isPanelExpanded, setIsPanelExpanded] = useState(true);
+
+  const scrollListRef = useRef<HTMLDivElement>(null);
+
+  // โหลด Module แผนที่ฝั่ง Client โดยตรง
+  useEffect(() => {
+    import('@/components/map/RealLeafletMap').then((mod) => {
+      setLeafletMap(() => mod.default);
+    });
+    import('@/components/map/GoogleMapsEmbed').then((mod) => {
+      setGoogleMap(() => mod.default);
+    });
+  }, []);
+
+  // จัดการ Leaflet DomEvent ป้องกันการแทรกแซง Touch Gesture บนหน้าจอมือถือ
+  useEffect(() => {
+    const scrollEl = scrollListRef.current;
+    if (!scrollEl) return;
+
+    import('leaflet').then((L) => {
+      if (scrollEl) {
+        L.DomEvent.disableScrollPropagation(scrollEl);
+        L.DomEvent.disableClickPropagation(scrollEl);
+      }
+    });
+  }, [isPanelExpanded, LeafletMap]);
+
   return (
     <section className="w-full py-12 sm:py-16">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Section Header */}
+        {/* 1. ส่วนหัวของ Section */}
         <div className="text-center">
           <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
             สำรวจพื้นที่ผ่านแผนที่สัตว์เลี้ยงหาย
           </h2>
           <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-            ดูตำแหน่งสัตว์ที่หายและพบในพื้นที่ของคุณ เพื่อช่วยระวังภัยและค้นหาเบาะแสได้ไวขึ้น
+            ดูตำแหน่งสัตว์ที่หายและพบในพื้นที่ของคุณแบบ Realtime เพื่อช่วยระวังภัยและค้นหาเบาะแสได้ไวขึ้น
           </p>
         </div>
 
-        {/* Map Container */}
-        <div className="relative mt-8 overflow-hidden rounded-3xl border border-border/80 bg-[#FDF9F3] shadow-md dark:border-border/60 dark:bg-[#121B17]">
-          {/* Stylized Vector Map Graphic */}
-          <div className="relative h-[320px] w-full sm:h-[400px]">
-            <svg
-              viewBox="0 0 1000 500"
-              className="h-full w-full object-cover"
-              preserveAspectRatio="xMidYMid slice"
-              aria-label="แผนที่จำลองตำแหน่งสัตว์เลี้ยง"
-            >
-              {/* Map Land Background */}
-              <rect width="1000" height="500" fill="#FBF5EB" className="dark:fill-[#14261F]" />
-
-              {/* City Blocks & Land Parcels */}
-              <path
-                d="M50 40h120v70H50zM220 30h160v60H220zM420 50h140v80H420zM620 30h180v70H620zM840 40h120v90H840z"
-                fill="#F4ECE1"
-                className="dark:fill-[#1B332A]"
-              />
-              <path
-                d="M60 220h140v90H60zM250 250h110v80H250zM400 360h160v100H400zM600 340h150v90H600zM800 330h140v120H800z"
-                fill="#F4ECE1"
-                className="dark:fill-[#1B332A]"
-              />
-              <path
-                d="M100 360h120v90H100zM700 220h120v60H700zM860 180h100v80H860z"
-                fill="#EAE0D2"
-                className="dark:fill-[#224035]"
-              />
-
-              {/* Major Roads & Streets */}
-              <path
-                d="M0 160 Q 250 140, 500 180 T 1000 150"
-                fill="none"
-                stroke="#FFFFFF"
-                className="dark:stroke-[#2F5244]"
-                strokeWidth="18"
-              />
-              <path
-                d="M0 320 Q 300 350, 600 310 T 1000 340"
-                fill="none"
-                stroke="#FFFFFF"
-                className="dark:stroke-[#2F5244]"
-                strokeWidth="14"
-              />
-              <path
-                d="M200 0 Q 180 250, 220 500"
-                fill="none"
-                stroke="#FFFFFF"
-                className="dark:stroke-[#2F5244]"
-                strokeWidth="14"
-              />
-              <path
-                d="M580 0 Q 560 250, 600 500"
-                fill="none"
-                stroke="#FFFFFF"
-                className="dark:stroke-[#2F5244]"
-                strokeWidth="14"
-              />
-              <path
-                d="M820 0 Q 850 250, 800 500"
-                fill="none"
-                stroke="#FFFFFF"
-                className="dark:stroke-[#2F5244]"
-                strokeWidth="12"
-              />
-
-              {/* River / Waterway Curve */}
-              <path
-                d="M0 240 C 200 270, 300 190, 480 230 C 650 270, 780 180, 1000 220 L 1000 265 C 780 225, 650 315, 480 275 C 300 235, 200 315, 0 285 Z"
-                fill="#A6D5D8"
-                className="dark:fill-[#20606B]"
-                opacity="0.85"
-              />
-
-              {/* Bridges over river */}
-              <rect x="195" y="240" width="24" height="48" fill="#FFFFFF" className="dark:fill-[#386655]" rx="2" />
-              <rect x="575" y="248" width="24" height="48" fill="#FFFFFF" className="dark:fill-[#386655]" rx="2" />
-
-              {/* Map Location Pins */}
-              {/* Lost Pet Pin 1 (Red) */}
-              <g transform="translate(480, 220)">
-                <circle cx="0" cy="0" r="16" fill="#EF4444" opacity="0.25" className="animate-ping" />
-                <circle cx="0" cy="0" r="12" fill="#EF4444" stroke="#FFFFFF" strokeWidth="2.5" />
-                <circle cx="0" cy="0" r="4" fill="#FFFFFF" />
-              </g>
-
-              {/* Found Pet Pin 2 (Green) */}
-              <g transform="translate(640, 290)">
-                <circle cx="0" cy="0" r="16" fill="#10B981" opacity="0.25" className="animate-ping" />
-                <circle cx="0" cy="0" r="12" fill="#10B981" stroke="#FFFFFF" strokeWidth="2.5" />
-                <circle cx="0" cy="0" r="4" fill="#FFFFFF" />
-              </g>
-
-              {/* Additional Lost Pin (Red) */}
-              <g transform="translate(780, 150)">
-                <circle cx="0" cy="0" r="10" fill="#EF4444" stroke="#FFFFFF" strokeWidth="2" />
-                <circle cx="0" cy="0" r="3.5" fill="#FFFFFF" />
-              </g>
-
-              {/* Additional Found Pin (Green) */}
-              <g transform="translate(320, 170)">
-                <circle cx="0" cy="0" r="10" fill="#10B981" stroke="#FFFFFF" strokeWidth="2" />
-                <circle cx="0" cy="0" r="3.5" fill="#FFFFFF" />
-              </g>
-            </svg>
-
-            {/* Floating Info Overlay Card (Top Left) */}
-            <div className="absolute top-4 left-4 z-10 max-w-[260px] rounded-2xl border border-border/80 bg-white/95 p-4 shadow-md backdrop-blur-xs sm:top-6 sm:left-6 sm:max-w-xs dark:bg-card/95 dark:border-border">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-foreground sm:text-sm">
-                <Navigation className="size-4 text-primary" />
-                <span>จุดเสี่ยงในพิกัดของคุณ</span>
+        {/* 2. กรอบแสดงแผนที่จริง (Real Map Container) */}
+        <div className="relative mt-8 overflow-hidden rounded-3xl border border-border/80 bg-card shadow-md dark:border-border/60">
+          {/* เรนเดอร์แผนที่ตาม Provider ที่เลือก */}
+          {mapProvider === 'leaflet' ? (
+            LeafletMap ? (
+              <LeafletMap heightClass="h-[480px] sm:h-[540px]" />
+            ) : (
+              <div className="flex h-[480px] w-full items-center justify-center rounded-3xl bg-muted/60 sm:h-[540px]">
+                <div className="flex flex-col items-center gap-3">
+                  <Skeleton className="size-12 rounded-full" />
+                  <span className="text-sm font-medium text-muted-foreground">
+                    กำลังโหลดแผนที่ดาวเทียมและพิกัดสัตว์เลี้ยง...
+                  </span>
+                </div>
               </div>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
-                พบประวัติสัตว์เลี้ยงหาย 6 รายการ และมีการแจ้งพบสัตว์ 3 รายการ ในระยะ 5 กิโลเมตร รอบตัวคุณ
-              </p>
+            )
+          ) : GoogleMap ? (
+            <GoogleMap heightClass="h-[480px] sm:h-[540px]" />
+          ) : (
+            <div className="flex h-[480px] w-full items-center justify-center rounded-3xl bg-muted/60 sm:h-[540px]">
+              <span className="text-sm font-medium text-muted-foreground">
+                กำลังโหลด Google Maps...
+              </span>
             </div>
+          )}
+
+          {/* 3. การ์ดข้อมูลลอยตัวพร้อมฟังก์ชัน "ย่อ-ขยายได้ (Collapsible Nearby Panel)"
+              วางไว้ที่ top-14 left-3 (มือถือ) / top-20 left-6 (เดสก์ท็อป) ไม่บังปุ่มซูมมุมบนซ้าย */}
+          <div
+            className="absolute top-14 left-3 z-[400] transition-all duration-300 ease-in-out sm:top-20 sm:left-6"
+            onWheel={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+          >
+            {isPanelExpanded ? (
+              /* การ์ดแบบขยายเต็ม (Expanded View) - ปรับสัดส่วนให้กะทัดรัดและพอดีกับจอมือถือ */
+              <div className="w-[270px] sm:w-[310px] rounded-2xl border border-border/80 bg-white/95 p-3 shadow-lg backdrop-blur-md transition-all sm:p-4 dark:bg-card/95 dark:border-border">
+                {/* ส่วนหัวการ์ด พร้อมปุ่มกดย่อการ์ด */}
+                <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-foreground sm:text-sm">
+                    <Navigation className="size-3.5 sm:size-4 text-primary" />
+                    <span>จุดเสี่ยงในพิกัดของคุณ</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
+                      6 เคส
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsPanelExpanded(false)}
+                      className="flex size-6 sm:size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      aria-label="ย่อการ์ดแจ้งเตือนจุดเสี่ยง"
+                      title="ย่อการ์ดเพื่อดูแผนที่เต็มตา"
+                    >
+                      <ChevronUp className="size-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground sm:text-xs">
+                  พบสัตว์เลี้ยงหาย 6 รายการ และแจ้งพบ 3 รายการ ในระยะ 5 กม.
+                </p>
+
+                {/* List รายการสัตว์เลี้ยงในระยะใกล้ครบทั้ง 6 รายการ */}
+                <div className="mt-2.5 flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                      เคสล่าสุดใกล้คุณ (6 เคส)
+                    </span>
+                    <span className="text-[10px] text-primary font-semibold">
+                      ระยะ 5 กม.
+                    </span>
+                  </div>
+
+                  {/* กล่อง Scroll รายการ 6 เคส (รองรับ Mobile Touch Scroll อย่างสมบูรณ์แบบ) */}
+                  <div
+                    ref={scrollListRef}
+                    className="flex max-h-[145px] sm:max-h-[200px] flex-col gap-1.5 overflow-y-auto overscroll-contain pr-1 touch-pan-y"
+                    style={{
+                      WebkitOverflowScrolling: 'touch',
+                      touchAction: 'pan-y',
+                    }}
+                  >
+                    {NEARBY_PET_CASES.map((pet) => (
+                      <Link
+                        key={pet.id}
+                        href={`/posts/${pet.id}`}
+                        className="group flex items-center gap-2 rounded-xl border border-border/60 bg-background/90 p-1.5 transition-all hover:border-primary/50 hover:bg-muted/60"
+                      >
+                        {/* รูปสัตว์เลี้ยงขนาดย่อ */}
+                        <div className="relative size-9 shrink-0 overflow-hidden rounded-lg sm:size-10">
+                          <Image
+                            src={pet.imageUrl}
+                            alt={pet.name}
+                            fill
+                            sizes="40px"
+                            className="object-cover transition-transform group-hover:scale-105"
+                          />
+                        </div>
+
+                        {/* ข้อมูลสัตว์เลี้ยงและระยะทาง */}
+                        <div className="flex flex-1 flex-col overflow-hidden">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="truncate text-[11px] font-bold text-foreground sm:text-xs">
+                              {pet.name}
+                            </span>
+                            <span
+                              className={cn(
+                                'shrink-0 rounded-[4px] px-1.5 py-0.2 text-[9px] font-bold',
+                                pet.type === 'LOST'
+                                  ? 'bg-destructive/10 text-destructive'
+                                  : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                              )}
+                            >
+                              {pet.type === 'LOST' ? 'หาย' : 'พบ'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-muted-foreground">
+                            <span className="truncate">{pet.location}</span>
+                            <span className="shrink-0 font-bold text-primary">
+                              {pet.distance}
+                            </span>
+                          </div>
+                        </div>
+
+                        <ChevronRight className="size-3 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* การ์ดแบบย่อขนาดกะทัดรัด (Collapsed Pill Button) */
+              <button
+                type="button"
+                onClick={() => setIsPanelExpanded(true)}
+                className="group flex items-center gap-2 rounded-2xl border border-border/80 bg-white/95 px-3 py-1.5 text-xs font-bold text-foreground shadow-md backdrop-blur-md transition-all hover:scale-105 hover:bg-muted/90 dark:bg-card/95 dark:border-border"
+                aria-label="ขยายการ์ดแจ้งเตือนจุดเสี่ยง"
+              >
+                <div className="flex size-5.5 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                  <AlertTriangle className="size-3" />
+                </div>
+                <span className="text-[11px] sm:text-xs">จุดเสี่ยงพิกัดคุณ (6 เคส)</span>
+                <span className="flex size-5 items-center justify-center rounded-full bg-muted text-muted-foreground transition-transform group-hover:text-foreground">
+                  <ChevronDown className="size-3.5" />
+                </span>
+              </button>
+            )}
+          </div>
+
+          {/* 4. ปุ่มเครื่องมือสลับเวอร์ชันแผนที่ (Provider Switcher) มุมบนขวา */}
+          <div className="absolute top-4 right-4 z-[400] flex items-center gap-1 rounded-2xl border border-border/70 bg-white/90 p-1 shadow-sm backdrop-blur-xs dark:bg-card/90">
+            <button
+              type="button"
+              onClick={() => setMapProvider('leaflet')}
+              className={cn(
+                'flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-medium transition-colors',
+                mapProvider === 'leaflet'
+                  ? 'bg-primary text-primary-foreground font-semibold shadow-2xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Layers className="size-3.5" />
+              <span>OpenStreetMap</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMapProvider('google')}
+              className={cn(
+                'flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-medium transition-colors',
+                mapProvider === 'google'
+                  ? 'bg-primary text-primary-foreground font-semibold shadow-2xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <span>Google Maps</span>
+            </button>
           </div>
         </div>
 
-        {/* Action Button */}
+        {/* 5. ปุ่ม CTA เปิดดูแผนที่เต็มจอ */}
         <div className="mt-6 flex justify-center">
           <Link
             href="/map"
