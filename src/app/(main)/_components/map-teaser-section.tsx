@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 
 // โหลดคอมโพเนนต์แผนที่จริงแบบ Dynamic Import (SSR: false) เพื่อรองรับ Leaflet และ Google Maps บนเบราว์เซอร์
 const RealLeafletMap = dynamic(
-  () => import('@/components/map/RealLeafletMap'),
+  () => import('../../../components/map/RealLeafletMap'),
   {
     ssr: false,
     loading: () => (
@@ -79,10 +79,10 @@ export function MapTeaserSection() {
           <div className="pointer-events-none absolute top-4 left-4 z-[400] max-w-[260px] rounded-2xl border border-border/80 bg-white/95 p-4 shadow-md backdrop-blur-xs sm:top-6 sm:left-6 sm:max-w-xs dark:bg-card/95 dark:border-border">
             <div className="flex items-center gap-1.5 text-xs font-bold text-foreground sm:text-sm">
               <Navigation className="size-4 text-primary" />
-              <span>จุดเสี่ยงในพิกัดของคุณ</span>
+              <span>ประกาศในพื้นที่ที่เลือก</span>
             </div>
             <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
-              พบประวัติสัตว์เลี้ยงหาย 6 รายการ และมีการแจ้งพบสัตว์ 3 รายการ ในระยะ 5 กิโลเมตร รอบตัวคุณ
+              แผนที่แสดงเฉพาะประกาศที่ยังเปิดอยู่และอยู่ในขอบเขตที่มองเห็น
             </p>
           </div>
 
