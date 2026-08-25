@@ -1,7 +1,6 @@
 'use client';
 
 import Image from 'next/image';
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import {
   AlertCircle,
@@ -43,6 +42,7 @@ const RealLeafletMap = dynamic(
 );
 
 const DEFAULT_MAP_CENTER: [number, number] = [13.7563, 100.5018];
+const MAP_CENTER_COMPARISON_EPSILON = 1e-7;
 
 const POST_TYPE_LABEL: Record<PostType, string> = {
   LOST: 'สัตว์หาย',
@@ -59,7 +59,7 @@ const PET_TYPE_LABEL: Record<PetType, string> = {
 };
 
 type PostTypeFilter = 'ALL' | PostType;
-type TimeFilter = 'ALL' | 'TODAY' | 'SEVEN_DAYS' | 'THIRTY_DAYS';
+type TimeFilter = 'ALL' | 'ONE_DAY' | 'SEVEN_DAYS' | 'THIRTY_DAYS';
 type DistanceFilter = 'ALL' | '5' | '10' | '25';
 
 interface MapSidebarProps {
@@ -77,6 +77,14 @@ interface MapSidebarProps {
   distanceFilter: DistanceFilter;
   /** callback เปลี่ยนระยะทางใน state ของหน้า Map */
   onDistanceFilterChange: (filter: DistanceFilter) => void;
+  /** ช่วงเวลาที่ใช้กรอง visible posts ด้วย createdAt จาก API */
+  timeFilter: TimeFilter;
+  /** callback เปลี่ยนช่วงเวลาโดยไม่สั่ง movement ของแผนที่ */
+  onTimeFilterChange: (filter: TimeFilter) => void;
+  /** post id ที่กำลังถูกเลือกเพื่อเน้นการ์ดให้ตรงกับ marker */
+  selectedPostId: string | null;
+  /** callback ส่ง post id จากการ์ดไปให้แผนที่โฟกัสและเปิด popup */
+  onSelectPost: (postId: string) => void;
 }
 
 /**
@@ -115,30 +123,35 @@ function formatDistance(distanceKm: number): string {
 }
 
 /** กรองวันที่ของประกาศในฝั่ง client โดยไม่ส่ง query ที่ Backend ไม่รองรับ */
-function matchesTimeFilter(eventDate: string, filter: TimeFilter): boolean {
+function matchesTimeFilter(
+  createdAt: string | null | undefined,
+  filter: TimeFilter,
+): boolean {
   if (filter === 'ALL') {
     return true;
   }
 
-  const parsedDate = new Date(eventDate);
+  if (!createdAt) {
+    return false;
+  }
+
+  const parsedDate = new Date(createdAt);
   if (Number.isNaN(parsedDate.getTime())) {
     return false;
   }
 
+  const days = filter === 'ONE_DAY' ? 1 : filter === 'SEVEN_DAYS' ? 7 : 30;
   const now = Date.now();
-  if (filter === 'TODAY') {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return parsedDate.getTime() >= today.getTime();
-  }
-
-  const days = filter === 'SEVEN_DAYS' ? 7 : 30;
-  return parsedDate.getTime() >= now - days * 24 * 60 * 60 * 1000;
+  const createdTimestamp = parsedDate.getTime();
+  return (
+    createdTimestamp <= now &&
+    createdTimestamp >= now - days * 24 * 60 * 60 * 1000
+  );
 }
 
 /**
  * Sidebar สำหรับค้นหาและอ่านรายการประกาศจาก API ชุดเดียวกับ marker
- * ช่องค้นหา/เวลา/ระยะทางกรองเฉพาะข้อมูลที่โหลดอยู่ ไม่สร้าง query ใหม่ที่ผิด contract
+ * รับ visible posts ที่กรองเวลาแล้ว และกรองค้นหา/ระยะทางต่อบนข้อมูลที่โหลดอยู่
  */
 function MapSidebar({
   data,
@@ -148,9 +161,12 @@ function MapSidebar({
   currentLocation,
   distanceFilter,
   onDistanceFilterChange,
+  timeFilter,
+  onTimeFilterChange,
+  selectedPostId,
+  onSelectPost,
 }: MapSidebarProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('ALL');
 
   const filteredFeatures = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLocaleLowerCase('th-TH');
@@ -182,19 +198,11 @@ function MapSidebar({
           (postTypeFilter === 'ALL' ||
             properties.postType === postTypeFilter) &&
           (!normalizedSearch || searchableText.includes(normalizedSearch)) &&
-          matchesTimeFilter(properties.eventDate, timeFilter) &&
           (maxDistance === null || distanceKm <= maxDistance)
         );
       })
       .sort((first, second) => first.distanceKm - second.distanceKm);
-  }, [
-    center,
-    data.features,
-    distanceFilter,
-    postTypeFilter,
-    searchTerm,
-    timeFilter,
-  ]);
+  }, [center, data.features, distanceFilter, postTypeFilter, searchTerm]);
 
   return (
     <aside className="flex min-h-0 flex-col rounded-3xl border border-border bg-card shadow-sm lg:h-[calc(100vh-220px)] lg:min-h-[560px]">
@@ -280,7 +288,7 @@ function MapSidebar({
           </div>
         </div>
 
-        {/* Filter เวลาเป็น local UI ส่วนระยะทางเรียก nearby endpoint จากตำแหน่งผู้ใช้ */}
+        {/* Filter เวลากรอง marker/list/count ร่วมกัน ส่วนระยะทางเรียก nearby endpoint */}
         <div className="grid grid-cols-2 gap-2">
           <label className="block">
             <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
@@ -290,12 +298,12 @@ function MapSidebar({
             <select
               value={timeFilter}
               onChange={(event) =>
-                setTimeFilter(event.target.value as TimeFilter)
+                onTimeFilterChange(event.target.value as TimeFilter)
               }
               className="h-10 w-full rounded-xl border border-border bg-background px-2.5 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
             >
               <option value="ALL">ทุกช่วงเวลา</option>
-              <option value="TODAY">วันนี้</option>
+              <option value="ONE_DAY">1 วันที่ผ่านมา</option>
               <option value="SEVEN_DAYS">7 วันที่ผ่านมา</option>
               <option value="THIRTY_DAYS">30 วันที่ผ่านมา</option>
             </select>
@@ -390,10 +398,16 @@ function MapSidebar({
                 const { properties } = feature;
 
                 return (
-                  <Link
+                  <button
                     key={properties.id}
-                    href={`/posts/${properties.id}`}
-                    className="group flex gap-3 rounded-2xl border border-border bg-background p-3 transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+                    type="button"
+                    aria-pressed={selectedPostId === properties.id}
+                    onClick={() => onSelectPost(properties.id)}
+                    className={`group flex w-full gap-3 rounded-2xl border p-3 text-left transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 ${
+                      selectedPostId === properties.id
+                        ? 'border-primary bg-primary/10 shadow-sm'
+                        : 'border-border bg-background hover:border-primary/50 hover:bg-primary/5'
+                    }`}
                   >
                     <div className="relative size-16 shrink-0 overflow-hidden rounded-xl bg-muted">
                       {properties.thumbnailUrl ? (
@@ -446,7 +460,7 @@ function MapSidebar({
                           .join(', ') || 'ไม่ระบุพื้นที่'}
                       </p>
                     </div>
-                  </Link>
+                  </button>
                 );
               })}
             </div>
@@ -473,15 +487,79 @@ export function MapPageClient() {
   const [currentLocation, setCurrentLocation] =
     useState<CurrentLocation | null>(null);
   const [distanceFilter, setDistanceFilter] = useState<DistanceFilter>('ALL');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('ALL');
   const [isLocating, setIsLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const [selectionRequestToken, setSelectionRequestToken] = useState(0);
 
   const handleDataStateChange = useCallback((nextState: MapDataState) => {
     setMapData(nextState);
   }, []);
 
   const handleViewportChange = useCallback((viewport: MapViewportState) => {
-    setViewportCenter(viewport.center);
+    setViewportCenter((currentCenter) => {
+      const isSameCenter =
+        Math.abs(currentCenter[0] - viewport.center[0]) <=
+          MAP_CENTER_COMPARISON_EPSILON &&
+        Math.abs(currentCenter[1] - viewport.center[1]) <=
+          MAP_CENTER_COMPARISON_EPSILON;
+
+      return isSameCenter ? currentCenter : viewport.center;
+    });
+  }, []);
+
+  /**
+   * กรองด้วย createdAt จริงจาก API เพียงครั้งเดียว แล้วส่ง array ชุดเดียวกัน
+   * ให้ marker, sidebar list และตัวนับ โดยไม่เปลี่ยน viewport หรือเรียก API ใหม่
+   */
+  const visiblePosts = useMemo(
+    () =>
+      mapData.features.filter((feature) =>
+        matchesTimeFilter(feature.properties.createdAt, timeFilter),
+      ),
+    [mapData.features, timeFilter],
+  );
+  const visibleMapData = useMemo<MapDataState>(
+    () => ({ ...mapData, features: visiblePosts }),
+    [mapData, visiblePosts],
+  );
+
+  /**
+   * เปลี่ยนช่วงเวลาจาก user event และล้าง selection เฉพาะเมื่อ post เดิม
+   * ไม่อยู่ในช่วงใหม่ จึงไม่มี effect ที่ setState หรือ movement loop
+   */
+  const handleTimeFilterChange = useCallback(
+    (nextFilter: TimeFilter) => {
+      setTimeFilter((currentFilter) =>
+        currentFilter === nextFilter ? currentFilter : nextFilter,
+      );
+      setSelectedPostId((currentPostId) => {
+        if (!currentPostId) {
+          return currentPostId;
+        }
+
+        const selectedPost = mapData.features.find(
+          (feature) => feature.properties.id === currentPostId,
+        );
+        return selectedPost &&
+          matchesTimeFilter(selectedPost.properties.createdAt, nextFilter)
+          ? currentPostId
+          : null;
+      });
+    },
+    [mapData.features],
+  );
+
+  /**
+   * เลือก post ด้วย id และเพิ่ม token ทุกครั้ง เพื่อให้คลิก post เดิมซ้ำแล้ว
+   * แผนที่ยังสั่ง flyTo/openPopup ใหม่ได้ โดยไม่มี state update จาก map event
+   */
+  const handleSelectPost = useCallback((postId: string) => {
+    setSelectedPostId((currentPostId) =>
+      currentPostId === postId ? currentPostId : postId,
+    );
+    setSelectionRequestToken((token) => token + 1);
   }, []);
 
   /**
@@ -562,13 +640,17 @@ export function MapPageClient() {
         {/* บนจอเล็ก sidebar จะอยู่ด้านบนและแผนที่จะเลื่อนลงด้านล่าง */}
         <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
           <MapSidebar
-            data={mapData}
+            data={visibleMapData}
             center={distanceOrigin}
             postTypeFilter={postTypeFilter}
             onPostTypeFilterChange={setPostTypeFilter}
             currentLocation={currentLocation}
             distanceFilter={distanceFilter}
             onDistanceFilterChange={setDistanceFilter}
+            timeFilter={timeFilter}
+            onTimeFilterChange={handleTimeFilterChange}
+            selectedPostId={selectedPostId}
+            onSelectPost={handleSelectPost}
           />
 
           <section
@@ -584,6 +666,9 @@ export function MapPageClient() {
               onRequestCurrentLocation={handleRequestCurrentLocation}
               isLocating={isLocating}
               locationError={locationError}
+              selectedPostId={selectedPostId}
+              selectionRequestToken={selectionRequestToken}
+              visibleFeatures={visiblePosts}
               onDataStateChange={handleDataStateChange}
               onViewportChange={handleViewportChange}
             />

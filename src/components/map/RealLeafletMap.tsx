@@ -78,6 +78,8 @@ interface RealLeafletMapProps {
   selectedPostId?: string | null;
   /** token เปลี่ยนทุก click เพื่อรองรับการเลือก post เดิมซ้ำ */
   selectionRequestToken?: number;
+  /** posts หลังกรองช่วงเวลาที่ใช้ร่วมกับรายการและจำนวนใน sidebar */
+  visibleFeatures?: MapPostFeature[];
   /** ส่งสถานะข้อมูลชุดเดียวกันให้ sidebar แสดงรายการประกาศ */
   onDataStateChange?: (state: MapDataState) => void;
   /** ส่ง viewport ปัจจุบันให้หน้าหลักคำนวณระยะทางของรายการ */
@@ -480,6 +482,7 @@ export default function RealLeafletMap({
   locationError,
   selectedPostId,
   selectionRequestToken = 0,
+  visibleFeatures,
   onDataStateChange,
   onViewportChange,
 }: RealLeafletMapProps) {
@@ -496,6 +499,7 @@ export default function RealLeafletMap({
   });
   const markerRefs = useRef(new Map<string, L.Marker>());
   const currentLocationIcon = useMemo(() => createCurrentLocationIcon(), []);
+  const renderedFeatures = visibleFeatures ?? features;
 
   /**
    * เริ่ม movement จากโค้ดโดยแก้เฉพาะ ref เพื่อไม่สร้าง render loop
@@ -685,7 +689,7 @@ export default function RealLeafletMap({
   const markerIcons = useMemo(() => {
     const icons = new Map<PostType, L.DivIcon>();
 
-    features.forEach((feature) => {
+    renderedFeatures.forEach((feature) => {
       const postType = feature.properties.postType;
       if (!icons.has(postType)) {
         icons.set(postType, createMarkerIcon(postType));
@@ -693,17 +697,17 @@ export default function RealLeafletMap({
     });
 
     return icons;
-  }, [features]);
+  }, [renderedFeatures]);
 
   /** หา feature ที่เลือกด้วย post id เพื่อใช้พิกัดจริงชุดเดียวกับ marker */
   const selectedFeature = useMemo(
     () =>
       selectedPostId
-        ? (features.find(
+        ? (renderedFeatures.find(
             (feature) => feature.properties.id === selectedPostId,
           ) ?? null)
         : null,
-    [features, selectedPostId],
+    [renderedFeatures, selectedPostId],
   );
   const selectedMarkerIcon = useMemo(
     () =>
@@ -758,7 +762,7 @@ export default function RealLeafletMap({
         )}
 
         {/* marker จาก GeoJSON ของ Backend โดยสลับพิกัดเป็น [latitude, longitude] */}
-        {features.map((feature) => {
+        {renderedFeatures.map((feature) => {
           const [longitude, latitude] = feature.geometry.coordinates;
           const icon = markerIcons.get(feature.properties.postType);
 
@@ -850,7 +854,7 @@ export default function RealLeafletMap({
       )}
 
       {/* สถานะสำเร็จแต่ไม่มี marker ใน viewport ปัจจุบัน */}
-      {!isLoading && !errorMessage && features.length === 0 && (
+      {!isLoading && !errorMessage && renderedFeatures.length === 0 && (
         <div className="pointer-events-none absolute inset-0 z-[900] flex items-center justify-center p-4">
           <div className="rounded-3xl border border-border bg-card/95 px-5 py-4 text-center shadow-md backdrop-blur-sm">
             <MapPin
