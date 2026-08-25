@@ -25,12 +25,15 @@ export default function AdminSideBar() {
   return (
     <aside className="flex min-h-screen w-64 shrink-0 flex-col justify-between bg-primary p-4 text-primary-foreground">
       <div className="flex flex-col gap-6">
-        <div className="flex items-center gap-2 rounded-2xl bg-primary-foreground/10 px-3 py-2.5">
+        <Link
+          href="/admin"
+          className="flex items-center gap-2 rounded-2xl bg-primary-foreground/10 px-3 py-2.5"
+        >
           <span className="flex size-7 items-center justify-center rounded-lg bg-primary-foreground/15">
             <LayoutGrid className="size-4" />
           </span>
           <span className="text-sm font-semibold">แดชบอร์ดภาพรวม</span>
-        </div>
+        </Link>
 
         <nav className="flex flex-col gap-1">
           {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
