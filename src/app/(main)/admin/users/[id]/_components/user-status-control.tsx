@@ -6,21 +6,27 @@ import { USER_STATUS_LABEL } from '../../_lib/user-labels';
 import { updateUserStatusAction } from '@/lib/action/admin.action';
 import { UserStatus } from '@/types/user';
 
-// สถานะที่แอดมินสามารถตั้งค่าเองได้ผ่านหน้านี้ (ไม่รวม PENDING_EMAIL_VERIFICATION/DELETED
-// เพราะเป็นสถานะที่ระบบตั้งค่าเองหรือมี flow เฉพาะแยกต่างหาก)
+// สถานะทั้งหมดที่แอดมินตั้งค่าได้ผ่านหน้านี้ ตรงตาม UserStatus enum ของ Backend ทุกค่า
 const SELECTABLE_STATUSES: UserStatus[] = [
+  'PENDING_EMAIL_VERIFICATION',
   'ACTIVE',
   'SUSPENDED',
   'BLACKLISTED',
+  'DELETED',
 ];
 
 // ข้อความยืนยันก่อนเปลี่ยนสถานะ เพราะการระงับ/ขึ้นบัญชีดำจะบังคับออกจากระบบทุกอุปกรณ์ทันที
+// และการลบบัญชีมีผลกระทบร้ายแรงที่สุด จึงมีข้อความเตือนเข้มกว่าค่าอื่น
 const CONFIRM_MESSAGE: Partial<Record<UserStatus, string>> = {
   SUSPENDED:
     'ยืนยันระงับบัญชีนี้? ผู้ใช้จะถูกออกจากระบบทันทีในทุกอุปกรณ์ที่ล็อกอินอยู่',
   BLACKLISTED:
     'ยืนยันขึ้นบัญชีดำผู้ใช้นี้? ผู้ใช้จะถูกออกจากระบบทันทีในทุกอุปกรณ์ที่ล็อกอินอยู่',
   ACTIVE: 'ยืนยันเปิดใช้งานบัญชีนี้อีกครั้ง?',
+  PENDING_EMAIL_VERIFICATION:
+    'ยืนยันเปลี่ยนสถานะเป็น "รอยืนยันอีเมล"? ผู้ใช้อาจใช้งานบางฟีเจอร์ไม่ได้จนกว่าจะยืนยันอีเมล',
+  DELETED:
+    'ยืนยันลบบัญชีผู้ใช้นี้อย่างถาวร? การกระทำนี้มีผลกระทบร้ายแรงที่สุดและอาจย้อนกลับไม่ได้',
 };
 
 interface UserStatusControlProps {
