@@ -60,7 +60,7 @@ export default async function AdminPostDetailPage({
           )}
         </div>
       ) : (
-        <PostDetail post={result.post} aiMatches={result.aiMatches} />
+        <PostDetail post={result.post} aiMatches={result.aiMatches ?? []} />
       )}
     </div>
   );
