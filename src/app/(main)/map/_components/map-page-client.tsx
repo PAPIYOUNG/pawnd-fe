@@ -727,10 +727,7 @@ export function MapPageClient() {
         {/* Intro bar ของหน้า Map; Header global มีโลโก้และ navigation อยู่ด้านบนแล้ว */}
         <header className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-              สำรวจพื้นที่รอบตัวคุณ
-            </p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               แผนที่สัตว์เลี้ยง
             </h1>
             <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
