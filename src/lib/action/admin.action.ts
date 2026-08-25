@@ -1,3 +1,7 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+
 import { AdminApi } from '@/lib/api/admin.api';
 import { ApiError } from '@/lib/api/api-error';
 import { ErrorActionResult } from '@/lib/api/types/action.type';
@@ -7,7 +11,9 @@ import {
   GetUsersParams,
   GetUsersResponse,
   MonthlyTrendPoint,
+  UpdateUserStatusResponse,
 } from '@/types/admin';
+import { UserStatus } from '@/types/user';
 
 // ดึงข้อมูลสรุปภาพรวมสำหรับหน้าแดชบอร์ดผู้ดูแลระบบ
 // สำเร็จ -> คืนค่า DashboardSummary, ล้มเหลว -> คืนค่า ErrorActionResult ให้หน้าเพจแสดง Error State
@@ -73,6 +79,29 @@ export async function getUserByIdAction(
 ): Promise<GetUserByIdResponse | ErrorActionResult> {
   try {
     return await AdminApi.getUserById(id);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: error.statusCode === 404 ? 'NOT_FOUND' : 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// เปลี่ยนสถานะบัญชีผู้ใช้งาน (เช่น ระงับบัญชี / ขึ้นบัญชีดำ / เปิดใช้งานอีกครั้ง)
+// สำเร็จ -> revalidate หน้ารายชื่อ + หน้ารายละเอียดผู้ใช้งานคนนี้ แล้วคืนค่า UpdateUserStatusResponse
+export async function updateUserStatusAction(
+  id: string,
+  status: UserStatus,
+): Promise<UpdateUserStatusResponse | ErrorActionResult> {
+  try {
+    const result = await AdminApi.updateUserStatus(id, status);
+    revalidatePath('/admin/users');
+    revalidatePath(`/admin/users/${id}`);
+    return result;
   } catch (error) {
     if (error instanceof ApiError) {
       return {

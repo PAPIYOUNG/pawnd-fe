@@ -5,7 +5,9 @@ import {
   GetUsersParams,
   GetUsersResponse,
   MonthlyTrendPoint,
+  UpdateUserStatusResponse,
 } from '@/types/admin';
+import { UserStatus } from '@/types/user';
 
 export const AdminApi = {
   // ดึงข้อมูลสรุปภาพรวมสำหรับหน้าแดชบอร์ดผู้ดูแลระบบ
@@ -41,5 +43,12 @@ export const AdminApi = {
     return await authFetch<GetUserByIdResponse>(`/admin/users/${id}`, {
       method: 'GET',
     });
+  },
+  // เปลี่ยนสถานะบัญชีผู้ใช้งาน (เช่น ระงับบัญชี / ขึ้นบัญชีดำ / เปิดใช้งานอีกครั้ง)
+  async updateUserStatus(id: string, status: UserStatus) {
+    return await authFetch<UpdateUserStatusResponse>(
+      `/admin/users/${id}/status`,
+      { method: 'PATCH', body: { status } },
+    );
   },
 };

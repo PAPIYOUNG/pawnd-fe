@@ -137,3 +137,21 @@ export interface AdminUserDetail {
 export interface GetUserByIdResponse {
   user: AdminUserDetail;
 }
+
+/**
+ * UpdateUserStatusResult
+ * - ผลลัพธ์จาก Backend endpoint `PATCH /admin/users/:id/status`
+ */
+export interface UpdateUserStatusResult {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+  updatedAt: string;
+}
+
+export interface UpdateUserStatusResponse {
+  user: UpdateUserStatusResult;
+}

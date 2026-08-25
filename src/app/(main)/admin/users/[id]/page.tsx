@@ -10,7 +10,8 @@ import {
   UserRound,
 } from 'lucide-react';
 
-import { getUserRoleLabel, USER_STATUS_LABEL } from '../_lib/user-labels';
+import { UserStatusControl } from './_components/user-status-control';
+import { getUserRoleLabel } from '../_lib/user-labels';
 import { getUserByIdAction } from '@/lib/action/admin.action';
 import { formatThaiShortDate } from '@/lib/utils';
 import { StatCard } from '@/components/admin/stat-card';
@@ -60,7 +61,6 @@ export default async function AdminUserDetailPage({
 }
 
 function UserDetail({ user }: { user: AdminUserDetail }) {
-  const status = USER_STATUS_LABEL[user.status];
   const roleLabel = getUserRoleLabel(user.role);
 
   return (
@@ -84,21 +84,15 @@ function UserDetail({ user }: { user: AdminUserDetail }) {
         </div>
 
         <div className="flex flex-1 flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-bold text-foreground">
-              {user.firstName} {user.lastName}
-            </h1>
-            <span
-              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${status.className}`}
-            >
-              {status.text}
-            </span>
-          </div>
+          <h1 className="text-xl font-bold text-foreground">
+            {user.firstName} {user.lastName}
+          </h1>
           <span className="text-sm text-muted-foreground">{user.email}</span>
           <span className="text-xs text-muted-foreground">
             บทบาท: {roleLabel} · สมัครเมื่อ{' '}
             {formatThaiShortDate(user.createdAt)}
           </span>
+          <UserStatusControl userId={user.id} initialStatus={user.status} />
         </div>
       </div>
 
