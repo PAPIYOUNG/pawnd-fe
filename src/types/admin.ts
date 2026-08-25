@@ -265,6 +265,41 @@ export interface AdminPostDetail {
   }[];
 }
 
+/**
+ * AdminMatchedPostSummary
+ * - ข้อมูลย่อของประกาศฝั่งตรงข้ามที่ AI จับคู่มาให้ (Lost คู่กับ Found หรือกลับกัน)
+ */
+export interface AdminMatchedPostSummary {
+  id: string;
+  petName: string;
+  petType: PetType;
+  breed: string | null;
+  type: PostType;
+  status: PostStatus;
+  images: { imageUrl: string }[];
+}
+
+/**
+ * AdminAiMatchItem
+ * - ผลการจับคู่ของ AI 1 รายการ จาก Backend endpoint `GET /admin/posts/:id` (field `aiMatches`)
+ * - คะแนนทั้งหมด (`finalScore`, `vectorSimilarity`, `featureScore`, `locationScore`, `dateScore`)
+ *   เป็นค่า 0-1 (สัดส่วนความเหมือน) ไม่ใช่เปอร์เซ็นต์สำเร็จรูป
+ * - `matchedPost` เป็น `null` ได้หากประกาศฝั่งตรงข้ามถูกลบไปแล้ว
+ */
+export interface AdminAiMatchItem {
+  matchId: string;
+  finalScore: number;
+  vectorSimilarity: number;
+  featureScore: number;
+  locationScore: number;
+  dateScore: number;
+  distanceKm: number | null;
+  isNotified: boolean;
+  createdAt: string;
+  matchedPost: AdminMatchedPostSummary | null;
+}
+
 export interface GetPostByIdResponse {
   post: AdminPostDetail;
+  aiMatches: AdminAiMatchItem[];
 }
