@@ -9,13 +9,17 @@ import {
   loginRequest,
   verifyTwoFactorRequest,
   loginWithGoogleRequest,
+  loginWithLineRequest,
+  completeLineRegistrationRequest,
   LoginPayload,
   VerifyTwoFactorPayload,
+  CompleteLineRegistrationPayload,
   getMeRequest,
 } from '@/services/auth.service';
 import {
   isOtpRequired,
   isPendingEmailVerification,
+  isLineEmailRequired,
   LoginTokensResponse,
 } from '@/types/auth';
 
@@ -79,6 +83,79 @@ export async function loginWithGoogleAction(
       err,
       'เข้าสู่ระบบด้วย Google ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
     );
+  }
+
+  if (isPendingEmailVerification(response)) {
+    return {
+      success: true,
+      needsVerification: true,
+      message: response.message,
+    };
+  }
+
+  if (isOtpRequired(response)) {
+    return { success: true, needsOtp: true, tempToken: response.tempToken };
+  }
+
+  await establishSession(response);
+  redirect('/');
+}
+
+type LineLoginActionResult =
+  | ErrorActionResult
+  | { success: true; needsOtp: true; tempToken: string }
+  | { success: true; needsOtp: false }
+  | { success: true; needsEmail: true; tempToken: string }
+  | { success: true; needsVerification: true; message: string };
+
+export async function loginWithLineAction(
+  code: string,
+  redirectUri: string,
+): Promise<LineLoginActionResult> {
+  let response;
+  try {
+    response = await loginWithLineRequest({ code, redirectUri });
+  } catch (err) {
+    return toErrorResult(
+      err,
+      'เข้าสู่ระบบด้วย LINE ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
+    );
+  }
+
+  if (isLineEmailRequired(response)) {
+    return { success: true, needsEmail: true, tempToken: response.tempToken };
+  }
+
+  if (isPendingEmailVerification(response)) {
+    return {
+      success: true,
+      needsVerification: true,
+      message: response.message,
+    };
+  }
+
+  if (isOtpRequired(response)) {
+    return { success: true, needsOtp: true, tempToken: response.tempToken };
+  }
+
+  await establishSession(response);
+  redirect('/');
+}
+
+type CompleteLineRegistrationActionResult =
+  | ErrorActionResult
+  | { success: true; needsOtp: true; tempToken: string }
+  | { success: true; needsOtp: false }
+  | { success: true; needsVerification: true; message: string };
+
+export async function completeLineRegistrationAction(
+  payload: CompleteLineRegistrationPayload,
+): Promise<CompleteLineRegistrationActionResult> {
+  let response;
+  try {
+    response = await completeLineRegistrationRequest(payload);
+  } catch (err) {
+    return toErrorResult(err, 'ยืนยันอีเมลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
   }
 
   if (isPendingEmailVerification(response)) {

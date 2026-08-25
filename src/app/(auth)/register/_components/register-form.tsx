@@ -14,12 +14,12 @@ import { Label } from '@/components/ui/label';
 import { GoogleIcon, LineIcon } from '@/components/auth/BrandIcons';
 import { OtpBoxes } from '@/components/auth/OtpBoxes';
 import { cn } from '@/lib/utils';
-
+import { registerAction } from '../_actions/register.actions';
 import {
-  registerAction,
   verifyEmailAction,
   resendVerificationAction,
-} from '../_actions/register.actions';
+} from '@/lib/action/verify-email.actions';
+import { useRouter } from 'next/navigation';
 
 const registerSchema = z
   .object({
@@ -71,6 +71,7 @@ function PasswordInput({
 }
 
 export function RegisterForm() {
+  const router = useRouter();
   const [step, setStep] = useState<'register' | 'otp'>('register');
   const [registeredEmail, setRegisteredEmail] = useState('');
   const [otp, setOtp] = useState('');
@@ -312,8 +313,13 @@ export function RegisterForm() {
         <span className="h-px flex-1 bg-border" />
       </div>
 
-      {/* TODO: ต่อ Google Identity SDK / LINE OAuth ในงานถัดไป */}
-      <Button type="button" variant="outline" size="lg" className="w-full">
+      <Button
+        type="button"
+        variant="outline"
+        size="lg"
+        className="w-full"
+        onClick={() => router.push('/login')}
+      >
         <GoogleIcon className="size-4" />
         สมัครใช้งานด้วย Google
       </Button>
@@ -322,6 +328,7 @@ export function RegisterForm() {
         type="button"
         size="lg"
         className="w-full bg-[#06C755] text-white hover:bg-[#05b34c]"
+        onClick={() => router.push('/login')}
       >
         <LineIcon className="size-4" />
         สมัครใช้งานด้วย LINE
