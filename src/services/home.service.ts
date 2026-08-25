@@ -1,13 +1,56 @@
 import { HomePageData, ReunitedStory, SummaryStats } from '@/types/home';
 import { LatestPostItem } from '@/types/post';
+import { apiFetch } from '@/lib/api/api-fetch';
 
 /**
- * Base URL ของ Backend API
+ * Home Service — ดึงข้อมูลสำหรับหน้าแรก (Homepage)
+ * ใช้ apiFetch สำหรับ public endpoints (ไม่ต้อง login)
+ * apiFetch จะ unwrap { success, data } อัตโนมัติ
+ *
+ * หมายเหตุ: Backend /home endpoints ส่ง data ในรูปแบบ:
+ * - /home/stats → { stats: { totalLost, totalFound, totalReunited, totalUsers } }
+ * - /home/latest → { posts: [...] }
+ * - /home/reunited → { posts: [...] }
+ * ดังนั้นหลัง unwrap ต้อง access .stats หรือ .posts อีกชั้น
  */
-const API_BASE_URL =
-  process.env.API_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  'http://localhost:8000';
+
+/** Interface สำหรับ response จาก GET /home/stats (หลัง unwrap { success, data }) */
+interface HomeStatsResponse {
+  stats: SummaryStats;
+}
+
+/** Interface สำหรับ response จาก GET /home/latest (หลัง unwrap) */
+interface HomeLatestResponse {
+  posts: ApiLatestPost[];
+}
+
+/** Interface สำหรับ response จาก GET /home/reunited (หลัง unwrap) */
+interface HomeReunitedResponse {
+  posts: ApiReunitedPost[];
+}
+
+/** ข้อมูลโพสต์ล่าสุดตามที่ Backend ส่งกลับมาจริง */
+interface ApiLatestPost {
+  id: string;
+  type?: 'LOST' | 'FOUND';
+  petName?: string;
+  petType?: 'DOG' | 'CAT' | 'BIRD' | 'HAMSTER' | 'EXOTIC' | 'OTHER';
+  breed?: string;
+  province?: string;
+  coverImageUrl?: string | null;
+  createdAt?: string;
+}
+
+/** ข้อมูลโพสต์ที่กลับบ้านแล้วตามที่ Backend ส่งกลับมาจริง */
+interface ApiReunitedPost {
+  id: string;
+  petName?: string;
+  petType?: string;
+  breed?: string;
+  province?: string;
+  coverImageUrl?: string | null;
+  reunitedAt?: string;
+}
 
 /**
  * ข้อมูลจำลองสถิติหน้าแรก (Mock Summary Stats)
@@ -92,7 +135,7 @@ export const MOCK_LATEST_POSTS: LatestPostItem[] = [
     petType: 'CAT',
     breed: 'เปอร์เซีย',
     gender: 'FEMALE',
-    ageDescription: 'เปอร์เซีย ขนยาวสีขาวครีม อายุ 2 ปี',
+    ageDescription: 'เปอร์เซีย ขนยาลสีขาวครีม อายุ 2 ปี',
     province: 'ชลบุรี',
     locationDetail: 'บางแสน สาย 2, ชลบุรี',
     timeAgo: 'หายไป 5 ชั่วโมงที่แล้ว',
@@ -188,55 +231,40 @@ export const MOCK_REUNITED_STORIES: ReunitedStory[] = [
 
 /**
  * ดึงข้อมูลสรุปสถิติภาพรวมของระบบ (GET /home/stats)
+ * Endpoint นี้เป็น public ไม่ต้อง login — ใช้ apiFetch โดยไม่ต้องส่ง token
+ * Backend ส่ง { success, data: { stats: {...} } } → apiFetch unwrap ได้ { stats: {...} }
  */
 export async function getHomeStats(): Promise<SummaryStats> {
   try {
-    const res = await fetch(`${API_BASE_URL}/home/stats`, {
+    const response = await apiFetch<HomeStatsResponse>('/home/stats', {
       next: { revalidate: 60 },
     });
-    if (!res.ok) return MOCK_STATS;
-    const json = await res.json();
-    return json.stats || MOCK_STATS;
+    return response.stats || MOCK_STATS;
   } catch {
     return MOCK_STATS;
   }
 }
 
-interface ApiLatestPost {
-  id: string;
-  type?: 'LOST' | 'FOUND';
-  petName?: string;
-  petType?: 'DOG' | 'CAT' | 'BIRD' | 'HAMSTER' | 'EXOTIC' | 'OTHER';
-  breed?: string;
-  province?: string;
-  coverImageUrl?: string;
-  createdAt?: string;
-}
-
-interface ApiReunitedPost {
-  id: string;
-  petName?: string;
-  petType?: string;
-  breed?: string;
-  province?: string;
-  coverImageUrl?: string;
-  reunitedAt?: string;
-}
-
 /**
  * ดึงข้อมูลประกาศตามหาและพบสัตว์ล่าสุด (GET /home/latest)
+ * Backend ส่ง { success, data: { posts: [...] } } → apiFetch unwrap ได้ { posts: [...] }
+ * จากนั้น map ข้อมูลจาก Backend DTO เป็น LatestPostItem ที่ UI ใช้
  */
 export async function getLatestPosts(limit = 8): Promise<LatestPostItem[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/home/latest?limit=${limit}`, {
-      next: { revalidate: 30 },
-    });
-    if (!res.ok) return MOCK_LATEST_POSTS;
-    const json = await res.json();
-    if (!json.posts || json.posts.length === 0) {
+    const response = await apiFetch<HomeLatestResponse>(
+      `/home/latest?limit=${limit}`,
+      {
+        next: { revalidate: 30 },
+      },
+    );
+
+    if (!response.posts || response.posts.length === 0) {
       return MOCK_LATEST_POSTS;
     }
-    return json.posts.map((p: ApiLatestPost, idx: number) => ({
+
+    // Map ข้อมูลจาก Backend DTO → LatestPostItem ที่ Frontend UI ใช้
+    return response.posts.map((p: ApiLatestPost, idx: number) => ({
       id: p.id,
       type: p.type || (idx % 2 === 0 ? 'LOST' : 'FOUND'),
       petName: p.petName || 'สัตว์เลี้ยง',
@@ -258,18 +286,23 @@ export async function getLatestPosts(limit = 8): Promise<LatestPostItem[]> {
 
 /**
  * ดึงข้อมูลเรื่องราวความสำเร็จพาสัตว์เลี้ยงกลับบ้าน (GET /home/reunited)
+ * Backend ส่ง { success, data: { posts: [...] } } → apiFetch unwrap ได้ { posts: [...] }
  */
 export async function getReunitedStories(limit = 3): Promise<ReunitedStory[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/home/reunited?limit=${limit}`, {
-      next: { revalidate: 60 },
-    });
-    if (!res.ok) return MOCK_REUNITED_STORIES;
-    const json = await res.json();
-    if (!json.posts || json.posts.length === 0) {
+    const response = await apiFetch<HomeReunitedResponse>(
+      `/home/reunited?limit=${limit}`,
+      {
+        next: { revalidate: 60 },
+      },
+    );
+
+    if (!response.posts || response.posts.length === 0) {
       return MOCK_REUNITED_STORIES;
     }
-    return json.posts.map((p: ApiReunitedPost, idx: number) => ({
+
+    // Map ข้อมูลจาก Backend DTO → ReunitedStory ที่ Frontend UI ใช้
+    return response.posts.map((p: ApiReunitedPost, idx: number) => ({
       id: p.id,
       petName: p.petName || 'น้องสัตว์เลี้ยง',
       ownerName: `คุณ ${p.petName || 'ผู้ใช้'}`,
@@ -289,7 +322,7 @@ export async function getReunitedStories(limit = 3): Promise<ReunitedStory[]> {
 
 /**
  * ดึงข้อมูลรวมทั้งหมดสำหรับหน้าแรก (HomePageData Fetcher)
- * - จำลอง Delay 3 วินาทีเพื่อแสดง Skeleton Loading State ตามความต้องการของผู้ใช้
+ * ดึงข้อมูล 3 ส่วนพร้อมกัน: สถิติ, ประกาศล่าสุด, เรื่องราวกลับบ้าน
  */
 export async function getHomePageData(): Promise<HomePageData> {
   const [stats, latestPosts, reunitedStories] = await Promise.all([

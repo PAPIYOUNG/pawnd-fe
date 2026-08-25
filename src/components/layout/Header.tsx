@@ -64,14 +64,15 @@ export default function Header({
         {/* 2. เมนูนำทางบนหน้าจอ Desktop (กึ่งกลาง) */}
         <nav className="hidden md:flex items-center gap-7">
           {NAV_LINKS.map((link) => {
+            const targetHref = link.href === '/' && isLoggedIn ? '/dashboard' : link.href;
             const isActive =
               link.href === '/'
-                ? pathname === '/'
+                ? pathname === '/' || pathname === '/dashboard'
                 : pathname.startsWith(link.href);
             return (
               <Link
                 key={link.href}
-                href={link.href}
+                href={targetHref}
                 className={cn(
                   'text-sm font-medium transition-colors hover:text-primary',
                   isActive
@@ -93,14 +94,14 @@ export default function Header({
           {isLoggedIn ? (
             <>
               {/* ปุ่มกระดิ่งแจ้งเตือนพร้อมจุดสีแดง (Notification Bell) */}
-              <button
-                type="button"
+              <Link
+                href="/notifications"
                 aria-label="การแจ้งเตือน"
                 className="relative flex size-10 min-h-[40px] min-w-[40px] items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-muted hover:text-foreground active:scale-95"
               >
                 <Bell className="size-5" />
                 <span className="absolute top-2.5 right-2.5 size-2 rounded-full bg-destructive ring-2 ring-background" />
-              </button>
+              </Link>
 
               {/* รูปโปรไฟล์ Avatar ของผู้ใช้งาน (คลิกเพื่อเข้าสู่ระบบโปรไฟล์และจัดการสัตว์เลี้ยง) */}
               <Link
@@ -171,19 +172,27 @@ export default function Header({
       {mobileMenuOpen && (
         <div className="border-b border-border bg-background px-4 py-4 sm:hidden">
           <nav className="flex flex-col gap-2">
-            {NAV_LINKS.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={cn(
-                  'flex min-h-[40px] items-center rounded-xl px-3 text-sm font-medium transition-colors hover:bg-muted',
-                  pathname === link.href ? 'bg-muted text-primary font-semibold' : 'text-foreground'
-                )}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {NAV_LINKS.map((link) => {
+              const targetHref = link.href === '/' && isLoggedIn ? '/dashboard' : link.href;
+              const isActive =
+                link.href === '/'
+                  ? pathname === '/' || pathname === '/dashboard'
+                  : pathname === link.href;
+
+              return (
+                <Link
+                  key={link.href}
+                  href={targetHref}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn(
+                    'flex min-h-[40px] items-center rounded-xl px-3 text-sm font-medium transition-colors hover:bg-muted',
+                    isActive ? 'bg-muted text-primary font-semibold' : 'text-foreground'
+                  )}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
 
             {/* แถวสลับธีมบนมือถือ */}
             <div className="flex items-center justify-between border-t border-border pt-3">

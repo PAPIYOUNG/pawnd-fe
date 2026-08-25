@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Plus, Heart } from 'lucide-react';
 
-import { PetProfile, CreatePetDto } from '@/types/pet';
+import { PetProfile, CreatePetDto, PetImage } from '@/types/pet';
 import { PetCard } from './pet-card';
 import { PetQrModal } from './pet-qr-modal';
 import { PetFormModal } from './pet-form-modal';
@@ -16,9 +16,8 @@ interface PetShowcaseListProps {
 /**
  * PetShowcaseList Component (Client Component)
  * - ส่วนแสดงรายการสัตว์เลี้ยงทั้งหมดของผู้ใช้งาน (Pet Showcase List)
- * - ออกแบบให้พอดีและสวยงามทั้งบนหน้าจอมือถือ (Mobile) และหน้าจอคอมพิวเตอร์ (Desktop)
- * - แสดงการ์ดเส้นประ "เพิ่มสัตว์เลี้ยงใหม่" (Add Pet Card) พร้อมสถานะโควต้า (สูงสุด 3 ตัว)
- * - แสดงการ์ดสัตว์เลี้ยงแบบพาโนรามา (Panoramic Pet Cards)
+ * - จัดแสดงผลในรูปแบบ Grid 3 คอลัมน์บน Desktop (1 คอลัมน์บน Mobile)
+ * - การ์ดเส้นประ "เพิ่มสัตว์เลี้ยงใหม่" จัดวางรวมใน Grid เดียวกันอย่างสมดุล
  * - จัดการ State การเปิด-ปิด QR Code Modal และ Form Modal (เพิ่ม/แก้ไข/ลบ)
  */
 export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
@@ -40,7 +39,7 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
   };
 
   // จัดการการส่งข้อมูลฟอร์ม (สร้างใหม่ หรือ อัปเดต)
-  const handleSavePet = (data: CreatePetDto & { images?: any[] }) => {
+  const handleSavePet = (data: CreatePetDto & { images?: PetImage[] }) => {
     if (selectedPetForEdit) {
       // แก้ไขสัตว์เลี้ยงเดิม
       setPets((prev) =>
@@ -128,28 +127,28 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
         </Button>
       </div>
 
-      {/* 2. การ์ดเส้นประ "เพิ่มสัตว์เลี้ยงใหม่" (Dashed Add Card) */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <button
-          type="button"
-          onClick={handleOpenAddModal}
-          disabled={currentCount >= maxQuota}
-          className="group flex min-h-[130px] flex-col items-center justify-center rounded-3xl border-2 border-dashed border-primary/40 bg-primary/5 p-5 text-center transition-all duration-300 hover:border-primary hover:bg-primary/10 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[160px] sm:p-6"
-        >
-          <div className="flex size-12 items-center justify-center rounded-full bg-primary/15 text-primary transition-transform group-hover:scale-110 sm:size-14">
-            <Plus className="size-6 stroke-[2.5] sm:size-7" />
-          </div>
-          <span className="mt-2.5 text-sm font-bold text-foreground group-hover:text-primary sm:mt-3.5 sm:text-base">
-            เพิ่มสัตว์เลี้ยงใหม่
-          </span>
-          <span className="mt-0.5 text-[11px] text-muted-foreground sm:text-xs">
-            สูงสุด {maxQuota} ตัว (ปัจจุบันมี {currentCount} ตัว)
-          </span>
-        </button>
-      </div>
+      {/* 2. กริดแสดงการ์ดสัตว์เลี้ยงทั้งหมดและปุ่มเพิ่มสัตว์เลี้ยงใหม่ */}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {/* การ์ดเส้นประ "เพิ่มสัตว์เลี้ยงใหม่" (แสดงเมื่อยังไม่เต็มโควต้า 3 ตัว) */}
+        {currentCount < maxQuota && (
+          <button
+            type="button"
+            onClick={handleOpenAddModal}
+            className="group flex min-h-[280px] flex-col items-center justify-center rounded-3xl border-2 border-dashed border-primary/40 bg-primary/5 p-6 text-center transition-all duration-300 hover:border-primary hover:bg-primary/10 hover:shadow-md"
+          >
+            <div className="flex size-14 items-center justify-center rounded-full bg-primary/15 text-primary transition-transform group-hover:scale-110">
+              <Plus className="size-7 stroke-[2.5]" />
+            </div>
+            <span className="mt-4 text-base font-bold text-foreground group-hover:text-primary">
+              เพิ่มสัตว์เลี้ยงใหม่
+            </span>
+            <span className="mt-1 text-xs text-muted-foreground">
+              สูงสุด {maxQuota} ตัว (ปัจจุบันมี {currentCount} ตัว)
+            </span>
+          </button>
+        )}
 
-      {/* 3. รายการการ์ดสัตว์เลี้ยงแบบพาโนรามา (Panoramic Pet Cards) */}
-      <div className="flex flex-col gap-6 sm:gap-8">
+        {/* รายการการ์ดสัตว์เลี้ยงขนาดกะทัดรัด */}
         {pets.map((pet) => (
           <PetCard
             key={pet.id}
@@ -159,28 +158,29 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
             onDelete={(id) => handleDeletePet(id)}
           />
         ))}
-
-        {pets.length === 0 && (
-          <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-border/80 bg-muted/30 p-8 text-center sm:p-12">
-            <div className="flex size-14 items-center justify-center rounded-full bg-muted text-muted-foreground sm:size-16">
-              <Heart className="size-7 sm:size-8" />
-            </div>
-            <h3 className="mt-3 text-base font-bold text-foreground sm:text-lg">
-              ยังไม่มีโปรไฟล์สัตว์เลี้ยง
-            </h3>
-            <p className="mt-1 max-w-sm text-xs text-muted-foreground sm:text-sm">
-              เริ่มต้นสร้างโปรไฟล์สัตว์เลี้ยงของคุณเพื่อรับ Smart QR Tag ติดปลอกคอตามหา
-            </p>
-            <Button
-              type="button"
-              onClick={handleOpenAddModal}
-              className="mt-4 rounded-2xl bg-primary sm:mt-5"
-            >
-              เพิ่มสัตว์เลี้ยงตัวแรก
-            </Button>
-          </div>
-        )}
       </div>
+
+      {/* กรณีไม่มีสัตว์เลี้ยงเลย */}
+      {pets.length === 0 && (
+        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-border/80 bg-muted/30 p-8 text-center sm:p-12">
+          <div className="flex size-14 items-center justify-center rounded-full bg-muted text-muted-foreground sm:size-16">
+            <Heart className="size-7 sm:size-8" />
+          </div>
+          <h3 className="mt-3 text-base font-bold text-foreground sm:text-lg">
+            ยังไม่มีโปรไฟล์สัตว์เลี้ยง
+          </h3>
+          <p className="mt-1 max-w-sm text-xs text-muted-foreground sm:text-sm">
+            เริ่มต้นสร้างโปรไฟล์สัตว์เลี้ยงของคุณเพื่อรับ Smart QR Tag ติดปลอกคอตามหา
+          </p>
+          <Button
+            type="button"
+            onClick={handleOpenAddModal}
+            className="mt-4 rounded-2xl bg-primary sm:mt-5"
+          >
+            เพิ่มสัตว์เลี้ยงตัวแรก
+          </Button>
+        </div>
+      )}
 
       {/* Modal แสดง QR Code */}
       <PetQrModal
@@ -190,12 +190,15 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
       />
 
       {/* Modal ฟอร์มเพิ่ม/แก้ไขข้อมูลสัตว์เลี้ยง */}
-      <PetFormModal
-        isOpen={isFormOpen}
-        petToEdit={selectedPetForEdit}
-        onClose={() => setIsFormOpen(false)}
-        onSubmitPet={handleSavePet}
-      />
+      {isFormOpen && (
+        <PetFormModal
+          key={selectedPetForEdit?.id || 'new'}
+          isOpen={isFormOpen}
+          petToEdit={selectedPetForEdit}
+          onClose={() => setIsFormOpen(false)}
+          onSubmitPet={handleSavePet}
+        />
+      )}
     </div>
   );
 }
