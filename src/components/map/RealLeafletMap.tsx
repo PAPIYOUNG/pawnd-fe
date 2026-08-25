@@ -21,7 +21,7 @@ import {
 } from 'react-leaflet';
 
 import { Button } from '@/components/ui/button';
-import { getMapPosts, getNearbyMapPosts } from '@/services/map.service';
+import { getMapPosts } from '@/services/map.service';
 import type {
   CurrentLocation,
   MapDataState,
@@ -37,7 +37,6 @@ const SELECTED_POST_ZOOM = 15;
 const VIEWPORT_DEBOUNCE_MS = 350;
 const VIEWPORT_COMPARISON_EPSILON = 1e-7;
 const MAP_POST_LIMIT = 200;
-const NEARBY_POST_LIMIT = 100;
 
 const POST_TYPE_LABEL: Record<PostType, string> = {
   LOST: 'สัตว์หาย',
@@ -66,8 +65,6 @@ interface RealLeafletMapProps {
   postType?: PostType;
   /** ตำแหน่งผู้ใช้ซึ่งอยู่ใน React state ของ parent เท่านั้น */
   currentLocation?: CurrentLocation | null;
-  /** รัศมีที่ใช้สลับไปโหลด marker จาก GET /map/posts/nearby */
-  distanceRadiusKm?: number;
   /** ขอพิกัดผ่าน Browser Geolocation API เมื่อผู้ใช้กดปุ่ม */
   onRequestCurrentLocation?: () => void;
   /** แสดงสถานะระหว่าง Browser กำลังอ่านพิกัด */
@@ -76,6 +73,8 @@ interface RealLeafletMapProps {
   locationError?: string | null;
   /** post id จากการ์ดที่ต้องเลื่อนแผนที่ไปหาและเปิด popup */
   selectedPostId?: string | null;
+  /** พิกัดจาก nearby card ใช้ flyTo แม้ marker ยังไม่อยู่ใน viewport เดิม */
+  selectedPostLocation?: CurrentLocation | null;
   /** token เปลี่ยนทุก click เพื่อรองรับการเลือก post เดิมซ้ำ */
   selectionRequestToken?: number;
   /** posts หลังกรองช่วงเวลาที่ใช้ร่วมกับรายการและจำนวนใน sidebar */
@@ -110,6 +109,8 @@ interface SelectedPostControllerProps {
   postId: string | null;
   latitude?: number;
   longitude?: number;
+  /** true เมื่อ marker จาก viewport response ถูก render แล้ว */
+  markerAvailable: boolean;
   /** ลำดับคำสั่งเลือกจากการ click การ์ด */
   requestToken: number;
   /** marker instances ที่ใช้เปิด popup โดยไม่สร้าง React state เพิ่ม */
@@ -332,12 +333,14 @@ function SelectedPostController({
   postId,
   latitude,
   longitude,
+  markerAvailable,
   requestToken,
   markerRefs,
   beginProgrammaticMovement,
 }: SelectedPostControllerProps) {
   const map = useMap();
-  const lastHandledSelectionRef = useRef<string | null>(null);
+  const lastFocusedSelectionRef = useRef<string | null>(null);
+  const lastOpenedSelectionRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (
@@ -351,16 +354,7 @@ function SelectedPostController({
     }
 
     const selectionKey = `${postId}:${requestToken}`;
-    if (lastHandledSelectionRef.current === selectionKey) {
-      return;
-    }
-    lastHandledSelectionRef.current = selectionKey;
-
     const marker = markerRefs.current.get(postId);
-    if (!marker) {
-      return;
-    }
-
     const focusTarget = getMapFocusTarget(
       map,
       latitude,
@@ -368,27 +362,41 @@ function SelectedPostController({
       SELECTED_POST_ZOOM,
     );
 
-    if (!focusTarget.requiresMovement) {
-      marker.openPopup();
-      return;
+    if (lastFocusedSelectionRef.current !== selectionKey) {
+      lastFocusedSelectionRef.current = selectionKey;
+
+      if (focusTarget.requiresMovement) {
+        const openSelectedPopup = () => {
+          const currentMarker = markerRefs.current.get(postId);
+          if (
+            currentMarker &&
+            lastOpenedSelectionRef.current !== selectionKey
+          ) {
+            currentMarker.openPopup();
+            lastOpenedSelectionRef.current = selectionKey;
+          }
+        };
+
+        map.once('moveend', openSelectedPopup);
+        beginProgrammaticMovement(true);
+        map.flyTo(focusTarget.center, focusTarget.zoom, { animate: true });
+
+        return () => {
+          map.off('moveend', openSelectedPopup);
+        };
+      }
     }
 
-    const openSelectedPopup = () => {
+    if (marker && lastOpenedSelectionRef.current !== selectionKey) {
       marker.openPopup();
-    };
-
-    map.once('moveend', openSelectedPopup);
-    beginProgrammaticMovement(true);
-    map.flyTo(focusTarget.center, focusTarget.zoom, { animate: true });
-
-    return () => {
-      map.off('moveend', openSelectedPopup);
-    };
+      lastOpenedSelectionRef.current = selectionKey;
+    }
   }, [
     beginProgrammaticMovement,
     latitude,
     longitude,
     map,
+    markerAvailable,
     markerRefs,
     postId,
     requestToken,
@@ -533,11 +541,11 @@ export default function RealLeafletMap({
   scrollWheelZoom = false,
   postType,
   currentLocation,
-  distanceRadiusKm,
   onRequestCurrentLocation,
   isLocating = false,
   locationError,
   selectedPostId,
+  selectedPostLocation,
   selectionRequestToken = 0,
   visibleFeatures,
   onDataStateChange,
@@ -609,7 +617,7 @@ export default function RealLeafletMap({
    * Abort request เก่าเพื่อป้องกันผลตอบกลับลำดับเก่าทับข้อมูล viewport ใหม่
    */
   useEffect(() => {
-    if (!bounds || distanceRadiusKm !== undefined) {
+    if (!bounds) {
       return;
     }
 
@@ -667,80 +675,7 @@ export default function RealLeafletMap({
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [bounds, distanceRadiusKm, onDataStateChange, postType, retryToken]);
-
-  /**
-   * เมื่อเลือกระยะทาง ให้โหลดชุด nearby จากตำแหน่งผู้ใช้หลัง debounce
-   * cleanup จะยกเลิกทั้ง timer และ request เก่าเมื่อ radius หรือ filter เปลี่ยน
-   */
-  useEffect(() => {
-    if (!currentLocation || distanceRadiusKm === undefined) {
-      return;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => {
-      const loadNearbyPosts = async () => {
-        setIsLoading(true);
-        setErrorMessage(null);
-        onDataStateChange?.({
-          features: featuresRef.current,
-          isLoading: true,
-          errorMessage: null,
-        });
-
-        try {
-          const collection = await getNearbyMapPosts(
-            {
-              latitude: currentLocation.latitude,
-              longitude: currentLocation.longitude,
-              radiusKm: distanceRadiusKm,
-              ...(postType ? { type: postType } : {}),
-              limit: NEARBY_POST_LIMIT,
-            },
-            controller.signal,
-          );
-          setFeatures(collection.features);
-          featuresRef.current = collection.features;
-          onDataStateChange?.({
-            features: collection.features,
-            isLoading: false,
-            errorMessage: null,
-          });
-        } catch {
-          if (controller.signal.aborted) {
-            return;
-          }
-
-          const nextErrorMessage =
-            'ไม่สามารถโหลดประกาศใกล้ตำแหน่งคุณได้ กรุณาลองใหม่อีกครั้ง';
-          setErrorMessage(nextErrorMessage);
-          onDataStateChange?.({
-            features: featuresRef.current,
-            isLoading: false,
-            errorMessage: nextErrorMessage,
-          });
-        } finally {
-          if (!controller.signal.aborted) {
-            setIsLoading(false);
-          }
-        }
-      };
-
-      void loadNearbyPosts();
-    }, VIEWPORT_DEBOUNCE_MS);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      controller.abort();
-    };
-  }, [
-    currentLocation,
-    distanceRadiusKm,
-    onDataStateChange,
-    postType,
-    retryToken,
-  ]);
+  }, [bounds, onDataStateChange, postType, retryToken]);
 
   /** สร้าง icon ต่อประเภทโพสต์ครั้งเดียวต่อชุดข้อมูล เพื่อลดการสร้าง DOM ซ้ำ */
   const markerIcons = useMemo(() => {
@@ -800,8 +735,15 @@ export default function RealLeafletMap({
         />
         <SelectedPostController
           postId={selectedPostId ?? null}
-          latitude={selectedFeature?.geometry.coordinates[1]}
-          longitude={selectedFeature?.geometry.coordinates[0]}
+          latitude={
+            selectedFeature?.geometry.coordinates[1] ??
+            selectedPostLocation?.latitude
+          }
+          longitude={
+            selectedFeature?.geometry.coordinates[0] ??
+            selectedPostLocation?.longitude
+          }
+          markerAvailable={Boolean(selectedFeature)}
           requestToken={selectionRequestToken}
           markerRefs={markerRefs}
           beginProgrammaticMovement={beginProgrammaticMovement}
@@ -881,9 +823,7 @@ export default function RealLeafletMap({
       {/* สถานะ loading ระหว่างรอข้อมูลหรือโหลดข้อมูลของ viewport ใหม่ */}
       {isLoading && (
         <div className="pointer-events-none absolute top-4 left-1/2 z-[1000] -translate-x-1/2 rounded-2xl border border-border bg-card/95 px-4 py-2 text-xs font-medium text-muted-foreground shadow-md backdrop-blur-sm">
-          {distanceRadiusKm === undefined
-            ? 'กำลังโหลดประกาศในพื้นที่...'
-            : `กำลังค้นหาภายใน ${distanceRadiusKm} กม....`}
+          กำลังโหลดประกาศในพื้นที่...
         </div>
       )}
 
@@ -920,14 +860,10 @@ export default function RealLeafletMap({
               aria-hidden="true"
             />
             <p className="mt-2 text-sm font-medium text-foreground">
-              {distanceRadiusKm === undefined
-                ? 'ยังไม่มีประกาศในพื้นที่นี้'
-                : `ไม่พบประกาศภายใน ${distanceRadiusKm} กม.`}
+              ยังไม่มีประกาศในพื้นที่นี้
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {distanceRadiusKm === undefined
-                ? 'ลองเลื่อนหรือซูมแผนที่เพื่อค้นหาพื้นที่อื่น'
-                : 'ลองเลือกระยะทางที่กว้างขึ้น'}
+              ลองเลื่อนหรือซูมแผนที่เพื่อค้นหาพื้นที่อื่น
             </p>
           </div>
         </div>

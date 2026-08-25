@@ -62,6 +62,7 @@ export interface MapViewportBounds {
 export interface MapViewportState {
   bounds: MapViewportBounds;
   center: [number, number];
+  zoom: number;
 }
 
 /**

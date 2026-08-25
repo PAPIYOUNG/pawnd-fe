@@ -6,17 +6,22 @@ import {
   AlertCircle,
   Clock3,
   ListFilter,
+  LoaderCircle,
+  LocateFixed,
   MapPin,
+  RefreshCw,
   Search,
   SlidersHorizontal,
 } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getNearbyMapPosts } from '@/services/map.service';
 import type {
   CurrentLocation,
   MapDataState,
-  MapViewportState,
+  MapPostFeature,
 } from '@/types/map';
 import type { PetType, PostType } from '@/types/post';
 
@@ -42,7 +47,8 @@ const RealLeafletMap = dynamic(
 );
 
 const DEFAULT_MAP_CENTER: [number, number] = [13.7563, 100.5018];
-const MAP_CENTER_COMPARISON_EPSILON = 1e-7;
+const NEARBY_DEBOUNCE_MS = 350;
+const NEARBY_POST_LIMIT = 100;
 
 const POST_TYPE_LABEL: Record<PostType, string> = {
   LOST: 'สัตว์หาย',
@@ -60,12 +66,12 @@ const PET_TYPE_LABEL: Record<PetType, string> = {
 
 type PostTypeFilter = 'ALL' | PostType;
 type TimeFilter = 'ALL' | 'ONE_DAY' | 'SEVEN_DAYS' | 'THIRTY_DAYS';
-type DistanceFilter = 'ALL' | '5' | '10' | '25';
+type DistanceFilter = '5' | '10' | '25' | '50';
 
 interface MapSidebarProps {
-  /** ข้อมูล marker ชุดเดียวกับที่แสดงบน Leaflet map */
+  /** ข้อมูลประกาศจาก nearby endpoint ซึ่งแยกจาก marker ตาม viewport */
   data: MapDataState;
-  /** จุดกึ่งกลาง viewport สำหรับคำนวณระยะทางโดยประมาณในรายการ */
+  /** ตำแหน่งผู้ใช้สำหรับคำนวณระยะ fallback หาก response ไม่มี distanceKm */
   center: [number, number];
   /** ประเภทที่ถูกเลือกจะถูกส่งเข้า GET /map/posts ผ่าน prop ของแผนที่ */
   postTypeFilter: PostTypeFilter;
@@ -83,8 +89,14 @@ interface MapSidebarProps {
   onTimeFilterChange: (filter: TimeFilter) => void;
   /** post id ที่กำลังถูกเลือกเพื่อเน้นการ์ดให้ตรงกับ marker */
   selectedPostId: string | null;
-  /** callback ส่ง post id จากการ์ดไปให้แผนที่โฟกัสและเปิด popup */
-  onSelectPost: (postId: string) => void;
+  /** callback ส่ง feature จากการ์ดไปให้แผนที่โฟกัสและเปิด popup */
+  onSelectPost: (feature: MapPostFeature) => void;
+  /** ขอ current location จาก CTA ใน sidebar */
+  onRequestCurrentLocation: () => void;
+  /** สถานะขณะ Browser กำลังอ่านพิกัด */
+  isLocating: boolean;
+  /** โหลด nearby endpoint ใหม่หลังเกิดข้อผิดพลาด */
+  onRetry: () => void;
 }
 
 /**
@@ -165,13 +177,15 @@ function MapSidebar({
   onTimeFilterChange,
   selectedPostId,
   onSelectPost,
+  onRequestCurrentLocation,
+  isLocating,
+  onRetry,
 }: MapSidebarProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredFeatures = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLocaleLowerCase('th-TH');
-    const maxDistance =
-      distanceFilter === 'ALL' ? null : Number(distanceFilter);
+    const maxDistance = Number(distanceFilter);
 
     return data.features
       .map((feature) => {
@@ -198,7 +212,7 @@ function MapSidebar({
           (postTypeFilter === 'ALL' ||
             properties.postType === postTypeFilter) &&
           (!normalizedSearch || searchableText.includes(normalizedSearch)) &&
-          (maxDistance === null || distanceKm <= maxDistance)
+          distanceKm <= maxDistance
         );
       })
       .sort((first, second) => first.distanceKm - second.distanceKm);
@@ -225,7 +239,7 @@ function MapSidebar({
           </div>
         </div>
         <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-          ค้นหาประกาศในขอบเขตแผนที่ปัจจุบันและเปิดรายละเอียดได้จากรายการ
+          ค้นหาประกาศใกล้ตำแหน่งของคุณและเปิดรายละเอียดได้จากรายการ
         </p>
       </div>
 
@@ -321,10 +335,10 @@ function MapSidebar({
               }
               className="h-10 w-full rounded-xl border border-border bg-background px-2.5 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <option value="ALL">ทุกระยะ</option>
               <option value="5">ภายใน 5 กม.</option>
               <option value="10">ภายใน 10 กม.</option>
               <option value="25">ภายใน 25 กม.</option>
+              <option value="50">ภายใน 50 กม.</option>
             </select>
           </label>
         </div>
@@ -344,13 +358,40 @@ function MapSidebar({
             </span>
           </div>
           <span className="text-[10px] text-muted-foreground">
-            {distanceFilter === 'ALL' ? 'ตามขอบเขตแผนที่' : 'จากตำแหน่งของคุณ'}
+            จากตำแหน่งของคุณ
           </span>
         </div>
 
-        {/* รายการประกาศจริงจาก GET /map/posts */}
+        {/* รายการประกาศจริงจาก GET /map/posts/nearby */}
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-          {data.isLoading && data.features.length === 0 ? (
+          {!currentLocation ? (
+            <div className="flex flex-col items-center rounded-2xl border border-dashed border-border px-4 py-8 text-center">
+              <LocateFixed className="size-7 text-primary" aria-hidden="true" />
+              <p className="mt-2 text-xs font-semibold text-foreground">
+                เปิดตำแหน่งเพื่อดูประกาศใกล้คุณ
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                พิกัดจะเก็บไว้เฉพาะในหน้าเว็บนี้และไม่ถูกบันทึกลงระบบ
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                className="mt-4 rounded-xl"
+                onClick={onRequestCurrentLocation}
+                disabled={isLocating}
+              >
+                {isLocating ? (
+                  <LoaderCircle
+                    className="size-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <LocateFixed className="size-4" aria-hidden="true" />
+                )}
+                {isLocating ? 'กำลังหาตำแหน่ง...' : 'ใช้ตำแหน่งของฉัน'}
+              </Button>
+            </div>
+          ) : data.isLoading && data.features.length === 0 ? (
             <div className="space-y-3" aria-label="กำลังโหลดรายการประกาศ">
               {[1, 2, 3].map((item) => (
                 <div
@@ -376,8 +417,18 @@ function MapSidebar({
                 โหลดรายการไม่สำเร็จ
               </p>
               <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                ใช้ปุ่ม “ลองใหม่” บนแผนที่เพื่อโหลดข้อมูลอีกครั้ง
+                กรุณาลองโหลดประกาศใกล้เคียงอีกครั้ง
               </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="mt-3 rounded-xl"
+                onClick={onRetry}
+              >
+                <RefreshCw className="size-4" aria-hidden="true" />
+                ลองใหม่
+              </Button>
             </div>
           ) : filteredFeatures.length === 0 ? (
             <div className="flex flex-col items-center rounded-2xl border border-dashed border-border px-4 py-10 text-center">
@@ -389,7 +440,7 @@ function MapSidebar({
                 ไม่พบประกาศที่ตรงกับตัวกรอง
               </p>
               <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                ลองเปลี่ยนประเภท ค้นหา หรือเลื่อนแผนที่ไปยังพื้นที่อื่น
+                ลองเปลี่ยนประเภท ช่วงเวลา หรือเลือกระยะทางที่กว้างขึ้น
               </p>
             </div>
           ) : (
@@ -402,7 +453,7 @@ function MapSidebar({
                     key={properties.id}
                     type="button"
                     aria-pressed={selectedPostId === properties.id}
-                    onClick={() => onSelectPost(properties.id)}
+                    onClick={() => onSelectPost(feature)}
                     className={`group flex w-full gap-3 rounded-2xl border p-3 text-left transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 ${
                       selectedPostId === properties.id
                         ? 'border-primary bg-primary/10 shadow-sm'
@@ -477,52 +528,111 @@ function MapSidebar({
  */
 export function MapPageClient() {
   const [postTypeFilter, setPostTypeFilter] = useState<PostTypeFilter>('ALL');
-  const [mapData, setMapData] = useState<MapDataState>({
+  const [viewportData, setViewportData] = useState<MapDataState>({
     features: [],
     isLoading: true,
     errorMessage: null,
   });
-  const [viewportCenter, setViewportCenter] =
-    useState<[number, number]>(DEFAULT_MAP_CENTER);
+  const [nearbyData, setNearbyData] = useState<MapDataState>({
+    features: [],
+    isLoading: false,
+    errorMessage: null,
+  });
   const [currentLocation, setCurrentLocation] =
     useState<CurrentLocation | null>(null);
-  const [distanceFilter, setDistanceFilter] = useState<DistanceFilter>('ALL');
+  const [distanceFilter, setDistanceFilter] = useState<DistanceFilter>('10');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('ALL');
   const [isLocating, setIsLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const [selectedPostLocation, setSelectedPostLocation] =
+    useState<CurrentLocation | null>(null);
   const [selectionRequestToken, setSelectionRequestToken] = useState(0);
+  const [nearbyRetryToken, setNearbyRetryToken] = useState(0);
 
   const handleDataStateChange = useCallback((nextState: MapDataState) => {
-    setMapData(nextState);
-  }, []);
-
-  const handleViewportChange = useCallback((viewport: MapViewportState) => {
-    setViewportCenter((currentCenter) => {
-      const isSameCenter =
-        Math.abs(currentCenter[0] - viewport.center[0]) <=
-          MAP_CENTER_COMPARISON_EPSILON &&
-        Math.abs(currentCenter[1] - viewport.center[1]) <=
-          MAP_CENTER_COMPARISON_EPSILON;
-
-      return isSameCenter ? currentCenter : viewport.center;
-    });
+    setViewportData(nextState);
   }, []);
 
   /**
-   * กรองด้วย createdAt จริงจาก API เพียงครั้งเดียว แล้วส่ง array ชุดเดียวกัน
-   * ให้ marker, sidebar list และตัวนับ โดยไม่เปลี่ยน viewport หรือเรียก API ใหม่
+   * Nearby list มี request lifecycle แยกจาก marker โดยสิ้นเชิง จึงไม่เปลี่ยนเมื่อ
+   * ผู้ใช้ลากหรือซูมแผนที่ และยกเลิก request เดิมเมื่อ location/filter เปลี่ยน
    */
-  const visiblePosts = useMemo(
+  useEffect(() => {
+    if (!currentLocation) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      const loadNearbyPosts = async () => {
+        setNearbyData((currentData) => ({
+          features: currentData.features,
+          isLoading: true,
+          errorMessage: null,
+        }));
+
+        try {
+          const collection = await getNearbyMapPosts(
+            {
+              latitude: currentLocation.latitude,
+              longitude: currentLocation.longitude,
+              radiusKm: Number(distanceFilter),
+              ...(postTypeFilter === 'ALL' ? {} : { type: postTypeFilter }),
+              limit: NEARBY_POST_LIMIT,
+            },
+            controller.signal,
+          );
+
+          setNearbyData({
+            features: collection.features,
+            isLoading: false,
+            errorMessage: null,
+          });
+        } catch {
+          if (controller.signal.aborted) {
+            return;
+          }
+
+          setNearbyData((currentData) => ({
+            features: currentData.features,
+            isLoading: false,
+            errorMessage:
+              'ไม่สามารถโหลดประกาศใกล้ตำแหน่งคุณได้ กรุณาลองใหม่อีกครั้ง',
+          }));
+        }
+      };
+
+      void loadNearbyPosts();
+    }, NEARBY_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [currentLocation, distanceFilter, nearbyRetryToken, postTypeFilter]);
+
+  /**
+   * กรอง marker และ nearby list ด้วย createdAt จริงจาก response ของแต่ละ endpoint
+   * โดยใช้เกณฑ์เดียวกันและไม่เปลี่ยน viewport หรือเรียก API ใหม่
+   */
+  const visibleMarkerPosts = useMemo(
     () =>
-      mapData.features.filter((feature) =>
+      viewportData.features.filter((feature) =>
         matchesTimeFilter(feature.properties.createdAt, timeFilter),
       ),
-    [mapData.features, timeFilter],
+    [timeFilter, viewportData.features],
   );
-  const visibleMapData = useMemo<MapDataState>(
-    () => ({ ...mapData, features: visiblePosts }),
-    [mapData, visiblePosts],
+  const visibleNearbyPosts = useMemo(
+    () =>
+      nearbyData.features.filter((feature) =>
+        matchesTimeFilter(feature.properties.createdAt, timeFilter),
+      ),
+    [nearbyData.features, timeFilter],
+  );
+  const visibleNearbyData = useMemo<MapDataState>(
+    () => ({ ...nearbyData, features: visibleNearbyPosts }),
+    [nearbyData, visibleNearbyPosts],
   );
 
   /**
@@ -534,31 +644,42 @@ export function MapPageClient() {
       setTimeFilter((currentFilter) =>
         currentFilter === nextFilter ? currentFilter : nextFilter,
       );
-      setSelectedPostId((currentPostId) => {
-        if (!currentPostId) {
-          return currentPostId;
-        }
 
-        const selectedPost = mapData.features.find(
-          (feature) => feature.properties.id === currentPostId,
-        );
-        return selectedPost &&
-          matchesTimeFilter(selectedPost.properties.createdAt, nextFilter)
-          ? currentPostId
-          : null;
-      });
+      if (!selectedPostId) {
+        return;
+      }
+
+      const selectedPost = [
+        ...viewportData.features,
+        ...nearbyData.features,
+      ].find((feature) => feature.properties.id === selectedPostId);
+      if (
+        !selectedPost ||
+        !matchesTimeFilter(selectedPost.properties.createdAt, nextFilter)
+      ) {
+        setSelectedPostId(null);
+        setSelectedPostLocation(null);
+      }
     },
-    [mapData.features],
+    [nearbyData.features, selectedPostId, viewportData.features],
   );
+
+  const handleRetryNearby = useCallback(() => {
+    setNearbyRetryToken((token) => token + 1);
+  }, []);
 
   /**
    * เลือก post ด้วย id และเพิ่ม token ทุกครั้ง เพื่อให้คลิก post เดิมซ้ำแล้ว
    * แผนที่ยังสั่ง flyTo/openPopup ใหม่ได้ โดยไม่มี state update จาก map event
    */
-  const handleSelectPost = useCallback((postId: string) => {
+  const handleSelectPost = useCallback((feature: MapPostFeature) => {
+    const postId = feature.properties.id;
+    const [longitude, latitude] = feature.geometry.coordinates;
+
     setSelectedPostId((currentPostId) =>
       currentPostId === postId ? currentPostId : postId,
     );
+    setSelectedPostLocation({ latitude, longitude });
     setSelectionRequestToken((token) => token + 1);
   }, []);
 
@@ -596,11 +717,9 @@ export function MapPageClient() {
     );
   }, []);
 
-  const distanceRadiusKm =
-    distanceFilter === 'ALL' ? undefined : Number(distanceFilter);
   const distanceOrigin: [number, number] = currentLocation
     ? [currentLocation.latitude, currentLocation.longitude]
-    : viewportCenter;
+    : DEFAULT_MAP_CENTER;
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)] flex-col bg-muted/30">
@@ -640,7 +759,7 @@ export function MapPageClient() {
         {/* บนจอเล็ก sidebar จะอยู่ด้านบนและแผนที่จะเลื่อนลงด้านล่าง */}
         <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
           <MapSidebar
-            data={visibleMapData}
+            data={visibleNearbyData}
             center={distanceOrigin}
             postTypeFilter={postTypeFilter}
             onPostTypeFilterChange={setPostTypeFilter}
@@ -651,6 +770,9 @@ export function MapPageClient() {
             onTimeFilterChange={handleTimeFilterChange}
             selectedPostId={selectedPostId}
             onSelectPost={handleSelectPost}
+            onRequestCurrentLocation={handleRequestCurrentLocation}
+            isLocating={isLocating}
+            onRetry={handleRetryNearby}
           />
 
           <section
@@ -662,15 +784,14 @@ export function MapPageClient() {
               scrollWheelZoom
               postType={postTypeFilter === 'ALL' ? undefined : postTypeFilter}
               currentLocation={currentLocation}
-              distanceRadiusKm={distanceRadiusKm}
               onRequestCurrentLocation={handleRequestCurrentLocation}
               isLocating={isLocating}
               locationError={locationError}
               selectedPostId={selectedPostId}
+              selectedPostLocation={selectedPostLocation}
               selectionRequestToken={selectionRequestToken}
-              visibleFeatures={visiblePosts}
+              visibleFeatures={visibleMarkerPosts}
               onDataStateChange={handleDataStateChange}
-              onViewportChange={handleViewportChange}
             />
           </section>
         </div>
