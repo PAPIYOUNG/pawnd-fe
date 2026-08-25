@@ -158,12 +158,12 @@ function PostRow({ post }: { post: AdminPostListItem }) {
         {formatThaiShortDate(post.createdAt)}
       </td>
       <td className="py-3 pl-4">
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex items-center justify-end gap-2">
           <Link
             href={`/admin/posts/${post.id}`}
             title="ดูรายละเอียดประกาศ"
             aria-label={`ดูรายละเอียดประกาศ ${post.petName}`}
-            className="flex size-8 items-center justify-center rounded-full bg-muted text-foreground hover:bg-muted/70"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-foreground hover:bg-muted/70"
           >
             <Eye className="size-4" />
           </Link>
