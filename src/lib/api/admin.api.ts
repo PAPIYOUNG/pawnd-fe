@@ -1,12 +1,16 @@
 import { authFetch } from '@/lib/api/auth-fetch';
 import {
   DashboardSummary,
+  GetPostsParams,
+  GetPostsResponse,
   GetUserByIdResponse,
   GetUsersParams,
   GetUsersResponse,
   MonthlyTrendPoint,
+  UpdatePostStatusResponse,
   UpdateUserStatusResponse,
 } from '@/types/admin';
+import { PostStatus } from '@/types/post';
 import { UserStatus } from '@/types/user';
 
 export const AdminApi = {
@@ -50,5 +54,28 @@ export const AdminApi = {
       `/admin/users/${id}/status`,
       { method: 'PATCH', body: { status } },
     );
+  },
+  // ดึงรายการประกาศ Lost/Found ทั้งหมดแบบแบ่งหน้า พร้อมรองรับ filter type/status/province/search
+  async getPosts(params: GetPostsParams = {}) {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', String(params.page));
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.type) query.set('type', params.type);
+    if (params.status) query.set('status', params.status);
+    if (params.province) query.set('province', params.province);
+    if (params.search) query.set('search', params.search);
+
+    const queryString = query.toString();
+    return await authFetch<GetPostsResponse>(
+      `/admin/posts${queryString ? `?${queryString}` : ''}`,
+      { method: 'GET' },
+    );
+  },
+  // เปลี่ยนสถานะประกาศ (เช่น ปิดประกาศ / ซ่อนประกาศ / ทำเครื่องหมายพากลับบ้านแล้ว / ลบ)
+  async updatePostStatus(id: string, status: PostStatus) {
+    return await authFetch<UpdatePostStatusResponse>(`/admin/posts/${id}`, {
+      method: 'PATCH',
+      body: { status },
+    });
   },
 };

@@ -7,12 +7,16 @@ import { ApiError } from '@/lib/api/api-error';
 import { ErrorActionResult } from '@/lib/api/types/action.type';
 import {
   DashboardSummary,
+  GetPostsParams,
+  GetPostsResponse,
   GetUserByIdResponse,
   GetUsersParams,
   GetUsersResponse,
   MonthlyTrendPoint,
+  UpdatePostStatusResponse,
   UpdateUserStatusResponse,
 } from '@/types/admin';
+import { PostStatus } from '@/types/post';
 import { UserStatus } from '@/types/user';
 
 // ดึงข้อมูลสรุปภาพรวมสำหรับหน้าแดชบอร์ดผู้ดูแลระบบ
@@ -101,6 +105,47 @@ export async function updateUserStatusAction(
     const result = await AdminApi.updateUserStatus(id, status);
     revalidatePath('/admin/users');
     revalidatePath(`/admin/users/${id}`);
+    return result;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: error.statusCode === 404 ? 'NOT_FOUND' : 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// ดึงรายการประกาศ Lost/Found สำหรับหน้าจัดการประกาศ (แบบแบ่งหน้า พร้อม filter)
+// สำเร็จ -> คืนค่า GetPostsResponse, ล้มเหลว -> คืนค่า ErrorActionResult ให้หน้าเพจแสดง Error State
+export async function getPostsAction(
+  params: GetPostsParams = {},
+): Promise<GetPostsResponse | ErrorActionResult> {
+  try {
+    return await AdminApi.getPosts(params);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// เปลี่ยนสถานะประกาศ (ปิดประกาศ / ซ่อนประกาศ / ทำเครื่องหมายพากลับบ้านแล้ว / ลบ)
+// สำเร็จ -> revalidate หน้ารายการประกาศ แล้วคืนค่า UpdatePostStatusResponse
+export async function updatePostStatusAction(
+  id: string,
+  status: PostStatus,
+): Promise<UpdatePostStatusResponse | ErrorActionResult> {
+  try {
+    const result = await AdminApi.updatePostStatus(id, status);
+    revalidatePath('/admin/posts');
     return result;
   } catch (error) {
     if (error instanceof ApiError) {

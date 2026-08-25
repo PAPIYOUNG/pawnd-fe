@@ -1,5 +1,6 @@
 import { UserRole } from './auth';
 import { UserStatus } from './user';
+import { PetType, PostStatus, PostType } from './post';
 
 /**
  * DashboardSummary
@@ -154,4 +155,61 @@ export interface UpdateUserStatusResult {
 
 export interface UpdateUserStatusResponse {
   user: UpdateUserStatusResult;
+}
+
+/**
+ * AdminPostListItem
+ * - ข้อมูลประกาศ Lost/Found 1 รายการในตาราง "จัดการประกาศ" ของแอดมิน
+ * - ตรงตาม select fields ของ Backend endpoint `GET /admin/posts`
+ * - `images` มีสูงสุด 1 รูป (รูปปกที่ sortOrder น้อยที่สุด) ใช้เป็นภาพตัวอย่างในตาราง
+ */
+export interface AdminPostListItem {
+  id: string;
+  type: PostType;
+  status: PostStatus;
+  petName: string;
+  petType: PetType;
+  breed: string | null;
+  province: string | null;
+  eventDate: string | null;
+  viewCount: number;
+  createdAt: string;
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  images: { imageUrl: string }[];
+}
+
+export interface GetPostsResponse {
+  posts: AdminPostListItem[];
+  pagination: PaginationMeta;
+}
+
+export interface GetPostsParams {
+  page?: number;
+  limit?: number;
+  type?: PostType;
+  status?: PostStatus;
+  province?: string;
+  search?: string;
+}
+
+/**
+ * UpdatePostStatusResult
+ * - ผลลัพธ์จาก Backend endpoint `PATCH /admin/posts/:id`
+ */
+export interface UpdatePostStatusResult {
+  id: string;
+  type: PostType;
+  status: PostStatus;
+  petName: string;
+  userId: string;
+  updatedAt: string;
+}
+
+export interface UpdatePostStatusResponse {
+  post: UpdatePostStatusResult;
 }
