@@ -218,8 +218,8 @@ export interface UpdatePostStatusResponse {
  * AdminPostDetail
  * - ข้อมูลประกาศ Lost/Found แบบละเอียด 1 รายการ จาก Backend endpoint `GET /admin/posts/:id`
  * - `rewardAmount` เป็น Prisma Decimal ซึ่งถูก serialize เป็น string เสมอเมื่อส่งผ่าน JSON
- * - `currentLocation` เป็นฟิลด์ภายในของ Backend ที่ยังไม่มีสัญญา (contract) รูปแบบชัดเจน
- *   จึงเก็บไว้เป็น `unknown` และไม่นำไปแสดงผลใน UI จนกว่าจะทราบโครงสร้างที่แน่ชัด
+ * - `currentLocation` เป็น free-text string ที่ผู้ใช้พิมพ์เอง (เช่น "พบล่าสุดแถวสวนลุมพินี")
+ *   ไม่มีความสัมพันธ์กับ `latitude`/`longitude` ซึ่งเป็นคนละฟิลด์
  */
 export interface AdminPostDetail {
   id: string;
@@ -240,7 +240,7 @@ export interface AdminPostDetail {
   subdistrict: string | null;
   locationDescription: string | null;
   rewardAmount: string | null;
-  currentLocation: unknown;
+  currentLocation: string | null;
   contactPhone: string | null;
   contactLineId: string | null;
   contactEmail: string | null;

@@ -210,6 +210,10 @@ function PostDetail({ post }: { post: AdminPostDetail }) {
           label="รายละเอียดสถานที่"
           value={post.locationDescription ?? '-'}
         />
+        <InfoRow
+          label="ตำแหน่งล่าสุดที่พบเห็น"
+          value={post.currentLocation ?? '-'}
+        />
         {hasCoordinates && (
           <GoogleMapsEmbed
             centerAddress={`${post.latitude},${post.longitude}`}
