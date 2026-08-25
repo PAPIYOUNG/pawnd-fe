@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 
 import { PostStatusControl } from '../_components/post-status-control';
+import { TriggerAiMatchButton } from '../_components/trigger-ai-match-button';
 import {
   PET_GENDER_LABEL,
   PET_TYPE_LABEL,
@@ -237,10 +238,13 @@ function PostDetail({
 
       {/* ผลการจับคู่ของ AI (AI Smart Matching Results) */}
       <div className="flex flex-col gap-3 rounded-3xl border border-border bg-card p-5">
-        <h2 className="flex items-center gap-1.5 text-base font-semibold text-foreground">
-          <Sparkles className="size-4 text-primary" />
-          ผลการจับคู่ของ AI
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-1.5 text-base font-semibold text-foreground">
+            <Sparkles className="size-4 text-primary" />
+            ผลการจับคู่ของ AI
+          </h2>
+          <TriggerAiMatchButton postId={post.id} />
+        </div>
 
         {aiMatches.length === 0 ? (
           <div className="flex h-24 items-center justify-center rounded-2xl border border-dashed border-border text-sm text-muted-foreground">

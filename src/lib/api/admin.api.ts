@@ -85,4 +85,12 @@ export const AdminApi = {
       body: { status },
     });
   },
+  // สั่งให้ AI ค้นหาคู่จับคู่ใหม่สำหรับประกาศนี้ (re-run matching engine)
+  // รูปแบบ response ยังไม่มี contract ที่แน่ชัด จึงไม่ parse type ที่นี่
+  // ฝั่งหน้าเว็บใช้แค่ผลสำเร็จ/ล้มเหลว แล้ว refresh หน้าเพื่อดึง aiMatches ล่าสุดผ่าน getPostById แทน
+  async triggerAiMatch(postId: string) {
+    return await authFetch<unknown>(`/admin/posts/${postId}/ai-match`, {
+      method: 'POST',
+    });
+  },
 };

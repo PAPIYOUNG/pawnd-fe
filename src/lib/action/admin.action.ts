@@ -178,3 +178,25 @@ export async function updatePostStatusAction(
     throw error;
   }
 }
+
+// สั่งให้ AI ค้นหาคู่จับคู่ใหม่สำหรับประกาศ (re-run matching engine)
+// สำเร็จ -> revalidate หน้ารายละเอียดประกาศนี้ แล้วคืนค่า { triggered: true }
+// (ไม่ใช้ key `success` ในผลลัพธ์สำเร็จ เพราะหน้าเว็บเช็ค error ด้วย `'success' in result`)
+export async function triggerAiMatchAction(
+  postId: string,
+): Promise<{ triggered: true } | ErrorActionResult> {
+  try {
+    await AdminApi.triggerAiMatch(postId);
+    revalidatePath(`/admin/posts/${postId}`);
+    return { triggered: true };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: error.statusCode === 404 ? 'NOT_FOUND' : 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
