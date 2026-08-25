@@ -1,29 +1,15 @@
 'use client';
 
-import Image from 'next/image';
 import dynamic from 'next/dynamic';
-import {
-  AlertCircle,
-  Clock3,
-  ListFilter,
-  LoaderCircle,
-  LocateFixed,
-  MapPin,
-  RefreshCw,
-  Search,
-  SlidersHorizontal,
-} from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { MapPin } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getNearbyMapPosts } from '@/services/map.service';
 import type {
   CurrentLocation,
   MapDataState,
   MapPostFeature,
 } from '@/types/map';
-import type { PetType, PostType } from '@/types/post';
 
 /**
  * โหลด Leaflet เฉพาะฝั่ง browser เพื่อไม่ให้ SSR เรียกใช้ window/document
@@ -46,481 +32,16 @@ const RealLeafletMap = dynamic(
   },
 );
 
-const DEFAULT_MAP_CENTER: [number, number] = [13.7563, 100.5018];
-const NEARBY_DEBOUNCE_MS = 350;
-const NEARBY_POST_LIMIT = 100;
-
-const POST_TYPE_LABEL: Record<PostType, string> = {
-  LOST: 'สัตว์หาย',
-  FOUND: 'พบสัตว์พลัดหลง',
-};
-
-const PET_TYPE_LABEL: Record<PetType, string> = {
-  DOG: 'สุนัข',
-  CAT: 'แมว',
-  BIRD: 'นก',
-  HAMSTER: 'แฮมสเตอร์',
-  EXOTIC: 'สัตว์พิเศษ',
-  OTHER: 'สัตว์เลี้ยง',
-};
-
-type PostTypeFilter = 'ALL' | PostType;
-type TimeFilter = 'ALL' | 'ONE_DAY' | 'SEVEN_DAYS' | 'THIRTY_DAYS';
-type DistanceFilter = '5' | '10' | '25' | '50';
-
-interface MapSidebarProps {
-  /** ข้อมูลประกาศจาก nearby endpoint ซึ่งแยกจาก marker ตาม viewport */
-  data: MapDataState;
-  /** ตำแหน่งผู้ใช้สำหรับคำนวณระยะ fallback หาก response ไม่มี distanceKm */
-  center: [number, number];
-  /** ประเภทที่ถูกเลือกจะถูกส่งเข้า GET /map/posts ผ่าน prop ของแผนที่ */
-  postTypeFilter: PostTypeFilter;
-  /** callback เปลี่ยน filter ประเภทที่ Backend รองรับจริง */
-  onPostTypeFilterChange: (filter: PostTypeFilter) => void;
-  /** ตำแหน่งปัจจุบันใช้เปิดใช้งาน distance filter และคำนวณระยะ */
-  currentLocation: CurrentLocation | null;
-  /** ระยะทางที่เลือกจะถูกส่งให้ GET /map/posts/nearby */
-  distanceFilter: DistanceFilter;
-  /** callback เปลี่ยนระยะทางใน state ของหน้า Map */
-  onDistanceFilterChange: (filter: DistanceFilter) => void;
-  /** ช่วงเวลาที่ใช้กรอง visible posts ด้วย createdAt จาก API */
-  timeFilter: TimeFilter;
-  /** callback เปลี่ยนช่วงเวลาโดยไม่สั่ง movement ของแผนที่ */
-  onTimeFilterChange: (filter: TimeFilter) => void;
-  /** post id ที่กำลังถูกเลือกเพื่อเน้นการ์ดให้ตรงกับ marker */
-  selectedPostId: string | null;
-  /** callback ส่ง feature จากการ์ดไปให้แผนที่โฟกัสและเปิด popup */
-  onSelectPost: (feature: MapPostFeature) => void;
-  /** ขอ current location จาก CTA ใน sidebar */
-  onRequestCurrentLocation: () => void;
-  /** สถานะขณะ Browser กำลังอ่านพิกัด */
-  isLocating: boolean;
-  /** โหลด nearby endpoint ใหม่หลังเกิดข้อผิดพลาด */
-  onRetry: () => void;
-}
-
-/**
- * คำนวณระยะทางเส้นตรงโดยประมาณระหว่างจุดสองจุดด้วย Haversine formula
- * ใช้เฉพาะเพื่อแสดงผลใน sidebar เพราะ GET /map/posts ไม่ได้คืน distanceKm
- */
-function calculateDistanceKm(
-  first: [number, number],
-  second: [number, number],
-): number {
-  const earthRadiusKm = 6371;
-  const latitudeDelta = ((second[0] - first[0]) * Math.PI) / 180;
-  const longitudeDelta = ((second[1] - first[1]) * Math.PI) / 180;
-  const firstLatitude = (first[0] * Math.PI) / 180;
-  const secondLatitude = (second[0] * Math.PI) / 180;
-  const haversine =
-    Math.sin(latitudeDelta / 2) ** 2 +
-    Math.sin(longitudeDelta / 2) ** 2 *
-      Math.cos(firstLatitude) *
-      Math.cos(secondLatitude);
-
-  return (
-    earthRadiusKm *
-    2 *
-    Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
-  );
-}
-
-/** แสดงระยะทางให้กระชับและอ่านง่ายทั้งบนมือถือและ desktop */
-function formatDistance(distanceKm: number): string {
-  if (distanceKm < 1) {
-    return `${Math.round(distanceKm * 1000)} ม.`;
-  }
-
-  return `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)} กม.`;
-}
-
-/** กรองวันที่ของประกาศในฝั่ง client โดยไม่ส่ง query ที่ Backend ไม่รองรับ */
-function matchesTimeFilter(
-  createdAt: string | null | undefined,
-  filter: TimeFilter,
-): boolean {
-  if (filter === 'ALL') {
-    return true;
-  }
-
-  if (!createdAt) {
-    return false;
-  }
-
-  const parsedDate = new Date(createdAt);
-  if (Number.isNaN(parsedDate.getTime())) {
-    return false;
-  }
-
-  const days = filter === 'ONE_DAY' ? 1 : filter === 'SEVEN_DAYS' ? 7 : 30;
-  const now = Date.now();
-  const createdTimestamp = parsedDate.getTime();
-  return (
-    createdTimestamp <= now &&
-    createdTimestamp >= now - days * 24 * 60 * 60 * 1000
-  );
-}
-
-/**
- * Sidebar สำหรับค้นหาและอ่านรายการประกาศจาก API ชุดเดียวกับ marker
- * รับ visible posts ที่กรองเวลาแล้ว และกรองค้นหา/ระยะทางต่อบนข้อมูลที่โหลดอยู่
- */
-function MapSidebar({
-  data,
-  center,
-  postTypeFilter,
-  onPostTypeFilterChange,
-  currentLocation,
-  distanceFilter,
-  onDistanceFilterChange,
-  timeFilter,
-  onTimeFilterChange,
-  selectedPostId,
-  onSelectPost,
-  onRequestCurrentLocation,
-  isLocating,
-  onRetry,
-}: MapSidebarProps) {
-  const [searchTerm, setSearchTerm] = useState('');
-
-  const filteredFeatures = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLocaleLowerCase('th-TH');
-    const maxDistance = Number(distanceFilter);
-
-    return data.features
-      .map((feature) => {
-        const [longitude, latitude] = feature.geometry.coordinates;
-        const distanceKm =
-          feature.properties.distanceKm ??
-          calculateDistanceKm(center, [latitude, longitude]);
-
-        return { feature, distanceKm };
-      })
-      .filter(({ feature, distanceKm }) => {
-        const { properties } = feature;
-        const searchableText = [
-          properties.petName,
-          properties.breed,
-          properties.province,
-          properties.district,
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLocaleLowerCase('th-TH');
-
-        return (
-          (postTypeFilter === 'ALL' ||
-            properties.postType === postTypeFilter) &&
-          (!normalizedSearch || searchableText.includes(normalizedSearch)) &&
-          distanceKm <= maxDistance
-        );
-      })
-      .sort((first, second) => first.distanceKm - second.distanceKm);
-  }, [center, data.features, distanceFilter, postTypeFilter, searchTerm]);
-
-  return (
-    <aside className="flex min-h-0 flex-col rounded-3xl border border-border bg-card shadow-sm lg:h-[calc(100vh-220px)] lg:min-h-[560px]">
-      {/* หัว sidebar */}
-      <div className="border-b border-border px-5 pb-4 pt-5 sm:px-6">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-              PAWND MAP
-            </p>
-            <h2 className="mt-1 text-xl font-bold tracking-tight text-foreground">
-              แผนที่สัตว์เลี้ยง
-            </h2>
-          </div>
-          <div
-            className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary"
-            aria-hidden="true"
-          >
-            <MapPin className="size-5" />
-          </div>
-        </div>
-        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-          ค้นหาประกาศใกล้ตำแหน่งของคุณและเปิดรายละเอียดได้จากรายการ
-        </p>
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col gap-4 px-5 py-4 sm:px-6">
-        {/* ค้นหาแบบ visual: กรองรายการที่โหลดแล้ว ไม่ส่ง q ไป Backend */}
-        <label className="relative block">
-          <span className="sr-only">ค้นหาชื่อสัตว์หรือพื้นที่</span>
-          <Search
-            className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <input
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="ค้นหาชื่อสัตว์หรือพื้นที่"
-            className="h-11 w-full rounded-2xl border border-border bg-background pl-10 pr-3 text-sm text-foreground outline-none transition focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-          />
-        </label>
-
-        {/* Filter ประเภทเดียวที่ส่งไป Backend ได้จริง */}
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-foreground">
-            <ListFilter className="size-3.5 text-primary" aria-hidden="true" />
-            ประเภทประกาศ
-          </div>
-          <div className="grid grid-cols-3 gap-1.5">
-            {(
-              [
-                {
-                  value: 'ALL',
-                  label: 'ทั้งหมด',
-                  dotClass: 'bg-muted-foreground',
-                },
-                {
-                  value: 'LOST',
-                  label: 'สัตว์หาย',
-                  dotClass: 'bg-destructive',
-                },
-                { value: 'FOUND', label: 'พบสัตว์', dotClass: 'bg-primary' },
-              ] as const
-            ).map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                aria-pressed={postTypeFilter === option.value}
-                onClick={() => onPostTypeFilterChange(option.value)}
-                className={`flex min-h-10 items-center justify-center gap-1 rounded-xl border px-1 text-[11px] font-semibold transition-colors sm:text-xs ${
-                  postTypeFilter === option.value
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border bg-background text-muted-foreground hover:bg-muted'
-                }`}
-              >
-                <span
-                  className={`size-2 rounded-full ${option.dotClass}`}
-                  aria-hidden="true"
-                />
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Filter เวลากรอง marker/list/count ร่วมกัน ส่วนระยะทางเรียก nearby endpoint */}
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block">
-            <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-              <Clock3 className="size-3.5" aria-hidden="true" />
-              ช่วงเวลา
-            </span>
-            <select
-              value={timeFilter}
-              onChange={(event) =>
-                onTimeFilterChange(event.target.value as TimeFilter)
-              }
-              className="h-10 w-full rounded-xl border border-border bg-background px-2.5 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-            >
-              <option value="ALL">ทุกช่วงเวลา</option>
-              <option value="ONE_DAY">1 วันที่ผ่านมา</option>
-              <option value="SEVEN_DAYS">7 วันที่ผ่านมา</option>
-              <option value="THIRTY_DAYS">30 วันที่ผ่านมา</option>
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-              <SlidersHorizontal className="size-3.5" aria-hidden="true" />
-              ระยะทาง
-            </span>
-            <select
-              value={distanceFilter}
-              disabled={!currentLocation}
-              onChange={(event) =>
-                onDistanceFilterChange(event.target.value as DistanceFilter)
-              }
-              className="h-10 w-full rounded-xl border border-border bg-background px-2.5 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <option value="5">ภายใน 5 กม.</option>
-              <option value="10">ภายใน 10 กม.</option>
-              <option value="25">ภายใน 25 กม.</option>
-              <option value="50">ภายใน 50 กม.</option>
-            </select>
-          </label>
-        </div>
-        <p className="-mt-2 text-[10px] leading-relaxed text-muted-foreground">
-          {currentLocation
-            ? 'ระยะทางคำนวณจากตำแหน่งปัจจุบันของคุณ'
-            : 'กดปุ่มตำแหน่งของฉันบนแผนที่เพื่อเปิดใช้ตัวกรองระยะทาง'}
-        </p>
-
-        <div className="flex items-center justify-between border-t border-border pt-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-foreground">
-              ประกาศใกล้เคียง
-            </span>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-              {filteredFeatures.length}
-            </span>
-          </div>
-          <span className="text-[10px] text-muted-foreground">
-            จากตำแหน่งของคุณ
-          </span>
-        </div>
-
-        {/* รายการประกาศจริงจาก GET /map/posts/nearby */}
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-          {!currentLocation ? (
-            <div className="flex flex-col items-center rounded-2xl border border-dashed border-border px-4 py-8 text-center">
-              <LocateFixed className="size-7 text-primary" aria-hidden="true" />
-              <p className="mt-2 text-xs font-semibold text-foreground">
-                เปิดตำแหน่งเพื่อดูประกาศใกล้คุณ
-              </p>
-              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                พิกัดจะเก็บไว้เฉพาะในหน้าเว็บนี้และไม่ถูกบันทึกลงระบบ
-              </p>
-              <Button
-                type="button"
-                size="sm"
-                className="mt-4 rounded-xl"
-                onClick={onRequestCurrentLocation}
-                disabled={isLocating}
-              >
-                {isLocating ? (
-                  <LoaderCircle
-                    className="size-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <LocateFixed className="size-4" aria-hidden="true" />
-                )}
-                {isLocating ? 'กำลังหาตำแหน่ง...' : 'ใช้ตำแหน่งของฉัน'}
-              </Button>
-            </div>
-          ) : data.isLoading && data.features.length === 0 ? (
-            <div className="space-y-3" aria-label="กำลังโหลดรายการประกาศ">
-              {[1, 2, 3].map((item) => (
-                <div
-                  key={item}
-                  className="flex gap-3 rounded-2xl border border-border p-3"
-                >
-                  <Skeleton className="size-16 shrink-0 rounded-xl" />
-                  <div className="flex min-w-0 flex-1 flex-col gap-2">
-                    <Skeleton className="h-3 w-2/3" />
-                    <Skeleton className="h-3 w-1/2" />
-                    <Skeleton className="h-3 w-3/4" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : data.errorMessage ? (
-            <div className="flex flex-col items-center rounded-2xl border border-destructive/25 bg-destructive/5 px-4 py-8 text-center">
-              <AlertCircle
-                className="size-7 text-destructive"
-                aria-hidden="true"
-              />
-              <p className="mt-2 text-xs font-semibold text-foreground">
-                โหลดรายการไม่สำเร็จ
-              </p>
-              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                กรุณาลองโหลดประกาศใกล้เคียงอีกครั้ง
-              </p>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="mt-3 rounded-xl"
-                onClick={onRetry}
-              >
-                <RefreshCw className="size-4" aria-hidden="true" />
-                ลองใหม่
-              </Button>
-            </div>
-          ) : filteredFeatures.length === 0 ? (
-            <div className="flex flex-col items-center rounded-2xl border border-dashed border-border px-4 py-10 text-center">
-              <MapPin
-                className="size-7 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <p className="mt-2 text-xs font-semibold text-foreground">
-                ไม่พบประกาศที่ตรงกับตัวกรอง
-              </p>
-              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                ลองเปลี่ยนประเภท ช่วงเวลา หรือเลือกระยะทางที่กว้างขึ้น
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              {filteredFeatures.map(({ feature, distanceKm }) => {
-                const { properties } = feature;
-
-                return (
-                  <button
-                    key={properties.id}
-                    type="button"
-                    aria-pressed={selectedPostId === properties.id}
-                    onClick={() => onSelectPost(feature)}
-                    className={`group flex w-full gap-3 rounded-2xl border p-3 text-left transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 ${
-                      selectedPostId === properties.id
-                        ? 'border-primary bg-primary/10 shadow-sm'
-                        : 'border-border bg-background hover:border-primary/50 hover:bg-primary/5'
-                    }`}
-                  >
-                    <div className="relative size-16 shrink-0 overflow-hidden rounded-xl bg-muted">
-                      {properties.thumbnailUrl ? (
-                        <Image
-                          src={properties.thumbnailUrl}
-                          alt={properties.petName ?? 'รูปสัตว์เลี้ยง'}
-                          fill
-                          sizes="64px"
-                          className="object-cover transition-transform group-hover:scale-105"
-                          unoptimized
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-muted-foreground">
-                          <MapPin className="size-6" aria-hidden="true" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <p
-                          className={`text-[10px] font-bold ${
-                            properties.postType === 'LOST'
-                              ? 'text-destructive'
-                              : 'text-primary'
-                          }`}
-                        >
-                          {POST_TYPE_LABEL[properties.postType]}
-                        </p>
-                        <span
-                          className="shrink-0 text-[10px] font-medium text-muted-foreground"
-                          title={
-                            currentLocation
-                              ? 'ระยะทางจากตำแหน่งปัจจุบันของคุณ'
-                              : 'ระยะทางโดยประมาณจากจุดกึ่งกลางแผนที่'
-                          }
-                        >
-                          {formatDistance(distanceKm)}
-                        </span>
-                      </div>
-                      <h3 className="mt-0.5 truncate text-sm font-bold text-foreground">
-                        {properties.petName ?? 'ไม่ระบุชื่อสัตว์เลี้ยง'}
-                      </h3>
-                      <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                        {PET_TYPE_LABEL[properties.petType]}
-                        {properties.breed ? ` · ${properties.breed}` : ''}
-                      </p>
-                      <p className="mt-1 truncate text-[10px] text-muted-foreground">
-                        {[properties.district, properties.province]
-                          .filter(Boolean)
-                          .join(', ') || 'ไม่ระบุพื้นที่'}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    </aside>
-  );
-}
+import { DEFAULT_MAP_CENTER } from './map-page.constants';
+import { matchesTimeFilter } from './map-page.utils';
+import { MapSidebar } from './map-sidebar';
+import type {
+  DistanceFilter,
+  PostTypeFilter,
+  TimeFilter,
+} from './map-page.types';
+import { useCurrentLocation } from './use-current-location';
+import { useNearbyMapPosts } from './use-nearby-map-posts';
 
 /**
  * หน้าหลัก Map: ใช้ Header/Footer จาก main layout เดิม และจัด content เป็น
@@ -533,84 +54,28 @@ export function MapPageClient() {
     isLoading: true,
     errorMessage: null,
   });
-  const [nearbyData, setNearbyData] = useState<MapDataState>({
-    features: [],
-    isLoading: false,
-    errorMessage: null,
-  });
-  const [currentLocation, setCurrentLocation] =
-    useState<CurrentLocation | null>(null);
   const [distanceFilter, setDistanceFilter] = useState<DistanceFilter>('10');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('ALL');
-  const [isLocating, setIsLocating] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [selectedPostLocation, setSelectedPostLocation] =
     useState<CurrentLocation | null>(null);
   const [selectionRequestToken, setSelectionRequestToken] = useState(0);
-  const [nearbyRetryToken, setNearbyRetryToken] = useState(0);
+
+  const {
+    currentLocation,
+    isLocating,
+    locationError,
+    requestCurrentLocation: handleRequestCurrentLocation,
+  } = useCurrentLocation();
+  const { data: nearbyData, retry: handleRetryNearby } = useNearbyMapPosts(
+    currentLocation,
+    distanceFilter,
+    postTypeFilter,
+  );
 
   const handleDataStateChange = useCallback((nextState: MapDataState) => {
     setViewportData(nextState);
   }, []);
-
-  /**
-   * Nearby list มี request lifecycle แยกจาก marker โดยสิ้นเชิง จึงไม่เปลี่ยนเมื่อ
-   * ผู้ใช้ลากหรือซูมแผนที่ และยกเลิก request เดิมเมื่อ location/filter เปลี่ยน
-   */
-  useEffect(() => {
-    if (!currentLocation) {
-      return;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => {
-      const loadNearbyPosts = async () => {
-        setNearbyData((currentData) => ({
-          features: currentData.features,
-          isLoading: true,
-          errorMessage: null,
-        }));
-
-        try {
-          const collection = await getNearbyMapPosts(
-            {
-              latitude: currentLocation.latitude,
-              longitude: currentLocation.longitude,
-              radiusKm: Number(distanceFilter),
-              ...(postTypeFilter === 'ALL' ? {} : { type: postTypeFilter }),
-              limit: NEARBY_POST_LIMIT,
-            },
-            controller.signal,
-          );
-
-          setNearbyData({
-            features: collection.features,
-            isLoading: false,
-            errorMessage: null,
-          });
-        } catch {
-          if (controller.signal.aborted) {
-            return;
-          }
-
-          setNearbyData((currentData) => ({
-            features: currentData.features,
-            isLoading: false,
-            errorMessage:
-              'ไม่สามารถโหลดประกาศใกล้ตำแหน่งคุณได้ กรุณาลองใหม่อีกครั้ง',
-          }));
-        }
-      };
-
-      void loadNearbyPosts();
-    }, NEARBY_DEBOUNCE_MS);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      controller.abort();
-    };
-  }, [currentLocation, distanceFilter, nearbyRetryToken, postTypeFilter]);
 
   /**
    * กรอง marker และ nearby list ด้วย createdAt จริงจาก response ของแต่ละ endpoint
@@ -664,10 +129,6 @@ export function MapPageClient() {
     [nearbyData.features, selectedPostId, viewportData.features],
   );
 
-  const handleRetryNearby = useCallback(() => {
-    setNearbyRetryToken((token) => token + 1);
-  }, []);
-
   /**
    * เลือก post ด้วย id และเพิ่ม token ทุกครั้ง เพื่อให้คลิก post เดิมซ้ำแล้ว
    * แผนที่ยังสั่ง flyTo/openPopup ใหม่ได้ โดยไม่มี state update จาก map event
@@ -681,40 +142,6 @@ export function MapPageClient() {
     );
     setSelectedPostLocation({ latitude, longitude });
     setSelectionRequestToken((token) => token + 1);
-  }, []);
-
-  /**
-   * ขอ permission เมื่อผู้ใช้กดปุ่ม แล้วเก็บ latitude/longitude ใน React state เท่านั้น
-   * แปลง error ของ Browser เป็นข้อความที่ผู้ใช้เข้าใจได้โดยไม่เปิดเผยรายละเอียดเทคนิค
-   */
-  const handleRequestCurrentLocation = useCallback(() => {
-    if (!('geolocation' in navigator)) {
-      setLocationError('เบราว์เซอร์นี้ไม่รองรับการค้นหาตำแหน่งปัจจุบัน');
-      return;
-    }
-
-    setIsLocating(true);
-    setLocationError(null);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setCurrentLocation({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        });
-        setIsLocating(false);
-      },
-      (error) => {
-        const message =
-          error.code === error.PERMISSION_DENIED
-            ? 'ไม่สามารถใช้ตำแหน่งได้ เพราะยังไม่ได้รับอนุญาต กรุณาอนุญาตตำแหน่งในการตั้งค่าเบราว์เซอร์แล้วลองใหม่'
-            : error.code === error.TIMEOUT
-              ? 'ใช้เวลาค้นหาตำแหน่งนานเกินไป กรุณาลองใหม่อีกครั้ง'
-              : 'ไม่สามารถค้นหาตำแหน่งปัจจุบันได้ กรุณาตรวจสอบการตั้งค่าตำแหน่งแล้วลองใหม่';
-        setLocationError(message);
-        setIsLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
-    );
   }, []);
 
   const distanceOrigin: [number, number] = currentLocation
