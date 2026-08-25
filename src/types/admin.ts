@@ -1,3 +1,6 @@
+import { UserRole } from './auth';
+import { UserStatus } from './user';
+
 /**
  * DashboardSummary
  * - รูปแบบข้อมูลสรุปภาพรวมที่ได้จาก Backend endpoint `GET /admin/dashboard`
@@ -62,4 +65,42 @@ export interface MonthlyTrendPoint {
   lost: number;
   found: number;
   reunited: number;
+}
+
+/**
+ * AdminUserListItem
+ * - ข้อมูลผู้ใช้งาน 1 รายการในตาราง "จัดการผู้ใช้งาน" ของแอดมิน
+ * - ตรงตาม select fields ของ Backend endpoint `GET /admin/users`
+ */
+export interface AdminUserListItem {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  avatarUrl: string | null;
+  role: UserRole;
+  status: UserStatus;
+  lastLoginAt: string | null;
+  createdAt: string;
+}
+
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface GetUsersResponse {
+  users: AdminUserListItem[];
+  pagination: PaginationMeta;
+}
+
+export interface GetUsersParams {
+  page?: number;
+  limit?: number;
+  status?: UserStatus;
+  role?: UserRole;
+  search?: string;
 }
