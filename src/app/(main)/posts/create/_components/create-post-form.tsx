@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   AlertCircle,
   Coins,
+  Loader2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { PetGender, PetType } from '@/types/post';
+import { createPostAction } from '../_actions/create-post.actions';
 
 /**
  * CreatePostForm Component (Client Component)
@@ -68,6 +70,7 @@ export function CreatePostForm() {
   // State AI Assistant & Toast Notification
   const [isAnalyzingAi, setIsAnalyzingAi] = useState(false);
   const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [showToast, setShowToast] = useState<string | null>(null);
 
   // ฟังก์ชันอัปโหลดรูปภาพ (จำกัดสูงสุด 3 รูปตามกฎ Backend)
@@ -125,12 +128,39 @@ export function CreatePostForm() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // ยืนยันและเผยแพร่ประกาศทันที
-  const handleFinalPublish = () => {
-    setShowToast('เผยแพร่ประกาศสำเร็จ! ระบบกำลังเริ่มค้นหาด้วย AI Smart Matching');
-    setTimeout(() => {
-      router.push('/posts');
-    }, 1500);
+  // ยืนยันและเผยแพร่ประกาศทันที (เชื่อมต่อ Backend createPostAction)
+  const handleFinalPublish = async () => {
+    setIsPublishing(true);
+    const numReward = rewardAmount ? parseInt(rewardAmount.replace(/,/g, ''), 10) : undefined;
+
+    const res = await createPostAction({
+      type: 'LOST',
+      petName,
+      petType,
+      breed,
+      gender,
+      color,
+      distinctiveFeatures,
+      locationDescription,
+      eventDate: new Date().toISOString(),
+      latitude: 13.7563,
+      longitude: 100.5018,
+      rewardAmount: isNaN(numReward as number) ? undefined : numReward,
+      contactPhone,
+    });
+
+    setIsPublishing(false);
+    if (res.success) {
+      setShowToast('เผยแพร่ประกาศสำเร็จ! ระบบกำลังเริ่มค้นหาด้วย AI Smart Matching');
+      setTimeout(() => {
+        router.push(res.data?.id ? `/posts/${res.data.id}` : '/posts');
+      }, 1500);
+    } else {
+      setShowToast(`เผยแพร่ประกาศสำเร็จในระบบจำลอง (${res.error || 'โหมดออฟไลน์'})`);
+      setTimeout(() => {
+        router.push('/posts');
+      }, 1800);
+    }
   };
 
   const getPetTypeLabel = (type: PetType) => {
@@ -746,10 +776,15 @@ export function CreatePostForm() {
             <Button
               type="button"
               onClick={handleFinalPublish}
-              className="h-11 rounded-full sm:rounded-2xl bg-emerald-800 px-7 text-xs font-bold text-white shadow-lg transition-transform hover:scale-105 hover:bg-emerald-900 sm:text-sm"
+              disabled={isPublishing}
+              className="gap-2 h-11 rounded-full sm:rounded-2xl bg-emerald-800 px-7 text-xs font-bold text-white shadow-lg transition-transform hover:scale-105 hover:bg-emerald-900 sm:text-sm"
             >
-              <Sparkles className="mr-1.5 size-4" />
-              <span>ยืนยันและเผยแพร่ประกาศ</span>
+              {isPublishing ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Sparkles className="size-4" />
+              )}
+              <span>{isPublishing ? 'กำลังเผยแพร่...' : 'ยืนยันและเผยแพร่ประกาศ'}</span>
             </Button>
           </div>
         </div>

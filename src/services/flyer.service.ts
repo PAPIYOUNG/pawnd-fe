@@ -1,5 +1,15 @@
+import { authFetch } from '@/lib/api/auth-fetch';
+
+/**
+ * Flyer Service — จัดการใบปลิวสำหรับประกาศตามหาสัตว์เลี้ยง
+ * ใช้ authFetch สำหรับ endpoint ที่ต้อง login (สร้าง/ดึงข้อมูลใบปลิว)
+ * URL ดาวน์โหลด PDF เป็น public endpoint สามารถเข้าถึงได้โดยไม่ต้อง login
+ */
+
+/** ประเภทเทมเพลตใบปลิวที่ Backend รองรับ */
 export type FlyerTemplate = 'WANTED' | 'STANDARD' | 'REWARD_EMPHASIS';
 
+/** ข้อมูลใบปลิวที่ Backend ส่งกลับมา */
 export interface FlyerResponse {
   id: string;
   postId: string;
@@ -9,41 +19,38 @@ export interface FlyerResponse {
   createdAt: string;
 }
 
+/** Base URL สำหรับสร้าง download link (public endpoint ไม่ต้อง auth) */
 const API_BASE_URL =
   process.env.API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   'http://localhost:8000';
 
 /**
- * ดึงข้อมูลใบปลิวสำหรับประกาศ
+ * ดึงข้อมูลใบปลิวล่าสุดสำหรับประกาศ (GET /posts/:id/flyer)
+ * ใช้ authFetch เพื่อส่ง JWT token อัตโนมัติ
  */
 export async function getPostFlyer(postId: string): Promise<FlyerResponse | null> {
   try {
-    const res = await fetch(`${API_BASE_URL}/posts/${postId}/flyer`);
-    if (!res.ok) return null;
-    return await res.json();
+    return await authFetch<FlyerResponse>(`/posts/${postId}/flyer`);
   } catch {
     return null;
   }
 }
 
 /**
- * สร้างหรืออัปเดตเทมเพลตใบปลิว
+ * สร้างหรืออัปเดตใบปลิวสำหรับประกาศ (POST /posts/:id/flyer)
+ * @param postId — รหัสประกาศ
+ * @param template — เทมเพลตใบปลิว (WANTED, STANDARD, REWARD_EMPHASIS)
  */
 export async function generateFlyer(
   postId: string,
   template: FlyerTemplate = 'WANTED'
 ): Promise<FlyerResponse | null> {
   try {
-    const res = await fetch(`${API_BASE_URL}/posts/${postId}/flyer`, {
+    return await authFetch<FlyerResponse>(`/posts/${postId}/flyer`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ template }),
+      body: { template },
     });
-    if (!res.ok) return null;
-    return await res.json();
   } catch {
     return null;
   }
@@ -51,6 +58,7 @@ export async function generateFlyer(
 
 /**
  * รับ URL สำหรับดาวน์โหลด PDF ใบปลิวโดยตรงจาก Backend
+ * Endpoint นี้เป็น @Public() — ไม่ต้อง login ก็ดาวน์โหลดได้
  */
 export function getFlyerDownloadUrl(postId: string): string {
   return `${API_BASE_URL}/posts/${postId}/flyer/download`;

@@ -3,6 +3,10 @@ import { ApiError } from '@/lib/api/api-error';
 export type ApiFetchOption = Omit<RequestInit, 'body'> & {
   body?: Record<string, unknown> | FormData;
   token?: string;
+  next?: {
+    revalidate?: number | false;
+    tags?: string[];
+  };
 };
 
 const API_URL = process.env.API_URL ?? 'http://localhost:8000';

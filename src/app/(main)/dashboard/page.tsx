@@ -1,8 +1,10 @@
 import { Metadata } from 'next';
 import { getCurrentUser } from '@/services/user.service';
+import { getMyPets } from '@/services/pet.service';
+import { getMyPosts } from '@/services/post.service';
 import { ProfileSidebar } from '@/components/layout/ProfileSidebar';
 import { DashboardMetrics } from './_components/dashboard-metrics';
-import { DashboardMyPosts } from './_components/dashboard-my-posts';
+import { DashboardMyPosts, MyPostDashboardItem } from './_components/dashboard-my-posts';
 import { DashboardAiMatches } from './_components/dashboard-ai-matches';
 
 export const metadata: Metadata = {
@@ -11,17 +13,64 @@ export const metadata: Metadata = {
 };
 
 /**
+ * Helper function สำหรับแปลงเวลาแบบ relative
+ */
+function formatRelativeTime(dateStr?: string): string {
+  if (!dateStr) return 'เมื่อไม่นานมานี้';
+  const timestamp = new Date(dateStr).getTime();
+  if (isNaN(timestamp)) return 'เมื่อไม่นานมานี้';
+  const diff = Date.now() - timestamp;
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (days > 0) return `อัปเดตเมื่อ ${days} วันที่แล้ว`;
+  if (hours > 0) return `อัปเดตเมื่อ ${hours} ชม. ที่แล้ว`;
+  return 'อัปเดตเมื่อสักครู่';
+}
+
+/**
  * DashboardMainPage (Server Component - RSC)
- * - หน้าแดชบอร์ดหลักของผู้ใช้ (User Dashboard) ตรงตามดีไซน์ UI ในภาพตัวอย่าง
- * - ฝั่งซ้าย: ProfileSidebar เมนูหลัก 4 รายการ (แดชบอร์ด, โปรไฟล์ผู้ใช้, โปรไฟล์สัตว์เลี้ยง, ตั้งค่าระบบ)
- * - ฝั่งขวา:
- *   1. ส่วนหัว: แดชบอร์ด + ข้อความต้อนรับ
- *   2. การ์ดสถิติ 4 ใบ (สัตว์เลี้ยงของฉัน, ประกาศที่ใช้งาน, กลับบ้านแล้ว, ข้อความที่ยังไม่อ่าน)
- *   3. คอลัมน์ซ้าย: ประกาศตามหาของฉัน (My Posts) พร้อมปุ่ม Action ดูใบปลิว, แก้ไข, ลบ
- *   4. คอลัมน์ขวา: สรุปผลการจับคู่ AI (AI Matching Summary)
+ * - หน้าแดชบอร์ดหลักของผู้ใช้ (User Dashboard) ตรงตามดีไซน์ UI
+ * - ดึงข้อมูลจริงจาก Backend:
+ *   1. getCurrentUser() -> ข้อมูลผู้ใช้และโปรไฟล์
+ *   2. getMyPets() -> รายการสัตว์เลี้ยงของผู้ใช้เพื่อคำนวณสถิติ
+ *   3. getMyPosts() -> รายการประกาศตามหาของฉัน
+ * - คำนวณ Metrics สดจากข้อมูลจริง และส่งต่อไปยัง Component ย่อย
  */
 export default async function DashboardMainPage() {
-  const user = await getCurrentUser();
+  // ดึงข้อมูลพร้อมกันแบบ Parallel สำหรับ RSC
+  const [user, myPets, myPosts] = await Promise.all([
+    getCurrentUser(),
+    getMyPets(),
+    getMyPosts(),
+  ]);
+
+  // คำนวณสถิติจากข้อมูลจริง
+  const totalPets = myPets.length;
+  const dogCount = myPets.filter((p) => p.type === 'DOG').length;
+  const catCount = myPets.filter((p) => p.type === 'CAT').length;
+  const activePosts = myPosts.filter((p) => p.status === 'ACTIVE').length;
+  const totalReunited = myPosts.filter((p) => p.status === 'REUNITED').length;
+
+  // แปลงรายการ PostDetail จาก Backend -> MyPostDashboardItem สำหรับ Dashboard Grid
+  const dashboardPosts: MyPostDashboardItem[] | undefined =
+    myPosts.length > 0
+      ? myPosts.map((post) => ({
+          id: post.id,
+          type: post.type,
+          petName: post.petName || post.pet?.name || 'สัตว์เลี้ยง',
+          petType: post.petType === 'CAT' ? 'แมว' : post.petType === 'DOG' ? 'สุนัข' : 'สัตว์เลี้ยง',
+          breed: post.breed || post.pet?.breed || 'ไม่ระบุสายพันธุ์',
+          age: post.pet?.age ? `อายุ ${post.pet.age} ปี` : 'ไม่ระบุอายุ',
+          location: post.locationDescription || post.province || 'ไม่ระบุสถานที่',
+          lastUpdated: formatRelativeTime(post.updatedAt || post.createdAt),
+          rewardAmount: post.rewardAmount ? post.rewardAmount.toLocaleString() : null,
+          imageUrl:
+            (post.images && post.images.length > 0
+              ? post.images[0].imageUrl
+              : post.pet?.profileImageUrl) ||
+            'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=600&auto=format&fit=crop',
+        }))
+      : undefined;
 
   return (
     <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-7xl flex-col md:flex-row">
@@ -40,20 +89,20 @@ export default async function DashboardMainPage() {
           </p>
         </div>
 
-        {/* แถวที่ 1: การ์ดสถิติ 4 ใบ */}
+        {/* แถวที่ 1: การ์ดสถิติ 4 ใบ คำนวณจากข้อมูลจริง */}
         <DashboardMetrics
-          totalPets={user.stats?.totalPets || 3}
-          activePosts={user.stats?.totalLostPosts || 2}
-          totalReunited={user.stats?.totalReunited || 5}
-          unreadMessages={12}
-          dogCount={2}
-          catCount={1}
+          totalPets={totalPets}
+          activePosts={activePosts || (user.stats?.totalLostPosts ?? 0)}
+          totalReunited={totalReunited || (user.stats?.totalReunited ?? 0)}
+          unreadMessages={0}
+          dogCount={dogCount}
+          catCount={catCount}
         />
 
         {/* แถวที่ 2: ประกาศตามหาของฉัน (7 Cols) และ สรุป AI Matching (5 Cols) */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           <div className="lg:col-span-7">
-            <DashboardMyPosts />
+            <DashboardMyPosts initialPosts={dashboardPosts} />
           </div>
           <div className="lg:col-span-5">
             <DashboardAiMatches />
