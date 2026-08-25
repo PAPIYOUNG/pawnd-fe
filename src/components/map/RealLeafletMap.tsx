@@ -1,185 +1,510 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
-import { LatestPostItem } from '@/types/post';
+import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 
-interface MapPinItem {
-  id: string;
-  lat: number;
-  lng: number;
-  type: 'LOST' | 'FOUND';
-  petName: string;
-  breed: string;
-  location: string;
-  imageUrl: string;
-}
-
-// รายการหมุดพิกัดจริงของสัตว์เลี้ยงในพื้นที่กรุงเทพฯ และปริมณฑล
-const SAMPLE_MAP_PINS: MapPinItem[] = [
-  {
-    id: 'mock-1',
-    lat: 13.7126,
-    lng: 100.6042,
-    type: 'LOST',
-    petName: 'น้องส้มส้ม',
-    breed: 'แมวไทยเพศผู้',
-    location: 'อ่อนนุช 46, กรุงเทพฯ',
-    imageUrl:
-      'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=400&auto=format&fit=crop',
-  },
-  {
-    id: 'mock-2',
-    lat: 13.8476,
-    lng: 100.5401,
-    type: 'FOUND',
-    petName: 'ไซบีเรียนเพศผู้',
-    breed: 'ไซบีเรียน ฮัสกี้',
-    location: 'ถ.งามวงศ์วาน, นนทบุรี',
-    imageUrl:
-      'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?q=80&w=400&auto=format&fit=crop',
-  },
-  {
-    id: 'mock-3',
-    lat: 13.7852,
-    lng: 100.6128,
-    type: 'LOST',
-    petName: 'ช็อกโก้',
-    breed: 'พุดเดิ้ลทอย',
-    location: 'ลาดพร้าว 101, กรุงเทพฯ',
-    imageUrl:
-      'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?q=80&w=400&auto=format&fit=crop',
-  },
-  {
-    id: 'mock-4',
-    lat: 13.8479,
-    lng: 100.5701,
-    type: 'FOUND',
-    petName: 'แมวไทยสีขาวตาโต',
-    breed: 'พันธุ์ไทย เพศเมีย',
-    location: 'ม.เกษตรศาสตร์ บางเขน',
-    imageUrl:
-      'https://images.unsplash.com/photo-1573865526739-10659fec78a5?q=80&w=400&auto=format&fit=crop',
-  },
-  {
-    id: 'mock-5',
-    lat: 13.7469,
-    lng: 100.5349,
-    type: 'LOST',
-    petName: 'มิลค์กี้',
-    breed: 'เปอร์เซีย ขนยาว',
-    location: 'สยามสแควร์, ปทุมวัน',
-    imageUrl:
-      'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?q=80&w=400&auto=format&fit=crop',
-  },
-];
+import { MapControls } from '@/components/map/MapControls';
+import { MapMarkers } from '@/components/map/MapMarkers';
+import {
+  DEFAULT_CENTER,
+  DEFAULT_ZOOM,
+  MAP_POST_LIMIT,
+  SELECTED_POST_ZOOM,
+  VIEWPORT_DEBOUNCE_MS,
+} from '@/components/map/map.constants';
+import {
+  createCurrentLocationIcon,
+  createMarkerIcon,
+  getMapFocusTarget,
+  isSameViewport,
+  readViewportState,
+} from '@/components/map/map.utils';
+import { getMapPosts } from '@/services/map.service';
+import type {
+  CurrentLocation,
+  MapDataState,
+  MapPostFeature,
+  MapViewportState,
+} from '@/types/map';
+import type { PostType } from '@/types/post';
 
 interface RealLeafletMapProps {
+  /** จุดกึ่งกลางเริ่มต้นในรูปแบบ [latitude, longitude] */
   center?: [number, number];
+  /** ระดับ zoom เริ่มต้นของแผนที่ */
   zoom?: number;
+  /** คลาสกำหนดความสูงเพื่อให้แผนที่ responsive ตามบริบทที่เรียกใช้ */
   heightClass?: string;
-  pins?: LatestPostItem[];
+  /** เปิดการซูมด้วยล้อเมาส์สำหรับหน้าแผนที่เต็มรูปแบบ */
+  scrollWheelZoom?: boolean;
+  /** กรองประเภทประกาศด้วย query ที่ Backend รองรับจริง */
+  postType?: PostType;
+  /** ตำแหน่งผู้ใช้ซึ่งอยู่ใน React state ของ parent เท่านั้น */
+  currentLocation?: CurrentLocation | null;
+  /** ขอพิกัดผ่าน Browser Geolocation API เมื่อผู้ใช้กดปุ่ม */
+  onRequestCurrentLocation?: () => void;
+  /** แสดงสถานะระหว่าง Browser กำลังอ่านพิกัด */
+  isLocating?: boolean;
+  /** ข้อความที่อ่านง่ายเมื่อขอพิกัดไม่สำเร็จ */
+  locationError?: string | null;
+  /** post id จากการ์ดที่ต้องเลื่อนแผนที่ไปหาและเปิด popup */
+  selectedPostId?: string | null;
+  /** พิกัดจาก nearby card ใช้ flyTo แม้ marker ยังไม่อยู่ใน viewport เดิม */
+  selectedPostLocation?: CurrentLocation | null;
+  /** token เปลี่ยนทุก click เพื่อรองรับการเลือก post เดิมซ้ำ */
+  selectionRequestToken?: number;
+  /** posts หลังกรองช่วงเวลาที่ใช้ร่วมกับรายการและจำนวนใน sidebar */
+  visibleFeatures?: MapPostFeature[];
+  /** ส่งสถานะข้อมูลชุดเดียวกันให้ sidebar แสดงรายการประกาศ */
+  onDataStateChange?: (state: MapDataState) => void;
+  /** ส่ง viewport ปัจจุบันให้หน้าหลักคำนวณระยะทางของรายการ */
+  onViewportChange?: (viewport: MapViewportState) => void;
+}
+
+interface MapViewportObserverProps {
+  /** callback ที่รับ bounds ล่าสุดหลังผู้ใช้เลื่อนหรือซูมแผนที่ */
+  onChange: (viewport: MapViewportState) => void;
+  /** สถานะ movement ที่โค้ดเป็นผู้เริ่ม เพื่อแยกออกจากการลาก/ซูมของผู้ใช้ */
+  programmaticMovementRef: React.RefObject<ProgrammaticMovementState>;
+}
+
+interface CurrentLocationControllerProps {
+  /** พิกัดใหม่ที่จะใช้เลื่อนและซูมแผนที่ */
+  currentLocation?: CurrentLocation | null;
+  /** ตั้ง guard ก่อนเริ่ม flyTo และให้ publish viewport หนึ่งครั้งเมื่อจบ */
+  beginProgrammaticMovement: (publishViewportOnEnd: boolean) => void;
+}
+
+interface SelectedPostControllerProps {
+  /** post id และพิกัดที่ได้จาก feature ชุดเดียวกับ marker */
+  postId: string | null;
+  latitude?: number;
+  longitude?: number;
+  /** true เมื่อ marker จาก viewport response ถูก render แล้ว */
+  markerAvailable: boolean;
+  /** ลำดับคำสั่งเลือกจากการ click การ์ด */
+  requestToken: number;
+  /** marker instances ที่ใช้เปิด popup โดยไม่สร้าง React state เพิ่ม */
+  markerRefs: React.RefObject<Map<string, L.Marker>>;
+  /** ตั้ง guard ก่อนเริ่ม flyTo และให้ publish viewport หนึ่งครั้งเมื่อจบ */
+  beginProgrammaticMovement: (publishViewportOnEnd: boolean) => void;
+}
+
+interface ProgrammaticMovementState {
+  /** true ระหว่าง flyTo/current-location/popup auto-pan */
+  active: boolean;
+  /** true เฉพาะ movement ที่ควรโหลด viewport ใหม่หลังเคลื่อนที่จบ */
+  publishViewportOnEnd: boolean;
 }
 
 /**
- * RealLeafletMap Component (Client Component)
- * - แผนที่จริงแบบ Interactive บน OpenStreetMap ผ่าน Leaflet
- * - แสดงพิกัดจริงของประเทศไทย พร้อมหมุดสัตว์หาย (สีแดง) และพบสัตว์ (สีเขียว)
- * - กดที่หมุดเพื่อเปิด Pop-up ดูรูปถ่าย ชื่อสัตว์ และพิกัดสถานที่
+ * ฟังการเปลี่ยน viewport ของแผนที่และส่ง bounds แรกทันทีหลัง map พร้อมใช้งาน
  */
-export default function RealLeafletMap({
-  center = [13.785, 100.565],
-  zoom = 12,
-  heightClass = 'h-[360px] sm:h-[450px]',
-}: RealLeafletMapProps) {
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
+function MapViewportObserver({
+  onChange,
+  programmaticMovementRef,
+}: MapViewportObserverProps) {
+  const map = useMap();
+  const emitViewport = useCallback(() => {
+    onChange(readViewportState(map));
+  }, [map, onChange]);
+  const handleMoveEnd = useCallback(() => {
+    const movement = programmaticMovementRef.current;
+    if (movement.active) {
+      const shouldPublish = movement.publishViewportOnEnd;
+      movement.active = false;
+      movement.publishViewportOnEnd = false;
+
+      if (!shouldPublish) {
+        return;
+      }
+    }
+
+    emitViewport();
+  }, [emitViewport, programmaticMovementRef]);
+  const handleAutoPanStart = useCallback(() => {
+    const movement = programmaticMovementRef.current;
+    if (!movement.active) {
+      movement.active = true;
+      movement.publishViewportOnEnd = false;
+    }
+  }, [programmaticMovementRef]);
+  const eventHandlers = useMemo<L.LeafletEventHandlerFnMap>(
+    () => ({
+      autopanstart: handleAutoPanStart,
+      moveend: handleMoveEnd,
+    }),
+    [handleAutoPanStart, handleMoveEnd],
+  );
+
+  useMapEvents(eventHandlers);
 
   useEffect(() => {
-    if (!mapContainerRef.current) return;
-    if (mapInstanceRef.current) return; // ป้องกันการสร้าง map ซ้ำ
+    emitViewport();
+  }, [emitViewport]);
 
-    // 1. กำหนดค่า Map Instance
-    const map = L.map(mapContainerRef.current, {
-      center: center,
-      zoom: zoom,
-      scrollWheelZoom: false, // ป้องกันการซูมกวนตอนเลื่อนหน้าเว็บ
-      zoomControl: true,
-    });
+  return null;
+}
 
-    mapInstanceRef.current = map;
+/** เลื่อนแผนที่ไปยัง current location ทุกครั้งที่ผู้ใช้ขอพิกัดสำเร็จ */
+function CurrentLocationController({
+  currentLocation,
+  beginProgrammaticMovement,
+}: CurrentLocationControllerProps) {
+  const map = useMap();
+  const lastCenteredLocationRef = useRef<string | null>(null);
 
-    // 2. ดึง Tile Layer จาก OpenStreetMap (CARTO Positron - สไตล์มินิมอลสบายตา)
-    L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      {
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        maxZoom: 19,
+  useEffect(() => {
+    if (!currentLocation) {
+      lastCenteredLocationRef.current = null;
+      return;
+    }
+
+    const locationKey = `${currentLocation.latitude}:${currentLocation.longitude}`;
+    if (lastCenteredLocationRef.current === locationKey) {
+      return;
+    }
+    lastCenteredLocationRef.current = locationKey;
+
+    const focusTarget = getMapFocusTarget(
+      map,
+      currentLocation.latitude,
+      currentLocation.longitude,
+      14,
+    );
+    if (!focusTarget.requiresMovement) {
+      return;
+    }
+
+    beginProgrammaticMovement(true);
+    map.flyTo(focusTarget.center, focusTarget.zoom, { animate: true });
+  }, [beginProgrammaticMovement, currentLocation, map]);
+
+  return null;
+}
+
+/**
+ * รับคำสั่งจากการ์ดแล้ว flyTo ไปยัง marker ก่อนเปิด popup
+ * ไม่มีการ set React state ใน Leaflet event และใช้ token guard กัน effect ซ้ำ
+ */
+function SelectedPostController({
+  postId,
+  latitude,
+  longitude,
+  markerAvailable,
+  requestToken,
+  markerRefs,
+  beginProgrammaticMovement,
+}: SelectedPostControllerProps) {
+  const map = useMap();
+  const lastFocusedSelectionRef = useRef<string | null>(null);
+  const lastOpenedSelectionRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (
+      !postId ||
+      latitude === undefined ||
+      longitude === undefined ||
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude)
+    ) {
+      return;
+    }
+
+    const selectionKey = `${postId}:${requestToken}`;
+    const marker = markerRefs.current.get(postId);
+    const focusTarget = getMapFocusTarget(
+      map,
+      latitude,
+      longitude,
+      SELECTED_POST_ZOOM,
+    );
+
+    if (lastFocusedSelectionRef.current !== selectionKey) {
+      lastFocusedSelectionRef.current = selectionKey;
+
+      if (focusTarget.requiresMovement) {
+        const openSelectedPopup = () => {
+          const currentMarker = markerRefs.current.get(postId);
+          if (
+            currentMarker &&
+            lastOpenedSelectionRef.current !== selectionKey
+          ) {
+            currentMarker.openPopup();
+            lastOpenedSelectionRef.current = selectionKey;
+          }
+        };
+
+        map.once('moveend', openSelectedPopup);
+        beginProgrammaticMovement(true);
+        map.flyTo(focusTarget.center, focusTarget.zoom, { animate: true });
+
+        return () => {
+          map.off('moveend', openSelectedPopup);
+        };
       }
-    ).addTo(map);
+    }
 
-    // 3. สร้างและปักหมุดสัตว์เลี้ยงลงบนแผนที่
-    SAMPLE_MAP_PINS.forEach((pin) => {
-      const isLost = pin.type === 'LOST';
-      const pinColor = isLost ? '#EF4444' : '#10B981';
-      const pinBgColor = isLost ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)';
-      const badgeText = isLost ? 'สัตว์หาย' : 'พบสัตว์';
+    if (marker && lastOpenedSelectionRef.current !== selectionKey) {
+      marker.openPopup();
+      lastOpenedSelectionRef.current = selectionKey;
+    }
+  }, [
+    beginProgrammaticMovement,
+    latitude,
+    longitude,
+    map,
+    markerAvailable,
+    markerRefs,
+    postId,
+    requestToken,
+  ]);
 
-      // สร้าง Custom HTML Pin Icon พร้อมเอฟเฟกต์ Ripple Pulse
-      const customIcon = L.divIcon({
-        className: 'custom-leaflet-marker',
-        html: `
-          <div style="position: relative; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
-            <div style="position: absolute; width: 32px; height: 32px; border-radius: 9999px; background-color: ${pinBgColor}; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-            <div style="position: relative; width: 22px; height: 22px; border-radius: 9999px; background-color: ${pinColor}; border: 2.5px solid #FFFFFF; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;">
-              <div style="width: 6px; height: 6px; border-radius: 9999px; background-color: #FFFFFF;"></div>
-            </div>
-          </div>
-        `,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
-        popupAnchor: [0, -16],
-      });
+  return null;
+}
 
-      // โค้ด HTML ของการ์ด Popup เมื่อคลิกที่หมุด
-      const popupHtml = `
-        <div style="font-family: var(--font-sans, system-ui, sans-serif); min-width: 170px; padding: 2px;">
-          <div style="position: relative; width: 100%; height: 95px; border-radius: 12px; overflow: hidden; margin-bottom: 8px;">
-            <img src="${pin.imageUrl}" alt="${pin.petName}" style="width: 100%; height: 100%; object-fit: cover;" />
-            <span style="position: absolute; top: 6px; left: 6px; background-color: ${pinColor}; color: #FFFFFF; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.2);">
-              ${badgeText}
-            </span>
-          </div>
-          <div style="font-weight: 700; font-size: 14px; color: #133E2B; line-height: 1.2;">${pin.petName}</div>
-          <div style="font-size: 11px; color: #64748B; margin-top: 2px;">${pin.breed}</div>
-          <div style="font-size: 11px; color: #0F766E; margin-top: 4px; font-weight: 500;">📍 ${pin.location}</div>
-          <a href="/posts/${pin.id}" style="display: block; text-align: center; background-color: #0F766E; color: #FFFFFF; font-size: 11px; font-weight: 600; padding: 6px 10px; border-radius: 8px; margin-top: 8px; text-decoration: none;">
-            ดูข้อมูลสัตว์เลี้ยง
-          </a>
-        </div>
-      `;
+/**
+ * RealLeafletMap เป็น Client Component สำหรับแสดงแผนที่ OpenStreetMap
+ * โดยโหลด marker จาก Backend ตาม viewport และ debounce การเปลี่ยน bounds
+ * รองรับ loading, error, empty state และ cleanup ของ request เมื่อ unmount
+ */
+export default function RealLeafletMap({
+  center = DEFAULT_CENTER,
+  zoom = DEFAULT_ZOOM,
+  heightClass = 'h-[420px] sm:h-[560px]',
+  scrollWheelZoom = false,
+  postType,
+  currentLocation,
+  onRequestCurrentLocation,
+  isLocating = false,
+  locationError,
+  selectedPostId,
+  selectedPostLocation,
+  selectionRequestToken = 0,
+  visibleFeatures,
+  onDataStateChange,
+  onViewportChange,
+}: RealLeafletMapProps) {
+  const [bounds, setBounds] = useState<MapViewportState['bounds'] | null>(null);
+  const [features, setFeatures] = useState<MapPostFeature[]>([]);
+  const featuresRef = useRef<MapPostFeature[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
+  const lastViewportRef = useRef<MapViewportState | null>(null);
+  const programmaticMovementRef = useRef<ProgrammaticMovementState>({
+    active: false,
+    publishViewportOnEnd: false,
+  });
+  const markerRefs = useRef(new Map<string, L.Marker>());
+  const currentLocationIcon = useMemo(() => createCurrentLocationIcon(), []);
+  const renderedFeatures = visibleFeatures ?? features;
 
-      L.marker([pin.lat, pin.lng], { icon: customIcon })
-        .addTo(map)
-        .bindPopup(popupHtml, {
-          maxWidth: 220,
-          className: 'pawnd-map-popup',
+  /**
+   * เริ่ม movement จากโค้ดโดยแก้เฉพาะ ref เพื่อไม่สร้าง render loop
+   * หากมี movement ซ้อนกันจะคงคำสั่ง publish viewport ที่สำคัญกว่าไว้
+   */
+  const beginProgrammaticMovement = useCallback(
+    (publishViewportOnEnd: boolean) => {
+      const movement = programmaticMovementRef.current;
+      movement.active = true;
+      movement.publishViewportOnEnd =
+        movement.publishViewportOnEnd || publishViewportOnEnd;
+    },
+    [],
+  );
+
+  /** ลงทะเบียน marker instance เพื่อให้ selection controller เปิด popup ได้โดยตรง */
+  const handleMarkerReady = useCallback(
+    (postId: string, marker: L.Marker | null) => {
+      if (marker) {
+        if (markerRefs.current.get(postId) !== marker) {
+          markerRefs.current.set(postId, marker);
+        }
+        return;
+      }
+
+      markerRefs.current.delete(postId);
+    },
+    [],
+  );
+
+  /** เก็บ bounds ล่าสุดจาก Leaflet เพื่อให้ effect ถัดไปจัดการ debounce */
+  const handleViewportChange = useCallback(
+    (nextViewport: MapViewportState) => {
+      if (
+        lastViewportRef.current &&
+        isSameViewport(lastViewportRef.current, nextViewport)
+      ) {
+        return;
+      }
+
+      lastViewportRef.current = nextViewport;
+      setBounds(nextViewport.bounds);
+      onViewportChange?.(nextViewport);
+    },
+    [onViewportChange],
+  );
+
+  /**
+   * โหลดข้อมูลใหม่หลังหยุดเลื่อน/ซูมตามเวลาที่กำหนด
+   * Abort request เก่าเพื่อป้องกันผลตอบกลับลำดับเก่าทับข้อมูล viewport ใหม่
+   */
+  useEffect(() => {
+    if (!bounds) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      const loadPosts = async () => {
+        setIsLoading(true);
+        setErrorMessage(null);
+        onDataStateChange?.({
+          features: featuresRef.current,
+          isLoading: true,
+          errorMessage: null,
         });
+
+        try {
+          const collection = await getMapPosts(
+            {
+              ...bounds,
+              ...(postType ? { type: postType } : {}),
+              limit: MAP_POST_LIMIT,
+            },
+            controller.signal,
+          );
+          setFeatures(collection.features);
+          featuresRef.current = collection.features;
+          onDataStateChange?.({
+            features: collection.features,
+            isLoading: false,
+            errorMessage: null,
+          });
+        } catch {
+          if (controller.signal.aborted) {
+            return;
+          }
+
+          const nextErrorMessage =
+            'ไม่สามารถโหลดข้อมูลแผนที่ได้ กรุณาลองใหม่อีกครั้ง';
+          setErrorMessage(nextErrorMessage);
+          onDataStateChange?.({
+            features: featuresRef.current,
+            isLoading: false,
+            errorMessage: nextErrorMessage,
+          });
+        } finally {
+          if (!controller.signal.aborted) {
+            setIsLoading(false);
+          }
+        }
+      };
+
+      void loadPosts();
+    }, VIEWPORT_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [bounds, onDataStateChange, postType, retryToken]);
+
+  /** สร้าง icon ต่อประเภทโพสต์ครั้งเดียวต่อชุดข้อมูล เพื่อลดการสร้าง DOM ซ้ำ */
+  const markerIcons = useMemo(() => {
+    const icons = new Map<PostType, L.DivIcon>();
+
+    renderedFeatures.forEach((feature) => {
+      const postType = feature.properties.postType;
+      if (!icons.has(postType)) {
+        icons.set(postType, createMarkerIcon(postType));
+      }
     });
 
-    // Cleanup Map Instance เมื่อ Unmount
-    return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
-    };
-  }, [center, zoom]);
+    return icons;
+  }, [renderedFeatures]);
+
+  /** หา feature ที่เลือกด้วย post id เพื่อใช้พิกัดจริงชุดเดียวกับ marker */
+  const selectedFeature = useMemo(
+    () =>
+      selectedPostId
+        ? (renderedFeatures.find(
+            (feature) => feature.properties.id === selectedPostId,
+          ) ?? null)
+        : null,
+    [renderedFeatures, selectedPostId],
+  );
+  const selectedMarkerIcon = useMemo(
+    () =>
+      selectedFeature
+        ? createMarkerIcon(selectedFeature.properties.postType, true)
+        : null,
+    [selectedFeature],
+  );
 
   return (
-    <div className={`relative w-full ${heightClass} overflow-hidden rounded-3xl z-0`}>
-      <div ref={mapContainerRef} className="h-full w-full" />
+    <div
+      className={`relative z-0 w-full overflow-hidden rounded-3xl ${heightClass}`}
+    >
+      {/* แผนที่และ tile จาก OpenStreetMap พร้อม attribution ตามข้อกำหนด */}
+      <MapContainer
+        center={center}
+        zoom={zoom}
+        scrollWheelZoom={scrollWheelZoom}
+        className="h-full w-full"
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxZoom={19}
+        />
+        <MapViewportObserver
+          onChange={handleViewportChange}
+          programmaticMovementRef={programmaticMovementRef}
+        />
+        <CurrentLocationController
+          currentLocation={currentLocation}
+          beginProgrammaticMovement={beginProgrammaticMovement}
+        />
+        <SelectedPostController
+          postId={selectedPostId ?? null}
+          latitude={
+            selectedFeature?.geometry.coordinates[1] ??
+            selectedPostLocation?.latitude
+          }
+          longitude={
+            selectedFeature?.geometry.coordinates[0] ??
+            selectedPostLocation?.longitude
+          }
+          markerAvailable={Boolean(selectedFeature)}
+          requestToken={selectionRequestToken}
+          markerRefs={markerRefs}
+          beginProgrammaticMovement={beginProgrammaticMovement}
+        />
+
+        <MapMarkers
+          features={renderedFeatures}
+          selectedPostId={selectedPostId}
+          markerIcons={markerIcons}
+          selectedMarkerIcon={selectedMarkerIcon}
+          onMarkerReady={handleMarkerReady}
+          beginProgrammaticMovement={beginProgrammaticMovement}
+          currentLocation={currentLocation}
+          currentLocationIcon={currentLocationIcon}
+        />
+      </MapContainer>
+
+      <MapControls
+        onRequestCurrentLocation={onRequestCurrentLocation}
+        isLocating={isLocating}
+        locationError={locationError}
+        isLoading={isLoading}
+        errorMessage={errorMessage}
+        visibleFeatureCount={renderedFeatures.length}
+        onRetry={() => setRetryToken((token) => token + 1)}
+      />
     </div>
   );
 }
