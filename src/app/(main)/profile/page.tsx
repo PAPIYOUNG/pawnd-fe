@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import { getCurrentUser } from '@/services/user.service';
 import { getMyPets } from '@/services/pet.service';
 import { UserProfileHeader } from './_components/user-profile-header';
+import { UserProfileDetailsGrid } from './_components/user-profile-details-grid';
 import { UserMyPetsGrid } from './_components/user-my-pets-grid';
 
 export const metadata: Metadata = {
@@ -29,7 +30,10 @@ export default async function ProfileOverviewPage() {
       {/* 1. ส่วนการ์ดโปรไฟล์ผู้ใช้ด้านบน */}
       <UserProfileHeader user={user} />
 
-      {/* 2. ส่วนสัตว์เลี้ยงของฉัน */}
+      {/* 2. ส่วนกรอบข้อมูลบัญชีผู้ใช้ทุกฟิลด์ (ยกเว้นการตั้งค่าแจ้งเตือน/2FA) */}
+      <UserProfileDetailsGrid user={user} />
+
+      {/* 3. ส่วนสัตว์เลี้ยงของฉัน */}
       <UserMyPetsGrid pets={pets} />
     </div>
   );
