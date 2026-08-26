@@ -3,6 +3,8 @@ import '@styles/globals.css';
 import { cn } from '@/lib/utils';
 import { notoSans } from '@/styles/font';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
+import 'leaflet/dist/leaflet.css';
+import '@/styles/globals.css';
 
 export const metadata: Metadata = {
   title: {

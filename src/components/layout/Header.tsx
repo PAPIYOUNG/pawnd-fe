@@ -113,6 +113,7 @@ export default function Header({
                   src={userAvatar}
                   alt={userName}
                   fill
+                  sizes="40px"
                   className="object-cover"
                 />
               </Link>
