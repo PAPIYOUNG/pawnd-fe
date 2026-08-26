@@ -73,6 +73,15 @@ export function LoginForm() {
   const [googleReady, setGoogleReady] = useState(false);
   const [isGooglePending, startGoogleTransition] = useTransition();
 
+  useEffect(() => {
+    // เผื่อสคริปต์ Google โหลดไว้แล้วจากการเข้าหน้านี้รอบก่อน (เช่น หลัง redirect กลับมา)
+    // แต่ onLoad ของ <Script> ไม่ยิงซ้ำให้ component ที่เพิ่ง mount ใหม่
+    if (typeof window !== 'undefined' && window.google) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setGoogleReady(true);
+    }
+  }, []);
+
   const [isLinePending, startLineTransition] = useTransition();
   const [lineEmail, setLineEmail] = useState('');
   const [lineEmailInput, setLineEmailInput] = useState('');
