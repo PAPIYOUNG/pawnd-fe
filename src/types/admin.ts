@@ -1,0 +1,467 @@
+import { UserRole } from './auth';
+import { UserStatus } from './user';
+import { PetGender, PetType, PostStatus, PostType } from './post';
+
+/**
+ * DashboardSummary
+ * - รูปแบบข้อมูลสรุปภาพรวมที่ได้จาก Backend endpoint `GET /admin/dashboard`
+ * - ใช้แสดงผลในการ์ดสถิติ (StatCard) ของหน้าแดชบอร์ดผู้ดูแลระบบ
+ * - หมายเหตุ: Backend ไม่ได้ส่งค่าเปอร์เซ็นต์การเปลี่ยนแปลง (trend) มาด้วย
+ *   จึงแสดงเฉพาะจำนวนรวม ไม่มี Label เปรียบเทียบช่วงเวลาก่อนหน้า
+ */
+export interface DashboardSummary {
+  users: {
+    total: number;
+    active: number;
+    pendingVerification: number;
+    suspended: number;
+    blacklisted: number;
+  };
+  pets: {
+    total: number;
+  };
+  posts: {
+    total: number;
+    lost: number;
+    found: number;
+    active: number;
+    reunited: number;
+    hidden: number;
+  };
+  community: {
+    totalPosts: number;
+    hiddenPosts: number;
+    totalComments: number;
+    hiddenComments: number;
+  };
+  reports: {
+    total: number;
+    pending: number;
+    reviewed: number;
+    actionTaken: number;
+    recent: RecentPendingReport[];
+  };
+}
+
+export interface RecentPendingReport {
+  id: string;
+  reportType: string;
+  reason: string;
+  status: string;
+  createdAt: string;
+  reporter: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
+}
+
+/**
+ * MonthlyTrendPoint
+ * - รูปแบบข้อมูล 1 เดือนจาก Backend endpoint `GET /admin/dashboard/monthly-trend?year=<year>`
+ * - `month` คือเลขเดือน 1-12, ค่าที่เหลือคือจำนวนโพสต์ Lost / Found / Reunited ของเดือนนั้น
+ */
+export interface MonthlyTrendPoint {
+  month: number;
+  lost: number;
+  found: number;
+  reunited: number;
+}
+
+/**
+ * AdminUserListItem
+ * - ข้อมูลผู้ใช้งาน 1 รายการในตาราง "จัดการผู้ใช้งาน" ของแอดมิน
+ * - ตรงตาม select fields ของ Backend endpoint `GET /admin/users`
+ */
+export interface AdminUserListItem {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  avatarUrl: string | null;
+  role: UserRole;
+  status: UserStatus;
+  lastLoginAt: string | null;
+  createdAt: string;
+}
+
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface GetUsersResponse {
+  users: AdminUserListItem[];
+  pagination: PaginationMeta;
+}
+
+export interface GetUsersParams {
+  page?: number;
+  limit?: number;
+  status?: UserStatus;
+  role?: UserRole;
+  search?: string;
+}
+
+/**
+ * AdminUserDetail
+ * - ข้อมูลผู้ใช้งานแบบละเอียด 1 คน จาก Backend endpoint `GET /admin/users/:id`
+ */
+export interface AdminUserDetail {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  address: string | null;
+  lineId: string | null;
+  avatarUrl: string | null;
+  role: UserRole;
+  status: UserStatus;
+  emailVerifiedAt: string | null;
+  notificationEnabled: boolean;
+  twoFactorEnabled: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count: {
+    pets: number;
+    petPosts: number;
+    communityPosts: number;
+    submittedContentReports: number;
+  };
+}
+
+export interface GetUserByIdResponse {
+  user: AdminUserDetail;
+}
+
+/**
+ * UpdateUserStatusResult
+ * - ผลลัพธ์จาก Backend endpoint `PATCH /admin/users/:id/status`
+ */
+export interface UpdateUserStatusResult {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+  updatedAt: string;
+}
+
+export interface UpdateUserStatusResponse {
+  user: UpdateUserStatusResult;
+}
+
+/**
+ * AdminPostListItem
+ * - ข้อมูลประกาศ Lost/Found 1 รายการในตาราง "จัดการประกาศ" ของแอดมิน
+ * - ตรงตาม select fields ของ Backend endpoint `GET /admin/posts`
+ * - `images` มีสูงสุด 1 รูป (รูปปกที่ sortOrder น้อยที่สุด) ใช้เป็นภาพตัวอย่างในตาราง
+ */
+export interface AdminPostListItem {
+  id: string;
+  type: PostType;
+  status: PostStatus;
+  petName: string;
+  petType: PetType;
+  breed: string | null;
+  province: string | null;
+  eventDate: string | null;
+  viewCount: number;
+  createdAt: string;
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  images: { imageUrl: string }[];
+}
+
+export interface GetPostsResponse {
+  posts: AdminPostListItem[];
+  pagination: PaginationMeta;
+}
+
+export interface GetPostsParams {
+  page?: number;
+  limit?: number;
+  type?: PostType;
+  status?: PostStatus;
+  province?: string;
+  search?: string;
+}
+
+/**
+ * UpdatePostStatusResult
+ * - ผลลัพธ์จาก Backend endpoint `PATCH /admin/posts/:id`
+ */
+export interface UpdatePostStatusResult {
+  id: string;
+  type: PostType;
+  status: PostStatus;
+  petName: string;
+  userId: string;
+  updatedAt: string;
+}
+
+export interface UpdatePostStatusResponse {
+  post: UpdatePostStatusResult;
+}
+
+/**
+ * AdminPostDetail
+ * - ข้อมูลประกาศ Lost/Found แบบละเอียด 1 รายการ จาก Backend endpoint `GET /admin/posts/:id`
+ * - `rewardAmount` เป็น Prisma Decimal ซึ่งถูก serialize เป็น string เสมอเมื่อส่งผ่าน JSON
+ * - `currentLocation` เป็น free-text string ที่ผู้ใช้พิมพ์เอง (เช่น "พบล่าสุดแถวสวนลุมพินี")
+ *   ไม่มีความสัมพันธ์กับ `latitude`/`longitude` ซึ่งเป็นคนละฟิลด์
+ */
+export interface AdminPostDetail {
+  id: string;
+  type: PostType;
+  status: PostStatus;
+  petName: string;
+  petType: PetType;
+  breed: string | null;
+  gender: PetGender | null;
+  color: string | null;
+  distinctiveFeatures: string | null;
+  description: string | null;
+  eventDate: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  province: string | null;
+  district: string | null;
+  subdistrict: string | null;
+  locationDescription: string | null;
+  rewardAmount: string | null;
+  currentLocation: string | null;
+  contactPhone: string | null;
+  contactLineId: string | null;
+  contactEmail: string | null;
+  viewCount: number;
+  reunitedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  pet: {
+    id: string;
+    name: string;
+  } | null;
+  images: {
+    id: string;
+    imageUrl: string;
+    sortOrder: number;
+  }[];
+}
+
+/**
+ * AdminMatchedPostSummary
+ * - ข้อมูลย่อของประกาศฝั่งตรงข้ามที่ AI จับคู่มาให้ (Lost คู่กับ Found หรือกลับกัน)
+ */
+export interface AdminMatchedPostSummary {
+  id: string;
+  petName: string;
+  petType: PetType;
+  breed: string | null;
+  type: PostType;
+  status: PostStatus;
+  images: { imageUrl: string }[];
+}
+
+/**
+ * AdminAiMatchItem
+ * - ผลการจับคู่ของ AI 1 รายการ จาก Backend endpoint `GET /admin/posts/:id` (field `aiMatches`)
+ * - คะแนนทั้งหมด (`finalScore`, `vectorSimilarity`, `featureScore`, `locationScore`, `dateScore`)
+ *   เป็นค่า 0-1 (สัดส่วนความเหมือน) ไม่ใช่เปอร์เซ็นต์สำเร็จรูป
+ * - `matchedPost` เป็น `null` ได้หากประกาศฝั่งตรงข้ามถูกลบไปแล้ว
+ */
+export interface AdminAiMatchItem {
+  matchId: string;
+  finalScore: number;
+  vectorSimilarity: number;
+  featureScore: number;
+  locationScore: number;
+  dateScore: number;
+  distanceKm: number | null;
+  isNotified: boolean;
+  createdAt: string;
+  matchedPost: AdminMatchedPostSummary | null;
+}
+
+export interface GetPostByIdResponse {
+  post: AdminPostDetail;
+  aiMatches: AdminAiMatchItem[];
+}
+
+/**
+ * AdminPetListItem
+ * - ข้อมูลสัตว์เลี้ยง 1 รายการในตาราง "จัดการสัตว์เลี้ยง" ของแอดมิน
+ * - ตรงตาม select fields ของ Backend endpoint `GET /admin/pets`
+ */
+export interface AdminPetListItem {
+  id: string;
+  name: string;
+  type: PetType;
+  breed: string | null;
+  gender: PetGender | null;
+  profileImageUrl: string | null;
+  createdAt: string;
+  owner: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+}
+
+export interface GetPetsResponse {
+  pets: AdminPetListItem[];
+  pagination: PaginationMeta;
+}
+
+export interface GetPetsParams {
+  page?: number;
+  limit?: number;
+  type?: PetType;
+  search?: string;
+}
+
+/**
+ * AdminPetDetail
+ * - ข้อมูลสัตว์เลี้ยงแบบละเอียด 1 ตัว จาก Backend endpoint `GET /admin/pets/:id`
+ */
+export interface AdminPetDetail {
+  id: string;
+  name: string;
+  type: PetType;
+  breed: string | null;
+  gender: PetGender | null;
+  color: string | null;
+  age: number | null;
+  distinctiveFeatures: string | null;
+  description: string | null;
+  profileImageUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  owner: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  images: {
+    id: string;
+    imageUrl: string;
+    isProfile: boolean;
+  }[];
+  qrCode: {
+    id: string;
+    qrToken: string;
+    isActive: boolean;
+  } | null;
+}
+
+export interface GetPetByIdResponse {
+  pet: AdminPetDetail;
+}
+
+/**
+ * ReportStatus
+ * - สถานะการตรวจสอบรายงาน (Content Report) ตรงตาม `ReportStatus` enum ของ Backend
+ * - `PENDING` = รอตรวจสอบ, `REVIEWED` = ตรวจสอบแล้วแต่ไม่ดำเนินการ,
+ *   `REJECTED` = ตรวจสอบแล้วแต่ไม่นับเป็นการละเมิด (ยกคำร้อง), `ACTION_TAKEN` = ดำเนินการแล้ว (เช่น ซ่อนเนื้อหา)
+ */
+export type ReportStatus = 'PENDING' | 'REVIEWED' | 'REJECTED' | 'ACTION_TAKEN';
+
+/**
+ * AdminReportedContentSummary
+ * - ข้อมูลเนื้อหาที่ถูกรายงาน (โพสต์ชุมชน หรือ คอมเมนต์) แบบย่อ สำหรับแสดงพรีวิวในตารางจัดการรายงาน
+ * - `isHidden` สะท้อนผลจาก Backend endpoint `PATCH /admin/reports/:id` เมื่อแอดมินเลือก `hideContent: true`
+ */
+export interface AdminReportedContentSummary {
+  id: string;
+  content: string;
+  isHidden: boolean;
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
+}
+
+export interface AdminReportedCommunityPost extends AdminReportedContentSummary {
+  images: { imageUrl: string }[];
+}
+
+/**
+ * AdminReportListItem
+ * - รายงาน (Content Report) 1 รายการในตาราง "จัดการรายงาน" ของแอดมิน
+ * - ตรงตาม select fields ของ Backend endpoint `GET /admin/reports`
+ * - `communityPost` และ `comment` มีได้เพียงอย่างใดอย่างหนึ่งเท่านั้น (ขึ้นกับว่ารายงานอันไหนถูกรายงาน)
+ * - `reviewer`/`reviewedAt` เป็น `null` จนกว่าแอดมินจะตรวจสอบรายงานนี้
+ */
+export interface AdminReportListItem {
+  id: string;
+  reportType: string;
+  reason: string;
+  status: ReportStatus;
+  createdAt: string;
+  reviewedAt: string | null;
+  reporter: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  reviewer: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  } | null;
+  communityPost: AdminReportedCommunityPost | null;
+  comment: AdminReportedContentSummary | null;
+}
+
+export interface GetReportsResponse {
+  totalReports: number;
+  reports: AdminReportListItem[];
+}
+
+/**
+ * ReviewReportPayload
+ * - Body ที่ส่งไปยัง Backend endpoint `PATCH /admin/reports/:id` (ตรงตาม `ReviewReportDto`)
+ * - `hideContent: true` จะซ่อนโพสต์/คอมเมนต์ที่ถูกรายงานทันที (เฉพาะรายการที่ยังไม่เคยตรวจสอบ)
+ */
+export interface ReviewReportPayload {
+  status: ReportStatus;
+  hideContent?: boolean;
+}
+
+/**
+ * ReviewReportResult
+ * - ผลลัพธ์จาก Backend endpoint `PATCH /admin/reports/:id`
+ */
+export interface ReviewReportResult {
+  id: string;
+  reportType: string;
+  reason: string;
+  status: ReportStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+}
+
+export interface ReviewReportResponse {
+  report: ReviewReportResult;
+}
