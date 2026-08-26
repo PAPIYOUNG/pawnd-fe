@@ -6,6 +6,52 @@ export interface LoginPayload {
   password: string;
 }
 
+export interface RegisterPayload {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+}
+
+export interface RegisterResponse {
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: string;
+    status: string;
+    createdAt: string;
+  };
+  message: string;
+}
+
+/** สมัครบัญชีใหม่และให้ Backend ส่ง verification OTP */
+export function registerRequest(
+  payload: RegisterPayload,
+): Promise<RegisterResponse> {
+  return apiFetch<RegisterResponse>('/auth/register', {
+    method: 'POST',
+    body: { ...payload },
+  });
+}
+
+/** ยืนยันอีเมลด้วย OTP ที่ Backend สร้าง */
+export function verifyEmailRequest(email: string, otp: string): Promise<void> {
+  return apiFetch<void>('/auth/verify-email', {
+    method: 'POST',
+    body: { email, otp },
+  });
+}
+
+/** ขอ verification OTP ชุดใหม่สำหรับบัญชีที่ยัง pending */
+export function resendVerificationRequest(email: string): Promise<void> {
+  return apiFetch<void>('/auth/resend-verification', {
+    method: 'POST',
+    body: { email },
+  });
+}
+
 export async function loginRequest(
   payload: LoginPayload,
 ): Promise<LoginResponse> {
