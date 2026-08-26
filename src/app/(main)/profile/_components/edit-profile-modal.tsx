@@ -28,12 +28,12 @@ import {
   confirmEmailChangeAction,
 } from '../_actions/profile.actions';
 
-// Schema ตรวจสอบข้อมูลโปรไฟล์ที่แก้ไขได้ (ไม่รวม role, status, createdAt, id, email)
+// Schema ตรวจสอบข้อมูลโปรไฟล์ที่แก้ไขได้ (ไม่รวม role, status, createdAt, id, email, lineId)
+// หมายเหตุ: lineId ไม่รวมอยู่ในฟอร์มนี้เพราะ Backend DTO (UpdateProfileDto) ไม่รองรับการแก้ไขฟิลด์นี้
 const profileSchema = z.object({
   firstName: z.string().min(1, 'กรุณากรอกชื่อจริง'),
   lastName: z.string().min(1, 'กรุณากรอกนามสกุล'),
   phone: z.string().optional(),
-  lineId: z.string().optional(),
   address: z.string().optional(),
 });
 
@@ -52,7 +52,8 @@ interface EditProfileModalProps {
  * - แก้ไขได้ทุกฟิลด์ ยกเว้น รหัสผู้ใช้ (ID), บทบาท (role) และวันที่สมัครสมาชิก (createdAt) ซึ่งล็อกไว้เสมอ
  * - การเปลี่ยนอีเมลแยกเป็นขั้นตอนพิเศษ: กรอกอีเมลใหม่ -> ส่ง OTP ไปอีเมลนั้น -> กรอก OTP ยืนยัน
  *   -> อีเมลจะถูกอัปเดตจริงก็ต่อเมื่อยืนยัน OTP สำเร็จเท่านั้น (Backend: PATCH /users/me/email, POST /users/me/email/verify)
- * - ฟิลด์ทั่วไป (ชื่อ, นามสกุล, เบอร์โทร, LINE ID, ที่อยู่) บันทึกผ่านปุ่ม "บันทึก" แยกจากขั้นตอนเปลี่ยนอีเมล
+ * - ฟิลด์ทั่วไป (ชื่อ, นามสกุล, เบอร์โทร, ที่อยู่) บันทึกผ่านปุ่ม "บันทึก" แยกจากขั้นตอนเปลี่ยนอีเมล
+ * - LINE ID แสดงเป็นข้อมูลอย่างเดียว (ล็อกไว้) เพราะ Backend ยังไม่มี endpoint ให้แก้ไขฟิลด์นี้
  */
 export function EditProfileModal({ user }: EditProfileModalProps) {
   const router = useRouter();
@@ -87,7 +88,6 @@ export function EditProfileModal({ user }: EditProfileModalProps) {
       firstName: user.firstName,
       lastName: user.lastName,
       phone: user.phone || '',
-      lineId: user.lineId || '',
       address: user.address || '',
     },
   });
@@ -104,7 +104,6 @@ export function EditProfileModal({ user }: EditProfileModalProps) {
       firstName: user.firstName,
       lastName: user.lastName,
       phone: user.phone || '',
-      lineId: user.lineId || '',
       address: user.address || '',
     });
     setStep('form');
@@ -272,8 +271,8 @@ export function EditProfileModal({ user }: EditProfileModalProps) {
                 )}
 
                 <form onSubmit={onSubmitProfile} className="mt-5 flex flex-col gap-4">
-                  {/* ฟิลด์ที่ล็อกไว้ ห้ามแก้ไข: ID, บทบาท, วันที่สมัครสมาชิก */}
-                  <div className="grid grid-cols-1 gap-3 rounded-2xl border border-border/60 bg-muted/20 p-3.5 sm:grid-cols-3">
+                  {/* ฟิลด์ที่ล็อกไว้ ห้ามแก้ไข: ID, บทบาท, วันที่สมัครสมาชิก, LINE ID (Backend ยังไม่มี endpoint ให้แก้ไข) */}
+                  <div className="grid grid-cols-1 gap-3 rounded-2xl border border-border/60 bg-muted/20 p-3.5 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="flex flex-col gap-1">
                       <span className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
                         <Lock className="size-3" /> รหัสผู้ใช้ (ID)
@@ -291,6 +290,12 @@ export function EditProfileModal({ user }: EditProfileModalProps) {
                         <Lock className="size-3" /> วันที่สมัครสมาชิก
                       </span>
                       <span className="text-xs font-bold text-foreground">{createdAtFull}</span>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+                        <Lock className="size-3" /> LINE ID
+                      </span>
+                      <span className="truncate text-xs font-bold text-foreground">{user.lineId || 'ไม่ระบุ'}</span>
                     </div>
                   </div>
 
@@ -380,20 +385,12 @@ export function EditProfileModal({ user }: EditProfileModalProps) {
                     )}
                   </div>
 
-                  {/* เบอร์โทรศัพท์ / LINE ID */}
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="phone" className="text-xs font-semibold">
-                        เบอร์โทรศัพท์
-                      </Label>
-                      <Input id="phone" placeholder="ไม่ระบุ" className="rounded-2xl" {...register('phone')} />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="lineId" className="text-xs font-semibold">
-                        LINE ID
-                      </Label>
-                      <Input id="lineId" placeholder="ไม่ระบุ" className="rounded-2xl" {...register('lineId')} />
-                    </div>
+                  {/* เบอร์โทรศัพท์ */}
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="phone" className="text-xs font-semibold">
+                      เบอร์โทรศัพท์
+                    </Label>
+                    <Input id="phone" placeholder="ไม่ระบุ" className="rounded-2xl" {...register('phone')} />
                   </div>
 
                   {/* ที่อยู่ */}
