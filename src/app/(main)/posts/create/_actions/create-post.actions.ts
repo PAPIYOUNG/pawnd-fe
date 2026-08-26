@@ -25,6 +25,7 @@ export async function createPostAction(
     revalidatePath('/');
     return { success: true, data: post };
   } catch (error) {
+    unstable_rethrow(error);
     const message =
       error instanceof Error ? error.message : 'ไม่สามารถสร้างประกาศได้';
     return { success: false, error: message };
@@ -56,6 +57,7 @@ export async function uploadPostImagesAction(
     revalidatePath('/posts');
     return { success: true, data: result };
   } catch (error) {
+    unstable_rethrow(error);
     const message =
       error instanceof Error ? error.message : 'ไม่สามารถอัปโหลดรูปภาพได้';
     return { success: false, error: message };
@@ -97,6 +99,7 @@ export async function analyzeImageAction(imageUrl: string) {
     const result = await analyzeImage(imageUrl);
     return { success: true, data: result };
   } catch (error) {
+    unstable_rethrow(error);
     const message =
       error instanceof Error ? error.message : 'ไม่สามารถวิเคราะห์รูปภาพได้';
     return { success: false, error: message };
