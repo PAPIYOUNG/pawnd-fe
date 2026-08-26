@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { CheckCircle2, Mail, Phone, Calendar, Edit3 } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Edit3 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { UserProfile } from '@/types/user';
@@ -14,14 +14,13 @@ interface UserProfileHeaderProps {
  * UserProfileHeader Component (Client Component)
  * - การ์ดข้อมูลโปรไฟล์ผู้ใช้งานด้านบนสุด (User Profile Header Card)
  * - ออกแบบ Responsive ให้พอดีและสวยงามทั้งบนมือถือและคอมพิวเตอร์
- * - แสดงรูป Avatar, ชื่อ-นามสกุล, ป้ายยืนยันตัวตนแล้ว (Verified Badge)
- * - แสดงอีเมล เบอร์โทรศัพท์ วันที่สมัครสมาชิก และปุ่มแก้ไขโปรไฟล์
+ * - แสดงรูป Avatar, ชื่อ-นามสกุล และป้ายสถานะยืนยันตัวตน (เขียว = ยืนยันแล้ว, แดง = ยังไม่ยืนยัน)
+ *   เช็คจาก user.verificationStatus จริงจาก Backend
+ * - ปุ่มแก้ไขโปรไฟล์
  */
 export function UserProfileHeader({ user }: UserProfileHeaderProps) {
-  const memberDate = new Date(user.createdAt).toLocaleDateString('th-TH', {
-    month: 'short',
-    year: 'numeric',
-  });
+  // เช็คสถานะยืนยันตัวตนจริงจาก Backend แทนการ hardcode
+  const isVerified = user.verificationStatus === 'VERIFIED';
 
   return (
     <div className="flex flex-col gap-5 rounded-3xl border border-border/80 bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-7 dark:border-border/60">
@@ -48,27 +47,17 @@ export function UserProfileHeader({ user }: UserProfileHeaderProps) {
             <h2 className="text-lg font-bold tracking-tight text-foreground sm:text-2xl">
               คุณ{user.firstName} {user.lastName}
             </h2>
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="size-3" />
-              ยืนยันตัวตนแล้ว
-            </span>
-          </div>
-
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground sm:text-sm">
-            <span className="flex items-center gap-1">
-              <Mail className="size-3.5 text-primary" />
-              <span className="line-clamp-1">{user.email}</span>
-            </span>
-            {user.phone && (
-              <span className="flex items-center gap-1">
-                <Phone className="size-3.5 text-primary" />
-                <span>{user.phone}</span>
+            {isVerified ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="size-3" />
+                ยืนยันตัวตนแล้ว
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-bold text-destructive">
+                <AlertCircle className="size-3" />
+                ยังไม่ยืนยันตัวตน
               </span>
             )}
-            <span className="hidden items-center gap-1 sm:flex">
-              <Calendar className="size-3.5 text-primary" />
-              <span>เป็นสมาชิกตั้งแต่: {memberDate}</span>
-            </span>
           </div>
         </div>
       </div>
