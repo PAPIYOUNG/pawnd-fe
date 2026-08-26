@@ -25,12 +25,9 @@ export default async function ProfileOverviewPage() {
     getMyPosts(),
   ]);
 
-  // ใช้ข้อมูลจริงจาก Backend หรือ fallback ไปที่ mock ถ้าไม่มีข้อมูล
-  const mappedPosts =
-    myPosts.length > 0
-      ? myPosts.map(mapPostToLatestItem)
-      : user.postsHistory;
-  const pets = myPets.length > 0 ? myPets : user.pets;
+  // แปลงรายการประกาศจาก Backend
+  const mappedPosts = myPosts.map(mapPostToLatestItem);
+  const pets = myPets;
 
   const totalActiveLost = myPosts.filter((p) => p.status === 'ACTIVE').length;
   const totalReunited = myPosts.filter((p) => p.status === 'REUNITED').length;
@@ -42,10 +39,11 @@ export default async function ProfileOverviewPage() {
 
       {/* 2. ส่วนสถิติ 3 กล่องข้อมูล คำนวณจากข้อมูลจริง */}
       <UserStatsGrid
-        totalPets={pets?.length ?? user.stats?.totalPets}
-        totalLostPosts={totalActiveLost || user.stats?.totalLostPosts}
-        totalReunited={totalReunited || user.stats?.totalReunited}
+        totalPets={pets.length}
+        totalLostPosts={totalActiveLost}
+        totalReunited={totalReunited}
       />
+
 
       {/* 3. ส่วนสัตว์เลี้ยงของฉัน */}
       <UserMyPetsGrid pets={pets} />

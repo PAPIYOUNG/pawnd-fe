@@ -12,10 +12,11 @@ interface UserStatsGridProps {
  * - ปรับขนาด Responsive ให้พอดีและสวยงามทั้งบนหน้าจอมือถือ (3 คอลัมน์) และคอมพิวเตอร์
  */
 export function UserStatsGrid({
-  totalPets = 3,
-  totalLostPosts = 5,
-  totalReunited = 2,
+  totalPets = 0,
+  totalLostPosts = 0,
+  totalReunited = 0,
 }: UserStatsGridProps) {
+
   const stats = [
     {
       value: `${totalPets} ตัว`,
