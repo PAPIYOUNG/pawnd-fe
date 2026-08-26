@@ -39,10 +39,8 @@ export default async function ProfileDashboardPage() {
   ]);
 
   const totalPets = myPets.length;
-  const dogCount = myPets.filter((p) => p.type === 'DOG').length;
-  const catCount = myPets.filter((p) => p.type === 'CAT').length;
-  const activePosts = myPosts.filter((p) => p.status === 'ACTIVE').length;
-  const totalReunited = myPosts.filter((p) => p.status === 'REUNITED').length;
+  const activeLostPosts = myPosts.filter((p) => p.status === 'ACTIVE' && p.type === 'LOST').length;
+  const activeFoundPosts = myPosts.filter((p) => p.status === 'ACTIVE' && p.type === 'FOUND').length;
 
   const dashboardPosts: MyPostDashboardItem[] | undefined =
     myPosts.length > 0
@@ -80,11 +78,9 @@ export default async function ProfileDashboardPage() {
 
         <DashboardMetrics
           totalPets={totalPets}
-          activePosts={activePosts || (user.stats?.totalLostPosts ?? 0)}
-          totalReunited={totalReunited || (user.stats?.totalReunited ?? 0)}
+          activeLostPosts={activeLostPosts}
+          activeFoundPosts={activeFoundPosts}
           unreadMessages={0}
-          dogCount={dogCount}
-          catCount={catCount}
         />
 
         <DashboardMyPosts initialPosts={dashboardPosts} />
