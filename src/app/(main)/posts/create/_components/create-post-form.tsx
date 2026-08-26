@@ -9,6 +9,8 @@ import {
   Plus,
   X,
   Sparkles,
+  Search,
+  PawPrint,
   MapPin,
   Calendar,
   Phone,
@@ -29,15 +31,37 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { PetGender, PetType } from '@/types/post';
+import type { PetGender, PetType, PostType } from '@/types/post';
 import { AiAnalysisResult } from '@/services/ai.service';
-import { createPostAction, analyzeImageAction } from '../_actions/create-post.actions';
+import {
+  createPostAction,
+  analyzeImageAction,
+  uploadPostImagesAction,
+} from '../_actions/create-post.actions';
 
 // ขนาดด้านยาวสุดของรูปหลัง resize และคุณภาพ JPEG ที่ใช้ส่งให้ AI วิเคราะห์
 // รูปจากกล้องมือถือ (2-8MB) พอ resize ตามนี้แล้วมักจะเหลือไม่เกินไม่กี่ร้อย KB
 // ป้องกัน error "Body exceeded 1 MB limit" ของ Next.js Server Action ตอนส่ง Base64
 const AI_IMAGE_MAX_DIMENSION = 1024;
 const AI_IMAGE_JPEG_QUALITY = 0.8;
+
+/** ตัวเลือกประเภทประกาศที่ตรงกับ PostType enum ของ Backend */
+const POST_TYPE_OPTIONS: Array<{
+  value: PostType;
+  title: string;
+  description: string;
+}> = [
+  {
+    value: 'LOST',
+    title: 'สัตว์เลี้ยงของฉันหาย',
+    description: 'ฉันกำลังตามหาสัตว์เลี้ยงของตัวเอง',
+  },
+  {
+    value: 'FOUND',
+    title: 'ฉันพบสัตว์',
+    description: 'ฉันพบสัตว์ที่อาจเป็นของคนอื่น',
+  },
+];
 
 /**
  * ย่อขนาดรูปภาพด้วย Canvas แล้วแปลงเป็น Base64 Data URL (JPEG)
@@ -85,7 +109,8 @@ function getImageKey(file: File | null, fallbackUrl: string): string {
 
 /**
  * CreatePostForm Component (Client Component)
- * - ฟอร์มสร้างประกาศแจ้งสัตว์เลี้ยงหายแบบ 2 ขั้นตอน (2-Step Streamlined Flow):
+ * - ฟอร์มสร้างประกาศ Lost & Found แบบ 3 ขั้นตอน:
+ *   Step 0: เลือกประเภทประกาศ
  *   Step 1: กรอกข้อมูลสัตว์เลี้ยงและอัปโหลดรูปภาพ
  *   Step 2: ตรวจสอบและดูตัวอย่างประกาศ (Live Preview) ก่อนยืนยันเผยแพร่
  * - รองรับระบบ AI วิเคราะห์ภาพถ่ายและช่วยเขียนคำบรรยาย
@@ -94,8 +119,11 @@ export function CreatePostForm() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // State ขั้นตอน: 1 = กรอกข้อมูล, 2 = ตรวจสอบ & ดูตัวอย่าง (Preview)
-  const [currentStep, setCurrentStep] = useState<1 | 2>(1);
+  // State ขั้นตอน: 0 = เลือกประเภท, 1 = กรอกข้อมูล, 2 = ตรวจสอบ & ดูตัวอย่าง
+  const [currentStep, setCurrentStep] = useState<0 | 1 | 2>(0);
+
+  // State ประเภทประกาศที่เลือก ซึ่งจะถูกส่งเป็น PostType ไปยัง Backend ตอนเผยแพร่
+  const [postType, setPostType] = useState<PostType | null>(null);
 
   // State รูปภาพที่อัปโหลด (สูงสุด 5 รูป) — เก็บเป็น Preview URL สำหรับแสดงผล
   const [images, setImages] = useState<string[]>([
@@ -126,6 +154,8 @@ export function CreatePostForm() {
   const [isAnalyzingAi, setIsAnalyzingAi] = useState(false);
   const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  // เก็บ id ของโพสต์ที่สร้างสำเร็จแต่ยังอัปโหลดรูปไม่ผ่าน เพื่อให้กดลองอัปโหลดซ้ำได้โดยไม่สร้างโพสต์ซ้ำ
+  const [pendingUploadPostId, setPendingUploadPostId] = useState<string | null>(null);
   const [showToast, setShowToast] = useState<string | null>(null);
 
   // Cache ผลวิเคราะห์ AI ล่าสุด ผูกกับ imageKey ของรูปที่ใช้วิเคราะห์
@@ -247,6 +277,11 @@ export function CreatePostForm() {
   // ไปยังขั้นตอนที่ 2 (ตรวจสอบก่อนยืนยัน)
   const handleGoToReview = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!postType) {
+      setCurrentStep(0);
+      setShowToast('กรุณาเลือกประเภทประกาศก่อนกรอกข้อมูล');
+      return;
+    }
     if (!petName || !breed || !locationDescription || !contactPhone) {
       alert('กรุณากรอกข้อมูลสำคัญให้ครบถ้วนก่อนไปขั้นตอนตรวจสอบ');
       return;
@@ -258,36 +293,86 @@ export function CreatePostForm() {
   // ยืนยันและเผยแพร่ประกาศทันที (เชื่อมต่อ Backend createPostAction)
   const handleFinalPublish = async () => {
     setIsPublishing(true);
-    const numReward = rewardAmount ? parseInt(rewardAmount.replace(/,/g, ''), 10) : undefined;
 
-    const res = await createPostAction({
-      type: 'LOST',
-      petName,
-      petType,
-      breed,
-      gender,
-      color,
-      distinctiveFeatures,
-      locationDescription,
-      eventDate: new Date().toISOString(),
-      latitude: 13.7563,
-      longitude: 100.5018,
-      rewardAmount: isNaN(numReward as number) ? undefined : numReward,
-      contactPhone,
-    });
+    try {
+      if (!postType) {
+        setCurrentStep(0);
+        setShowToast('กรุณาเลือกประเภทประกาศก่อนเผยแพร่');
+        return;
+      }
 
-    setIsPublishing(false);
-    if (res.success) {
-      setShowToast('เผยแพร่ประกาศสำเร็จ! ระบบกำลังเริ่มค้นหาด้วย AI Smart Matching');
+      const selectedFiles = imageFiles.filter(
+        (file): file is File => file !== null,
+      );
+
+      if (selectedFiles.length === 0) {
+        setShowToast('กรุณาอัปโหลดรูปภาพอย่างน้อย 1 รูปก่อนเผยแพร่ประกาศ');
+        return;
+      }
+
+      // สร้าง FormData เฉพาะจากไฟล์จริง แล้วส่งไปยัง endpoint รูปภาพหลังมี post id แล้ว
+      const uploadImages = async (postId: string) => {
+        const formData = new FormData();
+        selectedFiles.forEach((file) => formData.append('images', file));
+        return uploadPostImagesAction(postId, formData);
+      };
+
+      let postId = pendingUploadPostId;
+
+      // ถ้ามีโพสต์ค้างจากการอัปโหลดครั้งก่อน ให้ลอง upload ต่อโดยไม่สร้างโพสต์ใหม่
+      if (!postId) {
+        const numReward = rewardAmount
+          ? parseInt(rewardAmount.replace(/,/g, ''), 10)
+          : undefined;
+        const res = await createPostAction({
+          type: postType,
+          petName,
+          petType,
+          breed,
+          gender,
+          color,
+          distinctiveFeatures,
+          locationDescription,
+          eventDate: new Date().toISOString(),
+          latitude: 13.7563,
+          longitude: 100.5018,
+          rewardAmount: isNaN(numReward as number) ? undefined : numReward,
+          contactPhone,
+        });
+
+        if (!res.success) {
+          setShowToast(
+            res.error ||
+              'เกิดข้อผิดพลาดในการเผยแพร่ประกาศ กรุณาเข้าสู่ระบบและลองใหม่อีกครั้ง',
+          );
+          return;
+        }
+
+        postId = res.data.post.id;
+        setPendingUploadPostId(postId);
+      }
+
+      const uploadRes = await uploadImages(postId);
+      if (!uploadRes.success) {
+        setShowToast(
+          `สร้างประกาศแล้ว แต่อัปโหลดรูปภาพไม่สำเร็จ: ${uploadRes.error ?? 'กรุณาลองใหม่อีกครั้ง'}`,
+        );
+        return;
+      }
+
+      setPendingUploadPostId(null);
+      setShowToast(
+        'เผยแพร่ประกาศและอัปโหลดรูปภาพสำเร็จ! ระบบกำลังเริ่มค้นหาด้วย AI Smart Matching',
+      );
       router.refresh();
       setTimeout(() => {
-        router.push(res.data?.id ? `/posts/${res.data.id}` : '/posts');
+        router.push(`/posts/${postId}`);
       }, 1500);
-    } else {
-      setShowToast(res.error || 'เกิดข้อผิดพลาดในการเผยแพร่ประกาศ กรุณาเข้าสู่ระบบและลองใหม่อีกครั้ง');
-      setTimeout(() => {
-        setShowToast(null);
-      }, 4000);
+    } catch {
+      setShowToast('เกิดข้อผิดพลาดในการเผยแพร่ประกาศ กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      setIsPublishing(false);
+      setTimeout(() => setShowToast(null), 4000);
     }
   };
 
@@ -322,14 +407,24 @@ export function CreatePostForm() {
   return (
     <div className="flex flex-col gap-6 sm:gap-8">
       {/* 1. ส่วนหัวของหน้าประกาศ */}
-      <div>
+      <div className={cn(currentStep === 0 && 'text-center')}>
         <h1 className="text-2xl font-bold tracking-tight text-emerald-800 dark:text-emerald-400 sm:text-3xl lg:text-4xl">
-          {currentStep === 1 ? 'แจ้งสัตว์เลี้ยงหาย' : 'ตรวจสอบและยืนยันประกาศ'}
+          {currentStep === 0
+            ? 'เลือกประเภทประกาศที่ตรงกับสถานการณ์ของคุณ'
+            : currentStep === 1
+              ? postType === 'FOUND'
+                ? 'แจ้งพบสัตว์'
+                : 'แจ้งสัตว์เลี้ยงหาย'
+              : 'ตรวจสอบและยืนยันประกาศ'}
         </h1>
         <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-          {currentStep === 1
-            ? 'กรอกข้อมูลสัตว์เลี้ยงของคุณเพื่อสร้างประกาศตามหาในระบบ แผนที่ และแชร์ไปยังชุมชน'
-            : 'ตรวจสอบความถูกต้องของข้อมูลและตัวอย่างประกาศก่อนเผยแพร่สู่ระบบ'}
+          {currentStep === 0
+            ? 'เลือกประเภทประกาศเพื่อเริ่มกรอกข้อมูล'
+            : currentStep === 1
+              ? postType === 'FOUND'
+                ? 'กรอกข้อมูลสัตว์ที่พบ เพื่อช่วยตามหาเจ้าของผ่านระบบและชุมชน'
+                : 'กรอกข้อมูลสัตว์เลี้ยงของคุณเพื่อสร้างประกาศตามหาในระบบ แผนที่ และแชร์ไปยังชุมชน'
+              : 'ตรวจสอบความถูกต้องของข้อมูลและตัวอย่างประกาศก่อนเผยแพร่สู่ระบบ'}
         </p>
       </div>
 
@@ -341,81 +436,183 @@ export function CreatePostForm() {
         </div>
       )}
 
-      {/* 2. ตัวระบุความคืบหน้า 2-Step Wizard (ขยับเข้ามาตรงกลางให้กระชับและสมดุล) */}
-      <div className="flex items-center justify-center rounded-3xl border border-border/80 bg-card p-4 shadow-2xs sm:p-5">
-        <div className="flex items-center justify-center gap-3 sm:gap-6 max-w-lg w-full">
-          {/* Step 1 */}
-          <button
-            type="button"
-            onClick={() => setCurrentStep(1)}
-            className="flex items-center gap-2.5 text-left group cursor-pointer shrink-0"
-          >
-            <div
-              className={cn(
-                'flex size-8.5 items-center justify-center rounded-full text-xs font-bold shadow-xs transition-colors',
-                currentStep === 1
-                  ? 'bg-emerald-700 text-white ring-4 ring-emerald-600/15'
-                  : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400'
-              )}
+      {/* 2. ตัวระบุความคืบหน้าของฟอร์มหลังเลือกประเภทประกาศแล้ว */}
+      {currentStep !== 0 && (
+        <div className="flex items-center justify-center rounded-3xl border border-border/80 bg-card p-4 shadow-2xs sm:p-5">
+          <div className="flex items-center justify-center gap-3 sm:gap-6 max-w-lg w-full">
+            {/* Step 1 */}
+            <button
+              type="button"
+              onClick={() => setCurrentStep(1)}
+              className="flex items-center gap-2.5 text-left group cursor-pointer shrink-0"
             >
-              {currentStep === 2 ? <Check className="size-4 stroke-[3]" /> : '1'}
-            </div>
-            <div className="flex flex-col">
-              <span
+              <div
                 className={cn(
-                  'text-xs font-bold sm:text-sm transition-colors',
+                  'flex size-8.5 items-center justify-center rounded-full text-xs font-bold shadow-xs transition-colors',
                   currentStep === 1
-                    ? 'text-emerald-800 dark:text-emerald-400'
-                    : 'text-foreground'
+                    ? 'bg-emerald-700 text-white ring-4 ring-emerald-600/15'
+                    : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400'
                 )}
               >
-                ข้อมูลสัตว์เลี้ยง
-              </span>
-              <span className="text-[10px] text-muted-foreground hidden sm:inline">
-                รูปภาพและรายละเอียด
-              </span>
-            </div>
-          </button>
+                {currentStep === 2 ? <Check className="size-4 stroke-[3]" /> : '1'}
+              </div>
+              <div className="flex flex-col">
+                <span
+                  className={cn(
+                    'text-xs font-bold sm:text-sm transition-colors',
+                    currentStep === 1
+                      ? 'text-emerald-800 dark:text-emerald-400'
+                      : 'text-foreground'
+                  )}
+                >
+                  ข้อมูลสัตว์เลี้ยง
+                </span>
+                <span className="text-[10px] text-muted-foreground hidden sm:inline">
+                  รูปภาพและรายละเอียด
+                </span>
+              </div>
+            </button>
 
-          {/* เส้นเชื่อมต่อระหว่าง Step (ความยาวพอดี ไม่ห่างเกินไป) */}
-          <div className="h-0.5 w-12 sm:w-20 bg-border rounded-full shrink-0" />
+            {/* เส้นเชื่อมต่อระหว่าง Step (ความยาวพอดี ไม่ห่างเกินไป) */}
+            <div className="h-0.5 w-12 sm:w-20 bg-border rounded-full shrink-0" />
 
-          {/* Step 2 */}
-          <div className="flex items-center gap-2.5 text-left shrink-0">
-            <div
-              className={cn(
-                'flex size-8.5 items-center justify-center rounded-full text-xs font-bold shadow-xs transition-colors',
-                currentStep === 2
-                  ? 'bg-emerald-700 text-white ring-4 ring-emerald-600/15'
-                  : 'bg-muted text-muted-foreground'
-              )}
-            >
-              2
-            </div>
-            <div className="flex flex-col">
-              <span
+            {/* Step 2 */}
+            <div className="flex items-center gap-2.5 text-left shrink-0">
+              <div
                 className={cn(
-                  'text-xs font-bold sm:text-sm transition-colors',
+                  'flex size-8.5 items-center justify-center rounded-full text-xs font-bold shadow-xs transition-colors',
                   currentStep === 2
-                    ? 'text-emerald-800 dark:text-emerald-400'
-                    : 'text-muted-foreground'
+                    ? 'bg-emerald-700 text-white ring-4 ring-emerald-600/15'
+                    : 'bg-muted text-muted-foreground'
                 )}
               >
-                ตรวจสอบ & ยืนยัน
-              </span>
-              <span className="text-[10px] text-muted-foreground hidden sm:inline">
-                ดูตัวอย่างก่อนเผยแพร่
-              </span>
+                2
+              </div>
+              <div className="flex flex-col">
+                <span
+                  className={cn(
+                    'text-xs font-bold sm:text-sm transition-colors',
+                    currentStep === 2
+                      ? 'text-emerald-800 dark:text-emerald-400'
+                      : 'text-muted-foreground'
+                  )}
+                >
+                  ตรวจสอบ & ยืนยัน
+                </span>
+                <span className="text-[10px] text-muted-foreground hidden sm:inline">
+                  ดูตัวอย่างก่อนเผยแพร่
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* 3. STEP 0: เลือกประเภทประกาศก่อนเริ่มกรอกข้อมูล */}
+      {currentStep === 0 && (
+        <section className="mx-auto w-full max-w-2xl animate-in fade-in duration-200">
+          <div className="rounded-3xl border border-border/80 bg-card p-5 shadow-sm sm:p-8">
+            <div
+              role="radiogroup"
+              aria-label="ประเภทประกาศ"
+              className="flex flex-col gap-4"
+            >
+              {POST_TYPE_OPTIONS.map((option) => {
+                const isSelected = postType === option.value;
+
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    onClick={() => setPostType(option.value)}
+                    className={cn(
+                      'flex min-h-28 w-full items-center gap-4 rounded-3xl border-2 px-5 py-5 text-left transition-all sm:px-7',
+                      isSelected
+                        ? 'border-primary bg-primary/5 ring-2 ring-primary/15'
+                        : 'border-border bg-background hover:border-primary/50 hover:bg-muted/30',
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'flex size-12 shrink-0 items-center justify-center rounded-2xl',
+                        isSelected
+                          ? 'bg-primary/15 text-primary'
+                          : 'bg-muted text-muted-foreground',
+                      )}
+                    >
+                      {option.value === 'LOST' ? (
+                        <Search className="size-7" aria-hidden="true" />
+                      ) : (
+                        <PawPrint className="size-7" aria-hidden="true" />
+                      )}
+                    </div>
+
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-base font-bold text-foreground sm:text-lg">
+                        {option.title}
+                      </span>
+                      <span className="mt-1 block text-xs text-muted-foreground sm:text-sm">
+                        {option.description}
+                      </span>
+                    </span>
+
+                    <span
+                      className={cn(
+                        'flex size-6 shrink-0 items-center justify-center rounded-full border-2',
+                        isSelected
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-muted-foreground/40',
+                      )}
+                      aria-hidden="true"
+                    >
+                      {isSelected && <Check className="size-4 stroke-[3]" />}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <Button
+              type="button"
+              disabled={!postType}
+              onClick={() => {
+                if (!postType) return;
+                setCurrentStep(1);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="mt-7 h-12 w-full rounded-2xl text-base font-bold"
+            >
+              ถัดไป
+              <ArrowRight className="ml-2 size-5" />
+            </Button>
+          </div>
+        </section>
+      )}
 
       {/* ========================================================================= */}
-      {/* 3. STEP 1: หน้าฟอร์มกรอกข้อมูลสัตว์เลี้ยง (Form View) */}
+      {/* 4. STEP 1: หน้าฟอร์มกรอกข้อมูลสัตว์เลี้ยง (Form View) */}
       {/* ========================================================================= */}
       {currentStep === 1 && (
         <div className="rounded-3xl border border-border/80 bg-card p-5 shadow-sm sm:p-8 lg:p-10 dark:border-border/60 animate-in fade-in duration-200">
+          <div className="mb-6 flex items-center justify-between gap-3 border-b border-border/60 pb-5">
+            <div>
+              <span className="text-xs text-muted-foreground">ประเภทประกาศ</span>
+              <p className="text-sm font-bold text-foreground sm:text-base">
+                {postType === 'FOUND' ? 'ฉันพบสัตว์' : 'สัตว์เลี้ยงของฉันหาย'}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setCurrentStep(0)}
+              className="text-xs font-bold text-primary sm:text-sm"
+            >
+              เปลี่ยนประเภท
+            </Button>
+          </div>
           <form onSubmit={handleGoToReview} className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
             {/* ฝั่งซ้าย: รูปภาพสัตว์เลี้ยง (Pet Images) */}
             <div className="flex flex-col gap-4 lg:col-span-5">
@@ -653,7 +850,8 @@ export function CreatePostForm() {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="location" className="text-xs font-semibold">
-                    พิกัด/สถานที่หาย <span className="text-destructive">*</span>
+                    {postType === 'FOUND' ? 'พิกัด/สถานที่พบ' : 'พิกัด/สถานที่หาย'}{' '}
+                    <span className="text-destructive">*</span>
                   </Label>
                   <div className="relative">
                     <MapPin className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-primary" />
@@ -670,7 +868,8 @@ export function CreatePostForm() {
 
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="datetime" className="text-xs font-semibold">
-                    วันที่และเวลาที่หาย <span className="text-destructive">*</span>
+                    วันที่และเวลาที่{postType === 'FOUND' ? 'พบ' : 'หาย'}{' '}
+                    <span className="text-destructive">*</span>
                   </Label>
                   <div className="relative">
                     <Calendar className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-primary" />
@@ -748,7 +947,7 @@ export function CreatePostForm() {
       )}
 
       {/* ========================================================================= */}
-      {/* 4. STEP 2: หน้าตรวจสอบและดูตัวอย่างประกาศ (Live Preview View) */}
+      {/* 5. STEP 2: หน้าตรวจสอบและดูตัวอย่างประกาศ (Live Preview View) */}
       {/* ========================================================================= */}
       {currentStep === 2 && (
         <div className="flex flex-col gap-6 animate-in fade-in duration-200">
@@ -790,7 +989,7 @@ export function CreatePostForm() {
                   />
                   <div className="absolute top-3 left-3">
                     <span className="rounded-full bg-destructive px-3 py-1 text-xs font-bold text-white shadow-xs">
-                      ตามหา (LOST)
+                      {postType === 'FOUND' ? 'พบสัตว์ (FOUND)' : 'ตามหา (LOST)'}
                     </span>
                   </div>
 
@@ -880,7 +1079,9 @@ export function CreatePostForm() {
                   </div>
                   <div className="flex items-center gap-2 text-foreground font-semibold">
                     <Calendar className="size-4 text-emerald-600 shrink-0" />
-                    <span>เวลาที่หาย: {eventDate}</span>
+                    <span>
+                      วันที่และเวลาที่{postType === 'FOUND' ? 'พบ' : 'หาย'}: {eventDate}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 text-foreground font-semibold">
                     <Phone className="size-4 text-emerald-600 shrink-0" />
@@ -919,7 +1120,13 @@ export function CreatePostForm() {
               ) : (
                 <Sparkles className="size-4" />
               )}
-              <span>{isPublishing ? 'กำลังเผยแพร่...' : 'ยืนยันและเผยแพร่ประกาศ'}</span>
+              <span>
+                {isPublishing
+                  ? 'กำลังเผยแพร่...'
+                  : pendingUploadPostId
+                    ? 'ลองอัปโหลดรูปภาพอีกครั้ง'
+                    : 'ยืนยันและเผยแพร่ประกาศ'}
+              </span>
             </Button>
           </div>
         </div>
