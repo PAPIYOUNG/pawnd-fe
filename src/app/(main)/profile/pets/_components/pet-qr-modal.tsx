@@ -38,13 +38,12 @@ export function PetQrModal({ pet, isOpen, onClose, onQrCodeChange }: PetQrModalP
   const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDeactivating, setIsDeactivating] = useState(false);
-  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   if (!isOpen || !pet) return null;
 
   const qrCode = pet.qrCode;
-  const isBusy = isGenerating || isDeactivating || isDownloadingPdf;
+  const isBusy = isGenerating || isDeactivating;
 
   // สร้าง QR Code Image URL ผ่าน standard qr service (ใช้เมื่อ backend ยังไม่ได้แนบไฟล์ภาพ qrImageUrl มาให้)
   const buildQrImageUrl = (url: string) =>
@@ -89,28 +88,10 @@ export function PetQrModal({ pet, isOpen, onClose, onQrCodeChange }: PetQrModalP
     setIsDeactivating(false);
   };
 
-  // ดาวน์โหลดไฟล์ PDF ป้ายปลอกคอ ผ่าน route ภายในที่พร็อกซีไปยัง GET /pets/public/qr/:qrToken/pdf
-  const handleDownloadPdf = async () => {
+  // เปิดไฟล์ PDF ป้ายปลอกคอในแท็บใหม่ ผ่าน route ภายในที่พร็อกซีไปยัง GET /pets/public/qr/:qrToken/pdf
+  const handlePrintPdf = () => {
     if (!qrCode) return;
-    setIsDownloadingPdf(true);
-    setActionError(null);
-    try {
-      const res = await fetch(`/api/pets/qr/${qrCode.qrToken}/pdf`);
-      if (!res.ok) throw new Error('ไม่สามารถสร้างไฟล์ PDF ป้ายปลอกคอได้');
-      const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = objectUrl;
-      link.download = `pawnd-collar-tag-${pet.name}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(objectUrl);
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'ไม่สามารถดาวน์โหลดไฟล์ PDF ได้');
-    } finally {
-      setIsDownloadingPdf(false);
-    }
+    window.open(`/api/pets/qr/${qrCode.qrToken}/pdf`, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -261,16 +242,12 @@ export function PetQrModal({ pet, isOpen, onClose, onQrCodeChange }: PetQrModalP
                 </a>
                 <Button
                   type="button"
-                  onClick={handleDownloadPdf}
+                  onClick={handlePrintPdf}
                   disabled={isBusy}
                   className="flex-1 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-md transition-transform hover:scale-105"
                 >
-                  {isDownloadingPdf ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <ExternalLink className="size-4" />
-                  )}
-                  <span>{isDownloadingPdf ? 'กำลังสร้างไฟล์...' : 'พิมพ์ป้ายปลอกคอ'}</span>
+                  <ExternalLink className="size-4" />
+                  <span>พิมพ์ PDF</span>
                 </Button>
               </div>
             ) : (
