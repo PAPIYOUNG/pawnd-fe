@@ -27,6 +27,7 @@ import {
   ShieldCheck,
   AlertCircle,
   Coins,
+  Info,
   Loader2,
 } from 'lucide-react';
 
@@ -66,6 +67,14 @@ const ALLOWED_POST_IMAGE_TYPES = new Set([
   'image/png',
   'image/webp',
 ]);
+
+type ToastVariant = 'success' | 'error' | 'info';
+
+interface ToastState {
+  message: string;
+  variant: ToastVariant;
+  duration: number;
+}
 
 const CreatePostLocationMap = dynamic(
   () => import('@/components/map/RealLeafletMap'),
@@ -402,13 +411,23 @@ export function CreatePostForm() {
   const [pendingUploadPostId, setPendingUploadPostId] = useState<string | null>(
     null,
   );
-  const [showToast, setShowToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
 
-  /** แสดงข้อความชั่วคราวสำหรับผลการเลือกไฟล์หรือข้อผิดพลาดจาก Browser */
-  const notify = (message: string, duration = 3000) => {
-    setShowToast(message);
-    window.setTimeout(() => setShowToast(null), duration);
+  /** แสดงข้อความชั่วคราวพร้อมสถานะที่สื่อความหมายตรงกับผลลัพธ์ */
+  const notify = (
+    message: string,
+    duration = 3000,
+    variant: ToastVariant = 'error',
+  ) => {
+    setToast({ message, variant, duration });
   };
+
+  useEffect(() => {
+    if (!toast) return;
+
+    const timeoutId = window.setTimeout(() => setToast(null), toast.duration);
+    return () => window.clearTimeout(timeoutId);
+  }, [toast]);
 
   useEffect(() => {
     imageUrlsRef.current = images;
@@ -523,8 +542,7 @@ export function CreatePostForm() {
   // เรียก AI วิเคราะห์ประเภท สายพันธุ์ และสีขนจากภาพถ่าย
   const handleAiAnalyzeImage = async () => {
     if (imageFiles.length === 0) {
-      setShowToast('กรุณาอัปโหลดรูปภาพก่อนเริ่มวิเคราะห์');
-      setTimeout(() => setShowToast(null), 3000);
+      notify('กรุณาอัปโหลดรูปภาพก่อนเริ่มวิเคราะห์');
       return;
     }
 
@@ -551,25 +569,23 @@ export function CreatePostForm() {
             shouldValidate: true,
           });
         }
-        setShowToast('AI วิเคราะห์สายพันธุ์และสีขนเรียบร้อยแล้ว');
+        notify('AI วิเคราะห์สายพันธุ์และสีขนเรียบร้อยแล้ว', 3000, 'success');
       } else {
-        setShowToast(
+        notify(
           `วิเคราะห์รูปภาพไม่สำเร็จ: ${res.error ?? 'กรุณาลองใหม่อีกครั้ง'}`,
         );
       }
     } catch {
-      setShowToast('เกิดข้อผิดพลาดขณะวิเคราะห์รูปภาพ กรุณาลองใหม่อีกครั้ง');
+      notify('เกิดข้อผิดพลาดขณะวิเคราะห์รูปภาพ กรุณาลองใหม่อีกครั้ง');
     } finally {
       setIsAnalyzingAi(false);
-      setTimeout(() => setShowToast(null), 3000);
     }
   };
 
   // เรียก AI ช่วยเขียนคำบรรยายลักษณะเด่น (ใช้ field "description" จากผลวิเคราะห์ภาพชุดเดียวกัน)
   const handleAiGenerateDescription = async () => {
     if (imageFiles.length === 0) {
-      setShowToast('กรุณาอัปโหลดรูปภาพก่อนให้ AI ช่วยเขียนคำบรรยาย');
-      setTimeout(() => setShowToast(null), 3000);
+      notify('กรุณาอัปโหลดรูปภาพก่อนให้ AI ช่วยเขียนคำบรรยาย');
       return;
     }
 
@@ -585,19 +601,18 @@ export function CreatePostForm() {
           shouldDirty: true,
           shouldValidate: true,
         });
-        setShowToast('AI สร้างคำบรรยายลักษณะเด่นสำเร็จ');
+        notify('AI สร้างคำบรรยายลักษณะเด่นสำเร็จ', 3000, 'success');
       } else {
-        setShowToast(
+        notify(
           res.success
             ? 'AI ไม่สามารถสร้างคำบรรยายจากรูปภาพนี้ได้'
             : `สร้างคำบรรยายไม่สำเร็จ: ${res.error ?? 'กรุณาลองใหม่อีกครั้ง'}`,
         );
       }
     } catch {
-      setShowToast('เกิดข้อผิดพลาดขณะสร้างคำบรรยาย กรุณาลองใหม่อีกครั้ง');
+      notify('เกิดข้อผิดพลาดขณะสร้างคำบรรยาย กรุณาลองใหม่อีกครั้ง');
     } finally {
       setIsGeneratingDesc(false);
-      setTimeout(() => setShowToast(null), 3000);
     }
   };
 
@@ -606,7 +621,7 @@ export function CreatePostForm() {
     () => {
       if (!postType) {
         setCurrentStep(0);
-        setShowToast('กรุณาเลือกประเภทประกาศก่อนกรอกข้อมูล');
+        notify('กรุณาเลือกประเภทประกาศก่อนกรอกข้อมูล');
         return;
       }
 
@@ -628,7 +643,7 @@ export function CreatePostForm() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
     () => {
-      setShowToast('กรุณาตรวจสอบข้อมูลในช่องที่มีข้อความแจ้งเตือน');
+      notify('กรุณาตรวจสอบข้อมูลในช่องที่มีข้อความแจ้งเตือน');
     },
   );
 
@@ -639,7 +654,7 @@ export function CreatePostForm() {
     try {
       if (!postType) {
         setCurrentStep(0);
-        setShowToast('กรุณาเลือกประเภทประกาศก่อนเผยแพร่');
+        notify('กรุณาเลือกประเภทประกาศก่อนเผยแพร่');
         return;
       }
 
@@ -699,7 +714,7 @@ export function CreatePostForm() {
         });
 
         if (!res.success) {
-          setShowToast(
+          notify(
             res.error ||
               'เกิดข้อผิดพลาดในการเผยแพร่ประกาศ กรุณาเข้าสู่ระบบและลองใหม่อีกครั้ง',
           );
@@ -712,25 +727,26 @@ export function CreatePostForm() {
 
       const uploadRes = await uploadImages(postId);
       if (!uploadRes.success) {
-        setShowToast(
+        notify(
           `สร้างประกาศแล้ว แต่อัปโหลดรูปภาพไม่สำเร็จ: ${uploadRes.error ?? 'กรุณาลองใหม่อีกครั้ง'}`,
         );
         return;
       }
 
       setPendingUploadPostId(null);
-      setShowToast(
+      notify(
         'เผยแพร่ประกาศและอัปโหลดรูปภาพสำเร็จ! ระบบกำลังเริ่มค้นหาด้วย AI Smart Matching',
+        4000,
+        'success',
       );
       router.refresh();
       setTimeout(() => {
         router.push(`/posts/${postId}`);
       }, 1500);
     } catch {
-      setShowToast('เกิดข้อผิดพลาดในการเผยแพร่ประกาศ กรุณาลองใหม่อีกครั้ง');
+      notify('เกิดข้อผิดพลาดในการเผยแพร่ประกาศ กรุณาลองใหม่อีกครั้ง', 4000);
     } finally {
       setIsPublishing(false);
-      setTimeout(() => setShowToast(null), 4000);
     }
   };
 
@@ -787,10 +803,27 @@ export function CreatePostForm() {
       </div>
 
       {/* Toast แจ้งเตือน */}
-      {showToast && (
-        <div className="flex items-center gap-2 rounded-2xl bg-emerald-500/15 p-4 text-xs font-bold text-emerald-800 sm:text-sm dark:text-emerald-300 animate-in fade-in slide-in-from-top-2">
-          <CheckCircle2 className="size-5 shrink-0 text-emerald-600" />
-          <span>{showToast}</span>
+      {toast && (
+        <div
+          role={toast.variant === 'error' ? 'alert' : 'status'}
+          className={cn(
+            'flex items-center gap-2 rounded-2xl p-4 text-xs font-bold sm:text-sm animate-in fade-in slide-in-from-top-2',
+            toast.variant === 'success' &&
+              'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
+            toast.variant === 'error' &&
+              'bg-destructive/10 text-destructive dark:bg-destructive/15',
+            toast.variant === 'info' &&
+              'bg-blue-500/10 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300',
+          )}
+        >
+          {toast.variant === 'success' ? (
+            <CheckCircle2 className="size-5 shrink-0 text-emerald-600" />
+          ) : toast.variant === 'error' ? (
+            <AlertCircle className="size-5 shrink-0 text-destructive" />
+          ) : (
+            <Info className="size-5 shrink-0 text-blue-600" />
+          )}
+          <span>{toast.message}</span>
         </div>
       )}
 
