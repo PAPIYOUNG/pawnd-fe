@@ -16,13 +16,13 @@ export interface AiAnalysisResult {
 }
 
 /**
- * วิเคราะห์รูปภาพสัตว์เลี้ยงด้วย AI (POST /analyze-image)
+ * วิเคราะห์รูปภาพสัตว์เลี้ยงด้วย AI (POST /ai/analyze-image)
  * รองรับทั้ง URL ของรูปที่อัปโหลดขึ้น server แล้ว และ Base64 Data URL
  * (สำหรับรูปที่ยังไม่ได้อัปโหลด เนื่องจากยังไม่มีประกาศให้ผูกไฟล์ด้วย)
  * @param imageUrl — URL หรือ Base64 Data URL ของรูปภาพที่ต้องการวิเคราะห์
  */
 export async function analyzeImage(imageUrl: string): Promise<AiAnalysisResult> {
-  return apiFetch<AiAnalysisResult>('/analyze-image', {
+  return apiFetch<AiAnalysisResult>('/ai/analyze-image', {
     method: 'POST',
     body: { imageUrl },
   });
