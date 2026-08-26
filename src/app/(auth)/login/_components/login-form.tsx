@@ -144,7 +144,10 @@ export function LoginForm() {
         return;
       }
       if ('needsVerification' in result) {
-        setGoogleNotice(result.message);
+        // ผู้ใช้ Google รายใหม่ ใช้หน้ากรอก OTP เดียวกับ LINE-verify (ไม่มี UI เฉพาะ Google)
+        setLineEmail(result.email);
+        setStep('line-verify');
+        resendCooldown.start();
         return;
       }
       if (result.needsOtp) {
@@ -153,7 +156,6 @@ export function LoginForm() {
         resendCooldown.start();
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
