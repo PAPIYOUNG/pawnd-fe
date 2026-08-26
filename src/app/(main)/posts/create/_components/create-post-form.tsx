@@ -57,11 +57,12 @@ import {
   type CreatePostFormValues,
 } from '../_schemas/create-post.schema';
 
-// ขนาดด้านยาวสุดของรูปหลัง resize และคุณภาพ JPEG ที่ใช้ส่งให้ AI วิเคราะห์
-// รูปจากกล้องมือถือ (2-8MB) พอ resize ตามนี้แล้วมักจะเหลือไม่เกินไม่กี่ร้อย KB
-// ป้องกัน error "Body exceeded 1 MB limit" ของ Next.js Server Action ตอนส่ง Base64
-const AI_IMAGE_MAX_DIMENSION = 1024;
-const AI_IMAGE_JPEG_QUALITY = 0.8;
+// Backend รับ JSON ของ /ai/analyze-image ผ่าน body parser ค่าเริ่มต้นที่ค่อนข้างเล็ก
+// จึงย่อรูปให้ Data URL มีขนาดไม่เกินประมาณ 72 KB เพื่อไม่ให้ request ถูกตัดก่อนถึง AI
+const AI_IMAGE_MAX_DIMENSION = 768;
+const AI_IMAGE_MIN_DIMENSION = 384;
+const AI_IMAGE_MAX_DATA_URL_BYTES = 72 * 1024;
+const AI_IMAGE_JPEG_QUALITY_STEPS = [0.72, 0.58, 0.46, 0.36];
 const MAX_POST_IMAGES = 3;
 const MAX_POST_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_POST_IMAGE_TYPES = new Set([
@@ -124,24 +125,46 @@ function resizeImageToDataUrl(file: File): Promise<string> {
     const img = new window.Image();
 
     img.onload = () => {
-      const scale = Math.min(
-        1,
-        AI_IMAGE_MAX_DIMENSION / Math.max(img.width, img.height),
-      );
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
-
-      const ctx = canvas.getContext('2d');
       URL.revokeObjectURL(objectUrl);
 
-      if (!ctx) {
+      const longestSide = Math.max(img.width, img.height);
+      const initialScale = Math.min(1, AI_IMAGE_MAX_DIMENSION / longestSide);
+      const initialWidth = Math.max(1, Math.round(img.width * initialScale));
+      const initialHeight = Math.max(1, Math.round(img.height * initialScale));
+
+      const renderAtSize = (maxDimension: number): string | null => {
+        const scale = Math.min(1, maxDimension / longestSide);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        for (const quality of AI_IMAGE_JPEG_QUALITY_STEPS) {
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+
+          if (dataUrl.length <= AI_IMAGE_MAX_DATA_URL_BYTES) {
+            return dataUrl;
+          }
+        }
+
+        return null;
+      };
+
+      const dataUrl =
+        renderAtSize(
+          initialWidth > initialHeight ? initialWidth : initialHeight,
+        ) || renderAtSize(AI_IMAGE_MIN_DIMENSION);
+
+      if (!dataUrl) {
         reject(new Error('ไม่สามารถประมวลผลรูปภาพได้'));
         return;
       }
 
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', AI_IMAGE_JPEG_QUALITY));
+      resolve(dataUrl);
     };
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
@@ -157,6 +180,11 @@ function resizeImageToDataUrl(file: File): Promise<string> {
  */
 function getImageKey(file: File): string {
   return `${file.name}-${file.size}-${file.lastModified}`;
+}
+
+/** สร้าง key สำหรับรูปจาก Pet Profile เพื่อแยก cache ออกจากไฟล์ที่ผู้ใช้อัปโหลด */
+function getProfileImageKey(imageUrl: string): string {
+  return `profile:${imageUrl}`;
 }
 
 /** แปลงค่า datetime-local ให้แสดงใน Preview เป็นวันที่และเวลาอ่านง่าย */
@@ -310,7 +338,9 @@ export function CreatePostForm({ initialPets }: CreatePostFormProps) {
     setGender(nextGender);
     setColor(nextColor);
     setDistinctiveFeatures(nextDistinctiveFeatures);
-    if (nextProfileImageUrl) setProfileImageUrl(nextProfileImageUrl);
+    setProfileImageUrl(nextProfileImageUrl);
+    // เปลี่ยนสัตว์หรือโหลดรายละเอียดเต็มแล้ว ต้องวิเคราะห์รูปใหม่เสมอ
+    setAiAnalysisCache(null);
 
     syncFormValue('petName', nextPetName);
     syncFormValue('petType', nextPetType);
@@ -330,6 +360,7 @@ export function CreatePostForm({ initialPets }: CreatePostFormProps) {
     setColor('');
     setDistinctiveFeatures('');
     setProfileImageUrl(null);
+    setAiAnalysisCache(null);
 
     syncFormValue('petName', '');
     syncFormValue('petType', 'CAT');
@@ -608,25 +639,37 @@ export function CreatePostForm({ initialPets }: CreatePostFormProps) {
   /** นำรูปหลักจาก Pet Profile ออกจากประกาศ โดยยังคงข้อมูลข้อความที่เติมไว้ */
   const handleRemoveProfileImage = () => {
     setProfileImageUrl(null);
+    setAiAnalysisCache(null);
   };
 
-  // เรียก AI วิเคราะห์รูปภาพ (POST /analyze-image) จากรูปแรกที่อัปโหลด
+  // เรียก AI วิเคราะห์รูปภาพ (POST /analyze-image)
+  // ใช้ไฟล์อัปโหลดเป็นลำดับแรก และใช้รูปจาก Pet Profile เมื่อยังไม่มีไฟล์ใหม่
   // ถ้ารูปเดิมเคยวิเคราะห์แล้ว (imageKey ตรงกับ cache) จะ reuse ผลลัพธ์เดิมแทนการยิง request ซ้ำ
   // คืนค่า Promise<AiAnalysisResult> เพื่อให้ handler แต่ละตัวนำ field ที่ต้องการไปใช้ต่อได้เอง
   const runAiImageAnalysis = async () => {
     const file = imageFiles[0];
-    if (!file) {
-      throw new Error('กรุณาอัปโหลดรูปภาพก่อนเริ่มวิเคราะห์');
-    }
+    const imageKey = file
+      ? `upload:${getImageKey(file)}`
+      : profileImageUrl
+        ? getProfileImageKey(profileImageUrl)
+        : null;
 
-    const imageKey = getImageKey(file);
+    if (!imageKey) {
+      throw new Error('กรุณาเลือกรูปภาพก่อนเริ่มวิเคราะห์');
+    }
 
     if (aiAnalysisCache?.imageKey === imageKey) {
       return { success: true as const, data: aiAnalysisCache.data };
     }
 
-    // ยังไม่มีประกาศให้ผูกไฟล์ จึง resize + แปลงไฟล์จริงเป็น Base64 ก่อนส่งให้ AI
-    const imageUrl = await resizeImageToDataUrl(file);
+    // ไฟล์ใหม่ยังไม่มี URL สาธารณะ จึง resize + แปลงเป็น Base64 ก่อนส่งให้ AI
+    // ส่วนรูปจาก Pet Profile เป็น URL ที่ backend เข้าถึงได้ จึงส่ง URL เดิมไปวิเคราะห์ได้เลย
+    const imageUrl = file ? await resizeImageToDataUrl(file) : profileImageUrl;
+
+    if (!imageUrl) {
+      throw new Error('ไม่พบ URL ของรูปภาพสำหรับวิเคราะห์');
+    }
+
     const res = await analyzeImageAction(imageUrl);
 
     if (res.success && res.data) {
@@ -638,8 +681,8 @@ export function CreatePostForm({ initialPets }: CreatePostFormProps) {
 
   // เรียก AI วิเคราะห์ประเภท สายพันธุ์ และสีขนจากภาพถ่าย
   const handleAiAnalyzeImage = async () => {
-    if (imageFiles.length === 0) {
-      notify('กรุณาอัปโหลดรูปภาพก่อนเริ่มวิเคราะห์');
+    if (imageFiles.length === 0 && !profileImageUrl) {
+      notify('กรุณาเลือกรูปภาพก่อนเริ่มวิเคราะห์');
       return;
     }
 
@@ -681,8 +724,8 @@ export function CreatePostForm({ initialPets }: CreatePostFormProps) {
 
   // เรียก AI ช่วยเขียนคำบรรยายลักษณะเด่น (ใช้ field "description" จากผลวิเคราะห์ภาพชุดเดียวกัน)
   const handleAiGenerateDescription = async () => {
-    if (imageFiles.length === 0) {
-      notify('กรุณาอัปโหลดรูปภาพก่อนให้ AI ช่วยเขียนคำบรรยาย');
+    if (imageFiles.length === 0 && !profileImageUrl) {
+      notify('กรุณาเลือกรูปภาพก่อนให้ AI ช่วยเขียนคำบรรยาย');
       return;
     }
 
@@ -767,6 +810,7 @@ export function CreatePostForm({ initialPets }: CreatePostFormProps) {
       const values = getValues();
 
       const selectedFiles = imageFiles;
+      const includeProfileImage = Boolean(profileImageUrl && selectedPetId);
 
       if (selectedFiles.length === 0 && !profileImageUrl) {
         notify('กรุณาอัปโหลดรูปภาพอย่างน้อย 1 รูปก่อนเผยแพร่ประกาศ');
@@ -780,11 +824,16 @@ export function CreatePostForm({ initialPets }: CreatePostFormProps) {
         return;
       }
 
-      // สร้าง FormData เฉพาะจากไฟล์จริง แล้วส่งไปยัง endpoint รูปภาพหลังมี post id แล้ว
+      // สร้าง FormData จากไฟล์ที่ผู้ใช้เลือก แล้วให้ Server Action เติมรูปจาก Pet Profile
+      // ผ่าน endpoint เดิม เพื่อให้ backend สร้าง PostImage, embedding และ Smart Matching
       const uploadImages = async (postId: string) => {
         const formData = new FormData();
         selectedFiles.forEach((file) => formData.append('images', file));
-        return uploadPostImagesAction(postId, formData);
+        return uploadPostImagesAction(
+          postId,
+          formData,
+          includeProfileImage ? (selectedPetId ?? undefined) : undefined,
+        );
       };
 
       let postId = pendingUploadPostId;
@@ -823,7 +872,7 @@ export function CreatePostForm({ initialPets }: CreatePostFormProps) {
         setPendingUploadPostId(postId);
       }
 
-      if (selectedFiles.length > 0) {
+      if (selectedFiles.length > 0 || includeProfileImage) {
         const uploadRes = await uploadImages(postId);
         if (!uploadRes.success) {
           notify(
@@ -835,9 +884,9 @@ export function CreatePostForm({ initialPets }: CreatePostFormProps) {
 
       setPendingUploadPostId(null);
       notify(
-        selectedFiles.length > 0
+        selectedFiles.length > 0 || includeProfileImage
           ? 'เผยแพร่ประกาศและอัปโหลดรูปภาพสำเร็จ! ระบบกำลังเริ่มค้นหาด้วย AI Smart Matching'
-          : 'เผยแพร่ประกาศสำเร็จ! ระบบกำลังเริ่มค้นหาด้วย AI Smart Matching',
+          : 'เผยแพร่ประกาศสำเร็จแล้ว',
         4000,
         'success',
       );

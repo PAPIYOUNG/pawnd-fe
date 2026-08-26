@@ -11,6 +11,66 @@ import { analyzeImage } from '@/services/ai.service';
 type PostActionResponse<T> =
   { success: true; data: T } | { success: false; error: string };
 
+const MAX_PROFILE_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+
+function getPetProfileImageUrl(pet: PetProfile): string | null {
+  return (
+    pet.profileImageUrl ||
+    pet.images?.find((image) => image.isProfile)?.imageUrl ||
+    pet.images?.[0]?.imageUrl ||
+    null
+  );
+}
+
+/** ดาวน์โหลดรูปจาก Pet Profile เป็น File เพื่อให้ endpoint เดิมสร้าง PostImage/embedding ได้ */
+async function downloadPetProfileImage(petId: string): Promise<File> {
+  const pet = await getPetById(petId);
+  const imageUrl = pet ? getPetProfileImageUrl(pet) : null;
+
+  if (!imageUrl) {
+    throw new Error('ไม่พบรูปภาพของสัตว์เลี้ยงใน Pet Profile');
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(imageUrl);
+  } catch {
+    throw new Error('URL รูปภาพของ Pet Profile ไม่ถูกต้อง');
+  }
+
+  if (parsedUrl.protocol !== 'https:') {
+    throw new Error('รูปภาพของ Pet Profile ต้องเป็น HTTPS URL');
+  }
+
+  const response = await fetch(parsedUrl, { cache: 'no-store' });
+  if (!response.ok) {
+    throw new Error('ไม่สามารถดาวน์โหลดรูปภาพจาก Pet Profile ได้');
+  }
+
+  const contentType = response.headers.get('content-type')?.split(';')[0];
+  if (!contentType?.startsWith('image/')) {
+    throw new Error('รูปภาพใน Pet Profile มีชนิดไฟล์ไม่รองรับ');
+  }
+
+  const contentLength = Number(response.headers.get('content-length'));
+  if (
+    Number.isFinite(contentLength) &&
+    contentLength > MAX_PROFILE_IMAGE_SIZE_BYTES
+  ) {
+    throw new Error('รูปภาพใน Pet Profile ต้องมีขนาดไม่เกิน 5 MB');
+  }
+
+  const blob = await response.blob();
+  if (blob.size === 0 || blob.size > MAX_PROFILE_IMAGE_SIZE_BYTES) {
+    throw new Error('รูปภาพใน Pet Profile ต้องมีขนาดไม่เกิน 5 MB');
+  }
+
+  const extension = contentType.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+  return new File([blob], `pet-profile-${petId}.${extension}`, {
+    type: contentType,
+  });
+}
+
 /**
  * Server Action สำหรับสร้างประกาศตามหาสัตว์เลี้ยงใหม่
  */
@@ -39,6 +99,7 @@ export async function createPostAction(
 export async function uploadPostImagesAction(
   postId: string,
   formData: FormData,
+  petId?: string,
 ): Promise<PostActionResponse<unknown>> {
   try {
     const files = formData
@@ -48,11 +109,15 @@ export async function uploadPostImagesAction(
           typeof value !== 'string' && 'arrayBuffer' in value,
       );
 
-    if (files.length === 0) {
+    const filesToUpload = petId
+      ? [await downloadPetProfileImage(petId), ...files]
+      : files;
+
+    if (filesToUpload.length === 0) {
       return { success: false, error: 'กรุณาเลือกอย่างน้อย 1 รูปภาพ' };
     }
 
-    const result = await uploadPostImages(postId, files);
+    const result = await uploadPostImages(postId, filesToUpload);
     revalidatePath(`/posts/${postId}`);
     revalidatePath('/posts');
     return { success: true, data: result };
