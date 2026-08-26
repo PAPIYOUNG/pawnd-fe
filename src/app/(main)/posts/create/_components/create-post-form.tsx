@@ -33,17 +33,45 @@ import { PetGender, PetType } from '@/types/post';
 import { AiAnalysisResult } from '@/services/ai.service';
 import { createPostAction, analyzeImageAction } from '../_actions/create-post.actions';
 
+// ขนาดด้านยาวสุดของรูปหลัง resize และคุณภาพ JPEG ที่ใช้ส่งให้ AI วิเคราะห์
+// รูปจากกล้องมือถือ (2-8MB) พอ resize ตามนี้แล้วมักจะเหลือไม่เกินไม่กี่ร้อย KB
+// ป้องกัน error "Body exceeded 1 MB limit" ของ Next.js Server Action ตอนส่ง Base64
+const AI_IMAGE_MAX_DIMENSION = 1024;
+const AI_IMAGE_JPEG_QUALITY = 0.8;
+
 /**
- * แปลงไฟล์รูปภาพเป็น Base64 Data URL
+ * ย่อขนาดรูปภาพด้วย Canvas แล้วแปลงเป็น Base64 Data URL (JPEG)
  * ใช้สำหรับส่งรูปภาพที่ยังไม่ได้อัปโหลดขึ้น server ไปให้ AI วิเคราะห์
  * (เพราะตอนกรอกฟอร์มยังไม่มีประกาศให้ผูกไฟล์ด้วย จึงยังไม่มี URL สาธารณะ)
+ * ใช้ window.Image ตรงๆ (ไม่ใช่ตัว Image ที่ import จาก next/image) เพื่อสร้าง HTMLImageElement
  */
-function readFileAsDataUrl(file: File): Promise<string> {
+function resizeImageToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
+    const objectUrl = URL.createObjectURL(file);
+    const img = new window.Image();
+
+    img.onload = () => {
+      const scale = Math.min(1, AI_IMAGE_MAX_DIMENSION / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+
+      const ctx = canvas.getContext('2d');
+      URL.revokeObjectURL(objectUrl);
+
+      if (!ctx) {
+        reject(new Error('ไม่สามารถประมวลผลรูปภาพได้'));
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', AI_IMAGE_JPEG_QUALITY));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('ไม่สามารถโหลดรูปภาพได้'));
+    };
+    img.src = objectUrl;
   });
 }
 
@@ -145,9 +173,10 @@ export function CreatePostForm() {
       return { success: true as const, data: aiAnalysisCache.data };
     }
 
-    // ถ้ามีไฟล์จริง (ผู้ใช้เพิ่งอัปโหลด) ต้องแปลงเป็น Base64 ก่อน เพราะยังไม่มีประกาศให้ผูกไฟล์
+    // ถ้ามีไฟล์จริง (ผู้ใช้เพิ่งอัปโหลด) ต้อง resize + แปลงเป็น Base64 ก่อน
+    // (ยังไม่มีประกาศให้ผูกไฟล์ และต้อง resize ไม่ให้เกิน limit ของ Server Action)
     // ถ้าไม่มีไฟล์ (เช่นรูปตัวอย่าง mock) แปลว่า images[0] เป็น URL ที่เข้าถึงได้อยู่แล้ว
-    const imageUrl = file ? await readFileAsDataUrl(file) : images[0];
+    const imageUrl = file ? await resizeImageToDataUrl(file) : images[0];
     const res = await analyzeImageAction(imageUrl);
 
     if (res.success && res.data) {
