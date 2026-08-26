@@ -90,7 +90,7 @@ export function HeroSection() {
           {/* แอนิเมชัน Lottie 'No Search Results' ด้านบนหัวข้อหลักตามที่ระบุในตำแหน่งวงกลมสีแดง */}
           <div className="size-32 sm:size-40 -mb-4 flex items-center justify-center pointer-events-none select-none">
             <DotLottieReact
-              src="/animations/No Search Results.json"
+              src="/animations/no-search-results.json"
               loop
               autoplay
               className="size-full object-contain"
