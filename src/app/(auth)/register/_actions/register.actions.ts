@@ -1,7 +1,7 @@
 'use server';
 
 import { ApiError } from '@/lib/api/api-error';
-import { ErrorActionResult } from '@/lib/action/action.type';
+import { ErrorActionResult } from '@/lib/api/types/action.type';
 import { registerRequest, RegisterPayload } from '@/services/auth.service';
 
 function toErrorResult(err: unknown, fallback: string): ErrorActionResult {

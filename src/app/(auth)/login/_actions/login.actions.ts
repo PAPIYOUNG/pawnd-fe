@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 
 import { signIn } from '@/auth';
 import { ApiError } from '@/lib/api/api-error';
-import { ErrorActionResult } from '@/lib/action/action.type';
+import { ErrorActionResult } from '@/lib/api/types/action.type';
 import {
   loginRequest,
   verifyTwoFactorRequest,
