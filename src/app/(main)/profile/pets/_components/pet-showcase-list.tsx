@@ -73,7 +73,7 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
           data.profileImageUrl ||
           (data.type === 'DOG'
             ? 'https://images.unsplash.com/photo-1552053831-71594a27632d?q=80&w=1200&auto=format&fit=crop'
-            : 'https://images.unsplash.com/photo-1513360309081-38f076278f94?q=80&w=1200&auto=format&fit=crop'),
+            : 'https://images.unsplash.com/photo-1533738363-b7f9aef128ce?q=80&w=1200&auto=format&fit=crop'),
         images: data.images,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
