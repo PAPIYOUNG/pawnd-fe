@@ -1,6 +1,8 @@
 import { Metadata } from 'next';
+import { Edit3 } from 'lucide-react';
 import { getCurrentUser } from '@/services/user.service';
 import { getMyPets } from '@/services/pet.service';
+import { Button } from '@/components/ui/button';
 import { UserProfileHeader } from './_components/user-profile-header';
 import { UserProfileDetailsGrid } from './_components/user-profile-details-grid';
 import { UserMyPetsGrid } from './_components/user-my-pets-grid';
@@ -27,13 +29,26 @@ export default async function ProfileOverviewPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      {/* 1. ส่วนการ์ดโปรไฟล์ผู้ใช้ด้านบน */}
-      <UserProfileHeader user={user} />
+      {/* 1. การ์ดโปรไฟล์ผู้ใช้: รวมข้อมูลผู้ใช้ด้านบน + กรอบข้อมูลบัญชีทุกฟิลด์ + ปุ่มแก้ไขโปรไฟล์ไว้ในกรอบเดียวกัน */}
+      <div className="flex flex-col gap-6 rounded-3xl border border-border/80 bg-card p-4 shadow-sm sm:p-7 dark:border-border/60">
+        <UserProfileHeader user={user} />
 
-      {/* 2. ส่วนกรอบข้อมูลบัญชีผู้ใช้ทุกฟิลด์ (ยกเว้นการตั้งค่าแจ้งเตือน/2FA) */}
-      <UserProfileDetailsGrid user={user} />
+        <UserProfileDetailsGrid user={user} />
 
-      {/* 3. ส่วนสัตว์เลี้ยงของฉัน */}
+        {/* ปุ่มแก้ไขโปรไฟล์ อยู่ด้านล่างสุดของกรอบ */}
+        <div className="flex justify-end border-t border-border/60 pt-5">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 min-h-10 w-full rounded-2xl border-border px-5 text-xs font-semibold shadow-2xs sm:w-auto sm:text-sm hover:bg-muted"
+          >
+            <Edit3 className="size-3.5 mr-1.5" />
+            <span>แก้ไขโปรไฟล์</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* 2. ส่วนสัตว์เลี้ยงของฉัน */}
       <UserMyPetsGrid pets={pets} />
     </div>
   );
