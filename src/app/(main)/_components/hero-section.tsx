@@ -65,7 +65,7 @@ export function HeroSection() {
                 'absolute inset-0 transition-all duration-1000 ease-in-out',
                 isActive
                   ? 'opacity-85 scale-100 dark:opacity-50'
-                  : 'opacity-0 scale-105'
+                  : 'opacity-0 scale-105',
               )}
             >
               <Image
@@ -104,7 +104,9 @@ export function HeroSection() {
 
           {/* ข้อความอธิบายบริการของแพลตฟอร์ม */}
           <p className="max-w-2xl text-base font-semibold leading-relaxed text-[#1D3E2F] drop-shadow-xs sm:text-lg dark:text-[#D1FAE5]">
-            แพลตฟอร์มศูนย์รวมการตามหาสัตว์เลี้ยงหายและช่วยสัตว์พลัดหลง พร้อมระบบค้นหาและจับคู่ภาพถ่ายด้วย AI อัจฉริยะ ช่วยให้การค้นหาและคืนสัตว์เลี้ยงของคุณมีโอกาสสำเร็จสูงสุด
+            แพลตฟอร์มศูนย์รวมการตามหาสัตว์เลี้ยงหายและช่วยสัตว์พลัดหลง
+            พร้อมระบบค้นหาและจับคู่ภาพถ่ายด้วย AI อัจฉริยะ
+            ช่วยให้การค้นหาและคืนสัตว์เลี้ยงของคุณมีโอกาสสำเร็จสูงสุด
           </p>
 
           {/* กลุ่มปุ่ม Call-to-Action ขนาดเท่ากัน จัดกึ่งกลาง */}
@@ -114,11 +116,11 @@ export function HeroSection() {
               href="/posts/create?type=LOST"
               className={cn(
                 buttonVariants({ variant: 'default', size: 'lg' }),
-                'h-13 min-w-[200px] justify-center rounded-2xl border-2 border-transparent bg-primary px-6 text-base font-semibold text-primary-foreground shadow-md transition-all hover:scale-105 hover:bg-primary/90'
+                'h-13 min-w-[200px] justify-center rounded-2xl border-2 border-transparent bg-primary px-6 text-base font-semibold text-primary-foreground shadow-md transition-all hover:scale-105 hover:bg-primary/90',
               )}
             >
               <Plus className="size-5 stroke-[2.5]" />
-              <span>แจ้งสัตว์เลี้ยงหาย</span>
+              <span>สร้างประกาศ</span>
             </Link>
 
             {/* ปุ่มรอง: ค้นหาสัตว์เลี้ยง (ส่งไปหน้าหน้ารวมประกาศทั้งหมด) */}
@@ -126,7 +128,7 @@ export function HeroSection() {
               href="/posts"
               className={cn(
                 buttonVariants({ variant: 'outline', size: 'lg' }),
-                'h-13 min-w-[200px] justify-center rounded-2xl border-2 border-primary/50 bg-white/90 px-6 text-base font-semibold text-primary shadow-xs backdrop-blur-xs transition-all hover:scale-105 hover:border-primary hover:bg-white dark:border-border dark:bg-card/90 dark:text-foreground dark:hover:bg-card'
+                'h-13 min-w-[200px] justify-center rounded-2xl border-2 border-primary/50 bg-white/90 px-6 text-base font-semibold text-primary shadow-xs backdrop-blur-xs transition-all hover:scale-105 hover:border-primary hover:bg-white dark:border-border dark:bg-card/90 dark:text-foreground dark:hover:bg-card',
               )}
             >
               <Search className="size-5" />
