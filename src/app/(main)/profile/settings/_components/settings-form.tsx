@@ -1,23 +1,40 @@
 'use client';
 
 import { useState } from 'react';
-import { Bell, Shield, Lock, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import {
+  Bell,
+  Shield,
+  Lock,
+  Trash2,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { saveSettingsAction, changePasswordAction } from '../_actions/settings.actions';
+import {
+  saveSettingsAction,
+  changePasswordAction,
+  deleteAccountAction,
+} from '../_actions/settings.actions';
 
 interface SettingsFormProps {
   /** ค่าเริ่มต้นการแจ้งเตือน ดึงมาจาก Backend (GET /users/me) ผ่าน Server Component ชั้นบน */
   initialNotificationEnabled: boolean;
   /** ค่าเริ่มต้นการยืนยันตัวตนสองชั้น ดึงมาจาก Backend (GET /users/me) ผ่าน Server Component ชั้นบน */
   initialTwoFactorEnabled: boolean;
+  hasPassword: boolean;
 }
 
 /**
  * SettingsForm Component (Client Component)
+ * - ฟอร์มจัดการการตั้งค่าระบบและการเปลี่ยนรหัสผ่าน
+ * - รับ initialSettings ที่ดึงมาจาก Backend จริงผ่าน Server Component
+ * - ลบบัญชี: บัญชีที่มีรหัสผ่านให้กรอกรหัสผ่านยืนยัน ส่วนบัญชี Google/LINE ล้วน (ไม่มีรหัสผ่าน)
+ *   ให้พิมพ์อีเมลตัวเองยืนยันแทน
  * - ฟอร์มตั้งค่าระบบและบัญชีผู้ใช้งาน (การแจ้งเตือน, 2FA, เปลี่ยนรหัสผ่าน)
  * - รับค่าเริ่มต้นจริงจาก Backend ผ่าน props (แทนการ hardcode) เพื่อให้ Toggle
  *   แสดงสถานะปัจจุบันของผู้ใช้ถูกต้องตั้งแต่โหลดหน้าครั้งแรก
@@ -27,7 +44,19 @@ interface SettingsFormProps {
 export function SettingsForm({
   initialNotificationEnabled,
   initialTwoFactorEnabled,
+  hasPassword,
 }: SettingsFormProps) {
+  const [notificationEnabled, setNotificationEnabled] = useState(
+    initialNotificationEnabled,
+  );
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(
+    initialTwoFactorEnabled,
+  );
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [settingsFeedback, setSettingsFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
   const [notificationEnabled, setNotificationEnabled] = useState(initialNotificationEnabled);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(initialTwoFactorEnabled);
   // สถานะกำลังบันทึกแยกตาม toggle เพื่อ disable เฉพาะตัวที่กำลังยิง API อยู่
@@ -40,6 +69,20 @@ export function SettingsForm({
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordFeedback, setPasswordFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+
+  // State สำหรับลบบัญชีถาวร
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [deleteFeedback, setDeleteFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
   const [passwordFeedback, setPasswordFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // สลับ toggle การแจ้งเตือน แล้วยิง Server Action ทันที (Optimistic Update)
@@ -66,6 +109,18 @@ export function SettingsForm({
 
     const res = await saveSettingsAction({ twoFactorEnabled: checked });
 
+    setIsSavingSettings(false);
+    if (res.success) {
+      setSettingsFeedback({
+        type: 'success',
+        message: 'บันทึกการตั้งค่าระบบเรียบร้อยแล้ว',
+      });
+      setTimeout(() => setSettingsFeedback(null), 4000);
+    } else {
+      setSettingsFeedback({
+        type: 'error',
+        message: res.error || 'เกิดข้อผิดพลาดในการบันทึก',
+      });
     setIsSavingTwoFactor(false);
     if (!res.success) {
       setTwoFactorEnabled(!checked);
@@ -97,6 +152,28 @@ export function SettingsForm({
     }
   };
 
+  // ลบบัญชีถาวร — บัญชีมีรหัสผ่านให้ยืนยันด้วยรหัสผ่าน ไม่มีให้พิมพ์อีเมลยืนยันแทน
+  const handleDeleteAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsDeletingAccount(true);
+    setDeleteFeedback(null);
+
+    const res = await deleteAccountAction(
+      hasPassword
+        ? { password: deletePassword }
+        : { confirmEmail: deleteConfirmEmail },
+    );
+
+    // ถ้าสำเร็จ deleteAccountAction จะ redirect ไป /login เอง โค้ดจะไม่ไหลมาถึงบรรทัดถัดไป
+    setIsDeletingAccount(false);
+    if (res && !res.success) {
+      setDeleteFeedback({
+        type: 'error',
+        message: res.error || 'เกิดข้อผิดพลาดในการลบบัญชี',
+      });
+    }
+  };
+
   return (
     <>
       {settingsFeedback && (
@@ -122,14 +199,15 @@ export function SettingsForm({
           การแจ้งเตือนและความปลอดภัย
         </h3>
 
-        {/* สวิตช์การแจ้งเตือน (Toggle Switch เลื่อนเปิด-ปิด) */}
         <div className="flex items-center justify-between border-b border-border/50 pb-4">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <Bell className="size-5" />
             </div>
             <div>
-              <span className="font-bold text-foreground">การแจ้งเตือนในระบบ</span>
+              <span className="font-bold text-foreground">
+                การแจ้งเตือนในระบบ
+              </span>
               <p className="text-xs text-muted-foreground">
                 รับการแจ้งเตือนเมื่อพบเบาะแสหรือ AI จับคู่สัตว์เลี้ยง
               </p>
@@ -143,7 +221,6 @@ export function SettingsForm({
           />
         </div>
 
-        {/* สวิตช์ 2FA (Toggle Switch เลื่อนเปิด-ปิด) */}
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -164,6 +241,20 @@ export function SettingsForm({
             disabled={isSavingTwoFactor}
             aria-label="เปิด-ปิดการยืนยันตัวตนสองชั้น"
           />
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <Button
+            type="button"
+            onClick={handleSaveSettings}
+            disabled={isSavingSettings}
+            className="gap-2 rounded-2xl bg-primary px-6 font-semibold text-primary-foreground shadow-md hover:bg-primary/90"
+          >
+            {isSavingSettings && <Loader2 className="size-4 animate-spin" />}
+            <span>
+              {isSavingSettings ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
+            </span>
+          </Button>
         </div>
       </div>
 
@@ -230,7 +321,6 @@ export function SettingsForm({
           </div>
         </div>
 
-        {/* ปุ่มเปลี่ยนรหัสผ่าน */}
         <div className="flex justify-end pt-2">
           <Button
             type="submit"
@@ -238,10 +328,91 @@ export function SettingsForm({
             className="gap-2 rounded-2xl bg-primary px-6 font-semibold text-primary-foreground shadow-md hover:bg-primary/90"
           >
             {isChangingPassword && <Loader2 className="size-4 animate-spin" />}
-            <span>{isChangingPassword ? 'กำลังเปลี่ยน...' : 'เปลี่ยนรหัสผ่าน'}</span>
+            <span>
+              {isChangingPassword ? 'กำลังเปลี่ยน...' : 'เปลี่ยนรหัสผ่าน'}
+            </span>
           </Button>
         </div>
       </form>
+
+      {/* ปุ่มลบบัญชีถาวร */}
+      {!showDeleteConfirm ? (
+        <div className="flex justify-start">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setShowDeleteConfirm(true)}
+            className="gap-2 rounded-2xl border-destructive text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="size-4" />
+            ลบบัญชีของฉัน
+          </Button>
+        </div>
+      ) : (
+        <form
+          onSubmit={handleDeleteAccount}
+          className="flex flex-col gap-3 rounded-3xl border border-destructive/30 bg-destructive/5 p-4"
+        >
+          <p className="text-xs font-semibold text-destructive">
+            การลบบัญชีไม่สามารถย้อนกลับได้{' '}
+            {hasPassword
+              ? 'กรอกรหัสผ่านเพื่อยืนยัน'
+              : 'พิมพ์อีเมลของบัญชีนี้เพื่อยืนยัน'}
+          </p>
+
+          {deleteFeedback && (
+            <div className="flex items-center gap-2 rounded-2xl bg-destructive/15 p-3 text-xs font-semibold text-destructive">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{deleteFeedback.message}</span>
+            </div>
+          )}
+
+          {hasPassword ? (
+            <Input
+              type="password"
+              placeholder="รหัสผ่านปัจจุบัน"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              className="rounded-2xl"
+              required
+            />
+          ) : (
+            <Input
+              type="email"
+              placeholder="พิมพ์อีเมลของคุณ"
+              value={deleteConfirmEmail}
+              onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+              className="rounded-2xl"
+              required
+            />
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowDeleteConfirm(false);
+                setDeletePassword('');
+                setDeleteConfirmEmail('');
+                setDeleteFeedback(null);
+              }}
+              className="rounded-2xl"
+            >
+              ยกเลิก
+            </Button>
+            <Button
+              type="submit"
+              disabled={isDeletingAccount}
+              className="gap-2 rounded-2xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingAccount && <Loader2 className="size-4 animate-spin" />}
+              <span>{isDeletingAccount ? 'กำลังลบ...' : 'ยืนยันลบ'}</span>
+            </Button>
+          </div>
+        </form>
+      )}
+    </div>
     </>
   );
 }
