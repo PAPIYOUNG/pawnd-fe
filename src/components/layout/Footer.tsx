@@ -32,9 +32,9 @@ export default function Footer() {
             <Image
               src="/logo.png"
               alt="โลโก้ PAWND"
-              width={884}
-              height={956}
-              className="h-auto w-24 object-contain sm:w-28"
+              width={1376}
+              height={1143}
+              className="h-auto w-32 object-contain sm:w-36"
             />
           </Link>
           <p className="mt-4 text-sm leading-relaxed text-white/80 sm:text-base">
