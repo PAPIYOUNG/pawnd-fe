@@ -16,6 +16,8 @@ export interface ChatMessage {
   clientMessageId: string | null;
   content: string;
   imageUrl: string | null;
+  /** มีค่าใน response รายการข้อความ ใช้เป็น source of truth ของ read receipt */
+  isRead?: boolean;
   createdAt: string;
   sender: ChatUser;
 }
@@ -73,6 +75,12 @@ export interface ChatReadState {
 
 export interface ChatReadResponse {
   readState: ChatReadState;
+  lastReadMessageId: string | null;
+}
+
+/** Event ที่แจ้ง boundary ล่าสุดซึ่งสมาชิกอีกฝั่งอ่านแล้ว */
+export interface ChatReadUpdatedPayload extends ChatReadState {
+  lastReadMessageId: string | null;
 }
 
 /** รูปแบบ acknowledgement ของ Socket.IO ที่ Backend ส่งกลับทุก event */

@@ -22,10 +22,13 @@ async function chatFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
+  const isFormData = options.body instanceof FormData;
   const response = await fetch(`/api/chat/${path}`, {
     ...options,
     headers: {
-      ...(options.body ? { 'content-type': 'application/json' } : {}),
+      ...(options.body && !isFormData
+        ? { 'content-type': 'application/json' }
+        : {}),
       ...options.headers,
     },
     cache: 'no-store',
@@ -81,7 +84,20 @@ export function sendChatMessage(
   roomId: string,
   content: string,
   clientMessageId: string,
+  image?: File,
 ): Promise<ChatMessageResponse> {
+  if (image) {
+    const formData = new FormData();
+    if (content) formData.set('content', content);
+    formData.set('clientMessageId', clientMessageId);
+    formData.set('image', image);
+
+    return chatFetch<ChatMessageResponse>(`rooms/${roomId}/messages`, {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
   return chatFetch<ChatMessageResponse>(`rooms/${roomId}/messages`, {
     method: 'POST',
     body: JSON.stringify({ content, clientMessageId }),

@@ -37,7 +37,8 @@ async function proxyChatRequest(
   const response = await fetch(backendUrl, {
     method: request.method,
     headers,
-    body: hasBody ? await request.text() : undefined,
+    // ใช้ binary body เพื่อรักษา multipart boundary และ bytes ของรูปภาพให้ครบถ้วน
+    body: hasBody ? await request.arrayBuffer() : undefined,
     cache: 'no-store',
   });
 

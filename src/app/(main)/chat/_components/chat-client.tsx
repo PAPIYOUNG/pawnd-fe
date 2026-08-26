@@ -6,12 +6,14 @@ import {
   ArrowLeft,
   Check,
   CheckCheck,
+  ImagePlus,
   LoaderCircle,
   MessageCircle,
   RefreshCw,
   Send,
   Wifi,
   WifiOff,
+  X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
@@ -28,13 +30,22 @@ import {
 import type { SessionUser } from '@/types/auth';
 import type {
   ChatMessage,
-  ChatReadState,
+  ChatReadUpdatedPayload,
   ChatRoom,
   ChatSocketAcknowledgement,
 } from '@/types/chat';
 
 type DeliveryState = 'sending' | 'failed';
-type DisplayMessage = ChatMessage & { deliveryState?: DeliveryState };
+type DisplayMessage = ChatMessage & {
+  deliveryState?: DeliveryState;
+  /** เก็บไฟล์เฉพาะ optimistic message เพื่อให้กดลองส่งใหม่ได้ */
+  attachmentFile?: File;
+};
+
+interface SelectedChatImage {
+  file: File;
+  previewUrl: string;
+}
 
 interface ChatClientProps {
   currentUser: SessionUser;
@@ -47,6 +58,13 @@ const messageTimeFormatter = new Intl.DateTimeFormat('th-TH', {
   hour: '2-digit',
   minute: '2-digit',
 });
+const CHAT_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
+const CHAT_IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp';
+
+/** ห้องถือว่าเปิดอ่านอยู่เมื่อ tab มองเห็นและหน้าต่าง browser มี focus จริง */
+function isDocumentActive(): boolean {
+  return document.visibilityState === 'visible' && document.hasFocus();
+}
 
 /** แสดง error ที่คาดการณ์ได้โดยไม่เผยรายละเอียดภายในระบบ */
 function toErrorMessage(error: unknown, fallback: string): string {
@@ -58,13 +76,23 @@ function upsertMessage(
   current: DisplayMessage[],
   incoming: ChatMessage,
 ): DisplayMessage[] {
+  const existing = current.find(
+    (message) =>
+      message.id === incoming.id ||
+      (incoming.clientMessageId &&
+        message.clientMessageId === incoming.clientMessageId),
+  );
   const filtered = current.filter(
     (message) =>
       message.id !== incoming.id &&
       (!incoming.clientMessageId ||
         message.clientMessageId !== incoming.clientMessageId),
   );
-  return [...filtered, incoming].sort(
+  const mergedMessage: DisplayMessage = {
+    ...incoming,
+    isRead: incoming.isRead ?? existing?.isRead ?? false,
+  };
+  return [...filtered, mergedMessage].sort(
     (left, right) =>
       new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime(),
   );
@@ -75,13 +103,13 @@ function upsertRoomLatestMessage(
   current: ChatRoom[],
   incoming: ChatMessage,
   currentUserId: string,
-  isSelectedRoom: boolean,
+  isActiveSelectedRoom: boolean,
 ): ChatRoom[] {
   const room = current.find((item) => item.id === incoming.roomId);
   if (!room) return current;
 
   const unreadCount =
-    incoming.senderId === currentUserId || isSelectedRoom
+    incoming.senderId === currentUserId || isActiveSelectedRoom
       ? 0
       : (room.unreadCount ?? 0) + 1;
   const updatedRoom: ChatRoom = {
@@ -110,9 +138,10 @@ export function ChatClient({
   const socketRef = useRef<Socket | null>(null);
   const joinedRoomIdsRef = useRef(new Set<string>());
   const selectedRoomIdRef = useRef<string | null>(initialRoomId ?? null);
-  const messagesRef = useRef<DisplayMessage[]>([]);
   const messageLoadRequestRef = useRef(0);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const objectUrlsRef = useRef(new Set<string>());
   const shouldScrollToBottomRef = useRef(false);
 
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
@@ -120,11 +149,12 @@ export function ChatClient({
     initialRoomId ?? null,
   );
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
-  const [readOwnMessageIds, setReadOwnMessageIds] = useState<Set<string>>(
-    new Set(),
-  );
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [composer, setComposer] = useState('');
+  const [selectedImage, setSelectedImage] = useState<SelectedChatImage | null>(
+    null,
+  );
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [isRoomsLoading, setIsRoomsLoading] = useState(true);
   const [isMessagesLoading, setIsMessagesLoading] = useState(
     Boolean(initialRoomId),
@@ -137,6 +167,60 @@ export function ChatClient({
   const selectedRoom = useMemo(
     () => rooms.find((room) => room.id === selectedRoomId) ?? null,
     [rooms, selectedRoomId],
+  );
+
+  /** คืนหน่วยความจำของ object URL เมื่อรูป preview ไม่ถูกใช้งานแล้ว */
+  const releaseObjectUrl = useCallback((url: string | null) => {
+    if (!url?.startsWith('blob:') || !objectUrlsRef.current.has(url)) return;
+    URL.revokeObjectURL(url);
+    objectUrlsRef.current.delete(url);
+  }, []);
+
+  /** Mark read เฉพาะห้องที่ผู้ใช้กำลังมองเห็นจริง และล้าง unread หลัง Backend ตอบสำเร็จ */
+  const markRoomReadIfActive = useCallback(
+    async (roomId: string) => {
+      if (selectedRoomIdRef.current !== roomId || !isDocumentActive()) return;
+
+      try {
+        const socket = socketRef.current;
+        if (socket?.connected) {
+          await new Promise<void>((resolve, reject) => {
+            const timeout = window.setTimeout(
+              () => reject(new Error('Socket acknowledgement timeout')),
+              10_000,
+            );
+            socket.emit(
+              'mark_read',
+              { roomId },
+              (
+                acknowledgement: ChatSocketAcknowledgement<ChatReadUpdatedPayload>,
+              ) => {
+                window.clearTimeout(timeout);
+                if (acknowledgement.success) {
+                  resolve();
+                } else {
+                  reject(new Error(acknowledgement.error.message));
+                }
+              },
+            );
+          });
+        } else {
+          await markChatRoomRead(roomId);
+        }
+
+        if (selectedRoomIdRef.current !== roomId || !isDocumentActive()) return;
+        setRooms((current) =>
+          current.map((room) =>
+            room.id === roomId ? { ...room, unreadCount: 0 } : room,
+          ),
+        );
+      } catch (error) {
+        if (error instanceof ApiError && error.statusCode === 401) {
+          router.replace('/login');
+        }
+      }
+    },
+    [router],
   );
 
   /** โหลด inbox ใหม่เพื่อให้ latest message, order และ unread count ตรงกับ Backend */
@@ -204,13 +288,13 @@ export function ChatClient({
           .reverse()
           .reduce<DisplayMessage[]>(upsertMessage, current),
       );
-      await markChatRoomRead(roomId);
+      await markRoomReadIfActive(roomId);
     } catch (error) {
       if (error instanceof ApiError && error.statusCode === 401) {
         router.replace('/login');
       }
     }
-  }, [router]);
+  }, [markRoomReadIfActive, router]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadRooms(), 0);
@@ -228,10 +312,6 @@ export function ChatClient({
     return () => window.clearTimeout(timer);
   }, [loadMessages, selectedRoomId]);
 
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
-
   /** เชื่อม Socket.IO เพียงหนึ่งครั้ง และรับ event ตาม Backend contract */
   useEffect(() => {
     const namespaceUrl = `${socketUrl.replace(/\/$/, '')}/chat`;
@@ -246,7 +326,7 @@ export function ChatClient({
       if (roomId) {
         socket.emit('join_room', { roomId });
         joinedRoomIds.add(roomId);
-        socket.emit('mark_read', { roomId });
+        void markRoomReadIfActive(roomId);
       }
     };
     const handleDisconnect = () => setIsSocketConnected(false);
@@ -260,39 +340,38 @@ export function ChatClient({
           : 0;
         shouldScrollToBottomRef.current = distanceFromBottom < 120;
         setMessages((current) => upsertMessage(current, message));
-        socket.emit('mark_read', { roomId: message.roomId });
+        void markRoomReadIfActive(message.roomId);
       }
       setRooms((current) => {
+        const isActiveSelectedRoom =
+          message.roomId === selectedRoomIdRef.current && isDocumentActive();
         return upsertRoomLatestMessage(
           current,
           message,
           currentUser.id,
-          message.roomId === selectedRoomIdRef.current,
+          isActiveSelectedRoom,
         );
       });
     };
-    const handleReadUpdated = (readState: ChatReadState) => {
+    const handleReadUpdated = (readState: ChatReadUpdatedPayload) => {
       if (
         readState.roomId === selectedRoomIdRef.current &&
-        readState.userId !== currentUser.id
+        readState.userId !== currentUser.id &&
+        readState.lastReadMessageId
       ) {
-        const readAt = new Date(readState.lastReadAt).getTime();
-        if (!Number.isFinite(readAt)) return;
+        setMessages((current) => {
+          const boundaryIndex = current.findIndex(
+            (message) => message.id === readState.lastReadMessageId,
+          );
+          if (boundaryIndex < 0) return current;
 
-        const readMessageIds = messagesRef.current
-          .filter(
-            (message) =>
-              message.senderId === currentUser.id &&
-              !message.deliveryState &&
-              new Date(message.createdAt).getTime() <= readAt,
-          )
-          .map((message) => message.clientMessageId ?? message.id);
-        if (readMessageIds.length === 0) return;
-
-        setReadOwnMessageIds((previous) => {
-          const next = new Set(previous);
-          for (const id of readMessageIds) next.add(id);
-          return next;
+          return current.map((message, index) =>
+            index <= boundaryIndex &&
+            message.senderId === currentUser.id &&
+            !message.deliveryState
+              ? { ...message, isRead: true }
+              : message,
+          );
         });
       }
     };
@@ -313,7 +392,7 @@ export function ChatClient({
       joinedRoomIds.clear();
       socketRef.current = null;
     };
-  }, [accessToken, currentUser.id, socketUrl]);
+  }, [accessToken, currentUser.id, markRoomReadIfActive, socketUrl]);
 
   /** Join ทุกห้องของ inbox เพื่อให้ preview รับข้อความใหม่แม้ไม่ได้เปิดห้องนั้นอยู่ */
   useEffect(() => {
@@ -337,7 +416,7 @@ export function ChatClient({
     return () => window.clearInterval(timer);
   }, [isSocketConnected, loadRooms, pollLatestMessages]);
 
-  /** ทุกห้องยังคง join เพื่อรับ preview; เมื่อเลือกห้องให้ mark read เท่านั้น */
+  /** ทุกห้องยังคง join เพื่อรับ preview; ห้องที่เลือกจะอ่านเมื่อหน้าต่าง active เท่านั้น */
   useEffect(() => {
     if (!selectedRoomId) return;
     const socket = socketRef.current;
@@ -346,11 +425,24 @@ export function ChatClient({
         socket.emit('join_room', { roomId: selectedRoomId });
         joinedRoomIdsRef.current.add(selectedRoomId);
       }
-      socket.emit('mark_read', { roomId: selectedRoomId });
-    } else {
-      void markChatRoomRead(selectedRoomId).catch(() => undefined);
     }
-  }, [selectedRoomId]);
+    void markRoomReadIfActive(selectedRoomId);
+  }, [markRoomReadIfActive, selectedRoomId]);
+
+  /** เมื่อกลับมาเห็น tab หรือ focus หน้าต่าง ให้ mark ห้องที่เปิดอยู่ ณ ตอนนั้น */
+  useEffect(() => {
+    const handleActivityChange = () => {
+      const roomId = selectedRoomIdRef.current;
+      if (roomId && isDocumentActive()) void markRoomReadIfActive(roomId);
+    };
+
+    document.addEventListener('visibilitychange', handleActivityChange);
+    window.addEventListener('focus', handleActivityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleActivityChange);
+      window.removeEventListener('focus', handleActivityChange);
+    };
+  }, [markRoomReadIfActive]);
 
   /** เลื่อนเฉพาะกล่องข้อความ ไม่ใช้ scrollIntoView ที่อาจพา body ทั้งหน้าลงไปด้วย */
   useEffect(() => {
@@ -402,18 +494,20 @@ export function ChatClient({
     }
   }
 
-  /** ส่งผ่าน realtime เมื่อเชื่อมอยู่ และ fallback เป็น REST ตาม contract เดิม */
+  /** ส่งข้อความ text ผ่าน realtime; รูปใช้ REST multipart แล้ว Backend broadcast event เดิม */
   async function deliverMessage(
     roomId: string,
     content: string,
     clientMessageId: string,
     temporaryId: string,
+    image?: File,
+    previewUrl?: string,
   ) {
     try {
       const socket = socketRef.current;
       let savedMessage: ChatMessage;
 
-      if (socket?.connected) {
+      if (socket?.connected && !image) {
         savedMessage = await new Promise<ChatMessage>((resolve, reject) => {
           const timeout = window.setTimeout(
             () => reject(new Error('Socket acknowledgement timeout')),
@@ -441,6 +535,7 @@ export function ChatClient({
           roomId,
           content,
           clientMessageId,
+          image,
         );
         savedMessage = response.message;
       }
@@ -454,6 +549,7 @@ export function ChatClient({
           roomId === selectedRoomIdRef.current,
         ),
       );
+      releaseObjectUrl(previewUrl ?? null);
     } catch (error) {
       if (error instanceof ApiError && error.statusCode === 401) {
         router.replace('/login');
@@ -471,7 +567,10 @@ export function ChatClient({
   /** สร้าง optimistic message โดย sender identity มาจาก session เท่านั้น */
   function handleSend() {
     const content = composer.trim();
-    if (!selectedRoomId || !content || content.length > 4000) return;
+    const image = selectedImage;
+    if (!selectedRoomId || (!content && !image) || content.length > 4000) {
+      return;
+    }
 
     const clientMessageId = crypto.randomUUID();
     const temporaryId = `pending-${clientMessageId}`;
@@ -481,7 +580,8 @@ export function ChatClient({
       senderId: currentUser.id,
       clientMessageId,
       content,
-      imageUrl: null,
+      imageUrl: image?.previewUrl ?? null,
+      isRead: false,
       createdAt: new Date().toISOString(),
       sender: {
         id: currentUser.id,
@@ -490,6 +590,7 @@ export function ChatClient({
         avatarUrl: currentUser.avatarUrl,
       },
       deliveryState: 'sending',
+      attachmentFile: image?.file,
     };
 
     shouldScrollToBottomRef.current = true;
@@ -498,7 +599,17 @@ export function ChatClient({
       upsertRoomLatestMessage(current, optimisticMessage, currentUser.id, true),
     );
     setComposer('');
-    void deliverMessage(selectedRoomId, content, clientMessageId, temporaryId);
+    setSelectedImage(null);
+    setAttachmentError(null);
+    if (imageInputRef.current) imageInputRef.current.value = '';
+    void deliverMessage(
+      selectedRoomId,
+      content,
+      clientMessageId,
+      temporaryId,
+      image?.file,
+      image?.previewUrl,
+    );
   }
 
   /** Retry ใช้ clientMessageId เดิมเพื่อคง idempotency ของ Backend */
@@ -514,7 +625,40 @@ export function ChatClient({
       message.content,
       message.clientMessageId,
       message.id,
+      message.attachmentFile,
+      message.imageUrl ?? undefined,
     );
+  }
+
+  /** ตรวจชนิด/ขนาดไฟล์ก่อนสร้าง local preview เพื่อลด request ที่ Backend ต้องปฏิเสธ */
+  function handleImageSelect(file: File | undefined) {
+    if (!file) return;
+    releaseObjectUrl(selectedImage?.previewUrl ?? null);
+    setSelectedImage(null);
+
+    if (!CHAT_IMAGE_ACCEPT.split(',').includes(file.type)) {
+      setAttachmentError('รองรับเฉพาะรูป JPEG, PNG หรือ WEBP');
+      if (imageInputRef.current) imageInputRef.current.value = '';
+      return;
+    }
+    if (file.size > CHAT_IMAGE_MAX_SIZE_BYTES) {
+      setAttachmentError('รูปภาพต้องมีขนาดไม่เกิน 5 MB');
+      if (imageInputRef.current) imageInputRef.current.value = '';
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    objectUrlsRef.current.add(previewUrl);
+    setSelectedImage({ file, previewUrl });
+    setAttachmentError(null);
+  }
+
+  /** ยกเลิกรูปที่เลือกและคืน object URL ทันที */
+  function handleRemoveSelectedImage() {
+    releaseObjectUrl(selectedImage?.previewUrl ?? null);
+    setSelectedImage(null);
+    setAttachmentError(null);
+    if (imageInputRef.current) imageInputRef.current.value = '';
   }
 
   function handleSelectRoom(roomId: string) {
@@ -523,7 +667,11 @@ export function ChatClient({
     setMessagesError(null);
     setMessages([]);
     setNextCursor(null);
-    setReadOwnMessageIds(new Set());
+    for (const url of objectUrlsRef.current) URL.revokeObjectURL(url);
+    objectUrlsRef.current.clear();
+    setSelectedImage(null);
+    setAttachmentError(null);
+    if (imageInputRef.current) imageInputRef.current.value = '';
     setRooms((current) =>
       current.map((room) =>
         room.id === roomId ? { ...room, unreadCount: 0 } : room,
@@ -532,6 +680,15 @@ export function ChatClient({
     setSelectedRoomId(roomId);
     router.replace(`/chat?room=${roomId}`, { scroll: false });
   }
+
+  /** คืน preview URL ทั้งหมดเมื่อออกจากหน้า Chat */
+  useEffect(() => {
+    const objectUrls = objectUrlsRef.current;
+    return () => {
+      for (const url of objectUrls) URL.revokeObjectURL(url);
+      objectUrls.clear();
+    };
+  }, []);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
@@ -625,8 +782,10 @@ export function ChatClient({
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="flex-1 truncate text-xs text-muted-foreground">
-                        {room.latestMessage?.content ??
-                          `เรื่อง ${room.post.petName ?? 'ประกาศสัตว์เลี้ยง'}`}
+                        {room.latestMessage
+                          ? room.latestMessage.content ||
+                            (room.latestMessage.imageUrl ? 'รูปภาพ' : 'ข้อความ')
+                          : `เรื่อง ${room.post.petName ?? 'ประกาศสัตว์เลี้ยง'}`}
                       </span>
                       {!!room.unreadCount && room.unreadCount > 0 && (
                         <span className="flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
@@ -737,11 +896,7 @@ export function ChatClient({
                 {!isMessagesLoading &&
                   messages.map((message) => {
                     const isOwn = message.senderId === currentUser.id;
-                    const isRead =
-                      isOwn &&
-                      readOwnMessageIds.has(
-                        message.clientMessageId ?? message.id,
-                      );
+                    const isRead = isOwn && message.isRead === true;
                     return (
                       <div
                         key={message.id}
@@ -749,11 +904,27 @@ export function ChatClient({
                       >
                         <div className="max-w-[85%] sm:max-w-md">
                           <div
-                            className={`rounded-2xl px-4 py-3 text-sm ${isOwn ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}
+                            className={`overflow-hidden rounded-2xl text-sm ${isOwn ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}
                           >
-                            <p className="whitespace-pre-wrap break-words">
-                              {message.content}
-                            </p>
+                            {message.imageUrl && (
+                              <div className="relative h-48 w-64 max-w-full bg-muted/40">
+                                <Image
+                                  src={message.imageUrl}
+                                  alt="รูปภาพที่แนบในข้อความ"
+                                  fill
+                                  sizes="(max-width: 640px) 72vw, 256px"
+                                  className="object-cover"
+                                  unoptimized={message.imageUrl.startsWith(
+                                    'blob:',
+                                  )}
+                                />
+                              </div>
+                            )}
+                            {message.content && (
+                              <p className="whitespace-pre-wrap break-words px-4 py-3">
+                                {message.content}
+                              </p>
+                            )}
                           </div>
                           <div
                             className={`mt-1 flex items-center gap-1 text-[10px] text-muted-foreground ${isOwn ? 'justify-end' : ''}`}
@@ -795,9 +966,66 @@ export function ChatClient({
                   })}
               </div>
 
-              {/* Composer รองรับเฉพาะ text เพราะ Backend ยังไม่มี image input contract */}
+              {/* Composer รองรับข้อความและรูปหนึ่งรูปตาม Backend multipart contract */}
               <div className="border-t border-border/60 p-3">
+                {selectedImage && (
+                  <div className="mb-2 flex items-start gap-2 rounded-2xl border border-border bg-muted/30 p-2">
+                    <div className="relative size-20 shrink-0 overflow-hidden rounded-xl bg-muted">
+                      <Image
+                        src={selectedImage.previewUrl}
+                        alt="ตัวอย่างรูปภาพก่อนส่ง"
+                        fill
+                        sizes="80px"
+                        className="object-cover"
+                        unoptimized
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1 pt-1">
+                      <p className="truncate text-xs font-semibold">
+                        {selectedImage.file.name}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {(selectedImage.file.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-9 shrink-0"
+                      aria-label="ยกเลิกรูปภาพที่เลือก"
+                      onClick={handleRemoveSelectedImage}
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  </div>
+                )}
+                {attachmentError && (
+                  <p className="mb-2 text-xs text-destructive" role="alert">
+                    {attachmentError}
+                  </p>
+                )}
                 <div className="flex items-end gap-2">
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept={CHAT_IMAGE_ACCEPT}
+                    className="sr-only"
+                    aria-label="เลือกรูปภาพสำหรับส่ง"
+                    onChange={(event) =>
+                      handleImageSelect(event.currentTarget.files?.[0])
+                    }
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="size-11 shrink-0 rounded-2xl"
+                    aria-label="แนบรูปภาพ"
+                    onClick={() => imageInputRef.current?.click()}
+                  >
+                    <ImagePlus className="size-4" />
+                  </Button>
                   <textarea
                     value={composer}
                     maxLength={4000}
@@ -818,7 +1046,7 @@ export function ChatClient({
                     size="icon"
                     className="size-11 rounded-2xl"
                     aria-label="ส่งข้อความ"
-                    disabled={!composer.trim()}
+                    disabled={!composer.trim() && !selectedImage}
                     onClick={handleSend}
                   >
                     <Send className="size-4" />
