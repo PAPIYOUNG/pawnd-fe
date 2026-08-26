@@ -151,9 +151,9 @@ export async function getCurrentUser(): Promise<UserProfile> {
 
 /**
  * อัปเดตข้อมูลโปรไฟล์ผู้ใช้ (PATCH /users/me)
- * @param data — ข้อมูลที่ต้องการแก้ไข (firstName, lastName, phone, address)
- * หมายเหตุ: Backend DTO (UpdateProfileDto) รับเฉพาะ 4 ฟิลด์นี้เท่านั้น (whitelist validation)
- * ห้ามส่ง lineId, role, status, createdAt, id — Backend จะ throw 400 'property ... should not exist' ทันที
+ * @param data — ข้อมูลที่ต้องการแก้ไข (firstName, lastName, phone, lineId, address)
+ * หมายเหตุ: Backend DTO (UpdateProfileDto) เป็น whitelist validation รับเฉพาะฟิลด์ที่ประกาศไว้เท่านั้น
+ * ห้ามส่ง role, status, createdAt, id — Backend จะ throw 400 'property ... should not exist' ทันที
  * ส่วนอีเมลใช้ endpoint แยก (requestEmailChange / confirmEmailChange) เพราะต้องยืนยันตัวตนด้วย OTP ก่อน
  */
 export async function updateUserProfile(
@@ -161,6 +161,7 @@ export async function updateUserProfile(
     firstName?: string;
     lastName?: string;
     phone?: string;
+    lineId?: string;
     address?: string;
   }
 ): Promise<UpdateProfileResponse> {

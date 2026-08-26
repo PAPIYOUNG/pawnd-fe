@@ -18,15 +18,15 @@ export interface ActionResponse<T = unknown> {
 }
 
 /**
- * Server Action: แก้ไขข้อมูลโปรไฟล์ผู้ใช้ (ชื่อ, นามสกุล, เบอร์โทร, ที่อยู่)
+ * Server Action: แก้ไขข้อมูลโปรไฟล์ผู้ใช้ (ชื่อ, นามสกุล, เบอร์โทร, LINE ID, ที่อยู่)
  * ไม่รวมอีเมล (ต้องยืนยัน OTP ผ่าน requestEmailChangeAction / confirmEmailChangeAction แยกต่างหาก)
- * ไม่รวม role, status, createdAt, id ซึ่งห้ามแก้ไขจากฝั่งผู้ใช้งาน
- * และไม่รวม lineId เพราะ Backend DTO (UpdateProfileDto) ไม่รองรับฟิลด์นี้ (whitelist validation จะปฏิเสธทันที)
+ * และไม่รวม role, status, createdAt, id ซึ่งห้ามแก้ไขจากฝั่งผู้ใช้งาน
  */
 export async function updateProfileAction(data: {
   firstName?: string;
   lastName?: string;
   phone?: string;
+  lineId?: string;
   address?: string;
 }): Promise<ActionResponse> {
   if (!data.firstName?.trim()) {
