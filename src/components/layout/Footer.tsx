@@ -21,48 +21,48 @@ import {
 export default function Footer() {
   return (
     <footer className="w-full bg-[#133E2B] text-white">
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-14">
-        {/* ส่วนแบรนด์ด้านบน: วางโลโก้และพันธกิจกึ่งกลางเพื่อสร้างแกนสมมาตรของ Footer */}
-        <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
-          <Link
-            href="/"
-            aria-label="กลับสู่หน้าแรก PAWND"
-            className="transition-opacity hover:opacity-90"
-          >
-            <Image
-              src="/logo.png"
-              alt="โลโก้ PAWND"
-              width={1376}
-              height={1143}
-              className="h-auto w-32 object-contain sm:w-36"
-            />
-          </Link>
-          <p className="mt-4 text-sm leading-relaxed text-white/80 sm:text-base">
-            ศูนย์กลางการช่วยเหลือและค้นหาสัตว์เลี้ยงหายของไทย
-            เพราะสัตว์ทุกตัวมีค่า และควรได้กลับบ้านอย่างปลอดภัย
-          </p>
-        </div>
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+        {/* ส่วนเนื้อหาหลัก: Desktop วาง 4 กลุ่มในแถวเดียวเพื่อลดความสูงและน้ำหนักทางสายตาของ Footer */}
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1.15fr_auto] lg:items-start lg:gap-10">
+          {/* กลุ่มแบรนด์: ลดขนาดโลโก้และคำอธิบายให้เป็นข้อมูลรองของหน้า */}
+          <section className="flex flex-col items-center text-center lg:items-start lg:text-left">
+            <Link
+              href="/"
+              aria-label="กลับสู่หน้าแรก PAWND"
+              className="transition-opacity hover:opacity-90"
+            >
+              <Image
+                src="/logo.png"
+                alt="โลโก้ PAWND"
+                width={1376}
+                height={1143}
+                className="h-auto w-20 object-contain"
+              />
+            </Link>
+            <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/70">
+              ศูนย์กลางช่วยค้นหาสัตว์เลี้ยงหาย
+              เพราะทุกชีวิตควรได้กลับบ้านอย่างปลอดภัย
+            </p>
+          </section>
 
-        {/* ส่วนเนื้อหาหลัก: แบ่ง 3 คอลัมน์เท่ากันบน Desktop และเรียงแนวตั้งบน Mobile */}
-        <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3 lg:gap-6">
-          {/* การ์ดเมนูลัด: จัดลิงก์เป็นตารางเพื่อให้น้ำหนักภาพสมดุลกับอีกสองการ์ด */}
-          <section className="flex h-full flex-col justify-center rounded-3xl border border-white/10 bg-white/5 p-6 text-center md:min-h-72">
-            <h3 className="text-base font-semibold tracking-wide text-white">
+          {/* กลุ่มเมนูลัด: ใช้ลิงก์ขนาดกระชับโดยไม่ห่อด้วยการ์ดขนาดใหญ่ */}
+          <nav
+            aria-label="เมนูลัดส่วนท้ายเว็บ"
+            className="text-center lg:text-left"
+          >
+            <h3 className="text-sm font-semibold tracking-wide text-white">
               สิทธิ์ลัด
             </h3>
-            <ul className="mt-5 grid grid-cols-2 gap-3 text-sm text-white/75">
+            <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm text-white/70 lg:grid-cols-1">
               <li>
-                <Link
-                  href="/"
-                  className="block rounded-xl bg-white/5 px-3 py-2.5 transition-colors hover:bg-white/10 hover:text-white"
-                >
+                <Link href="/" className="transition-colors hover:text-white">
                   หน้าแรก
                 </Link>
               </li>
               <li>
                 <Link
                   href="/posts"
-                  className="block rounded-xl bg-white/5 px-3 py-2.5 transition-colors hover:bg-white/10 hover:text-white"
+                  className="transition-colors hover:text-white"
                 >
                   ประกาศทั้งหมด
                 </Link>
@@ -70,7 +70,7 @@ export default function Footer() {
               <li>
                 <Link
                   href="/map"
-                  className="block rounded-xl bg-white/5 px-3 py-2.5 transition-colors hover:bg-white/10 hover:text-white"
+                  className="transition-colors hover:text-white"
                 >
                   ค้นหาบนแผนที่
                 </Link>
@@ -78,51 +78,50 @@ export default function Footer() {
               <li>
                 <Link
                   href="/community"
-                  className="block rounded-xl bg-white/5 px-3 py-2.5 transition-colors hover:bg-white/10 hover:text-white"
+                  className="transition-colors hover:text-white"
                 >
                   รายงานชุมชน
                 </Link>
               </li>
             </ul>
-          </section>
+          </nav>
 
-          {/* การ์ดสนับสนุน: วางเป็นแกนกลางของ Desktop และแสดง QR ในขนาดที่สแกนได้ชัดเจน */}
-          <section className="flex h-full flex-col items-center justify-center rounded-3xl border border-white/15 bg-white/10 p-6 text-center md:min-h-72">
-            <h3 className="text-base font-semibold tracking-wide text-white">
-              สนับสนุนค่าชานมให้ผู้พัฒนา
+          {/* กลุ่มสนับสนุน: ลด QR ให้เป็นภาพประกอบและวางคู่ข้อความเพื่อคงความสูงแบบกระชับ */}
+          <section className="flex flex-col items-center text-center lg:items-start lg:text-left">
+            <h3 className="text-sm font-semibold tracking-wide text-white">
+              เลี้ยงชานมผู้พัฒนา
             </h3>
-            <p className="mt-2 text-sm leading-relaxed text-white/70">
-              สแกน QR PromptPay เพื่อเติมพลังให้ทีม PAWND
-            </p>
-            <div className="mt-4 overflow-hidden rounded-2xl bg-white p-2 shadow-sm">
-              <Image
-                src="/images/support-promptpay.png"
-                alt="QR Code PromptPay สำหรับสนับสนุนค่าชานมให้ผู้พัฒนา PAWND"
-                width={564}
-                height={564}
-                className="size-36 rounded-xl object-contain sm:size-40"
-              />
+            <div className="mt-3 flex items-center gap-4">
+              <div className="shrink-0 overflow-hidden rounded-xl bg-white p-1.5">
+                <Image
+                  src="/images/support-promptpay.png"
+                  alt="QR Code PromptPay สำหรับสนับสนุนค่าชานมให้ผู้พัฒนา PAWND"
+                  width={564}
+                  height={564}
+                  className="size-20 rounded-lg object-contain sm:size-24"
+                />
+              </div>
+              <p className="max-w-36 text-sm leading-relaxed text-white/70">
+                สแกน PromptPay เพื่อเติมพลังให้ทีม PAWND
+              </p>
             </div>
           </section>
 
-          {/* การ์ดโซเชียล: จัดไอคอนกึ่งกลางและใช้ขนาด Touch Target ที่กดได้สะดวก */}
-          <section className="flex h-full flex-col items-center justify-center rounded-3xl border border-white/10 bg-white/5 p-6 text-center md:min-h-72">
-            <h3 className="text-base font-semibold tracking-wide text-white">
+          {/* กลุ่มโซเชียล: เก็บไอคอนไว้ด้านขวาโดยใช้ Touch Target ที่กดได้สะดวก */}
+          <section className="flex flex-col items-center text-center lg:items-start lg:text-left">
+            <h3 className="text-sm font-semibold tracking-wide text-white">
               ติดตามเราได้ที่
             </h3>
-            <p className="mt-2 text-sm text-white/70">
-              ร่วมติดตามข่าวสารและเรื่องราวจากชุมชน
-            </p>
-            <div className="mt-5 flex items-center justify-center gap-3">
+            <div className="mt-3 flex items-center justify-center gap-2 lg:justify-start">
               {/* Telegram */}
               <a
                 href="https://t.me"
                 target="_blank"
                 rel="noreferrer"
                 aria-label="Telegram"
-                className="flex size-11 items-center justify-center rounded-full bg-white/10 text-white transition-transform hover:scale-110 hover:bg-white/20"
+                className="flex size-10 items-center justify-center rounded-full bg-white/10 text-white transition-transform hover:scale-110 hover:bg-white/20"
               >
-                <TelegramIcon className="size-5" />
+                <TelegramIcon className="size-4" />
               </a>
 
               {/* Instagram */}
@@ -131,9 +130,9 @@ export default function Footer() {
                 target="_blank"
                 rel="noreferrer"
                 aria-label="Instagram"
-                className="flex size-11 items-center justify-center rounded-full bg-white/10 text-white transition-transform hover:scale-110 hover:bg-white/20"
+                className="flex size-10 items-center justify-center rounded-full bg-white/10 text-white transition-transform hover:scale-110 hover:bg-white/20"
               >
-                <InstagramIcon className="size-5" />
+                <InstagramIcon className="size-4" />
               </a>
 
               {/* Facebook */}
@@ -142,9 +141,9 @@ export default function Footer() {
                 target="_blank"
                 rel="noreferrer"
                 aria-label="Facebook"
-                className="flex size-11 items-center justify-center rounded-full bg-white/10 text-white transition-transform hover:scale-110 hover:bg-white/20"
+                className="flex size-10 items-center justify-center rounded-full bg-white/10 text-white transition-transform hover:scale-110 hover:bg-white/20"
               >
-                <FacebookIcon className="size-5" />
+                <FacebookIcon className="size-4" />
               </a>
 
               {/* Twitter / X */}
@@ -153,16 +152,16 @@ export default function Footer() {
                 target="_blank"
                 rel="noreferrer"
                 aria-label="Twitter / X"
-                className="flex size-11 items-center justify-center rounded-full bg-white/10 text-white transition-transform hover:scale-110 hover:bg-white/20"
+                className="flex size-10 items-center justify-center rounded-full bg-white/10 text-white transition-transform hover:scale-110 hover:bg-white/20"
               >
-                <TwitterIcon className="size-5" />
+                <TwitterIcon className="size-4" />
               </a>
             </div>
           </section>
         </div>
 
         {/* แถบลิขสิทธิ์ด้านล่างสุด (Bottom Bar) */}
-        <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-6 text-center text-xs text-white/60 sm:flex-row sm:text-left">
+        <div className="mt-7 flex flex-col items-center justify-between gap-3 border-t border-white/10 pt-5 text-center text-xs text-white/50 sm:flex-row sm:text-left">
           <p>© 2026 Pawnd Thailand. All rights reserved.</p>
           <p className="flex items-center gap-1">
             สร้างขึ้นด้วยความรักต่อเพื่อนร่วมโลก 💚
