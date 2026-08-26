@@ -34,6 +34,10 @@ import type { AiSearchByImageResult } from '@/services/ai.service';
 
 const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
+// บาง response ของ AI ส่งค่า breed มาเป็น string "null" ตรงๆ (ไม่ใช่ null จริง) ต้องกรองออกก่อนแสดงผล
+const hasMeaningfulText = (value: string | null | undefined): value is string =>
+  Boolean(value && value.trim().toLowerCase() !== 'null');
+
 // ป้ายชื่อประเภทสัตว์เลี้ยงภาษาไทย สำหรับแสดงผลใน Dialog นี้เท่านั้น
 const PET_TYPE_LABEL_TH: Record<PetType, string> = {
   DOG: 'สุนัข',
@@ -179,7 +183,7 @@ export function AiMatchUploadDialog() {
               <PawPrint className="size-4 shrink-0" />
               <span>
                 AI ตรวจพบ: {PET_TYPE_LABEL_TH[searchResult.analysis.type]}
-                {searchResult.analysis.breed
+                {hasMeaningfulText(searchResult.analysis.breed)
                   ? ` พันธุ์${searchResult.analysis.breed}`
                   : ''}
               </span>
@@ -197,14 +201,19 @@ export function AiMatchUploadDialog() {
                     <Link
                       key={match.postId}
                       href={`/posts/${match.postId}`}
-                      onClick={() => handleOpenChange(false)}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="flex items-center gap-3 rounded-2xl border border-border/80 bg-card p-2.5 transition-colors hover:border-primary/50 hover:bg-muted/40"
                     >
                       <div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-muted">
                         {coverImage && (
                           <Image
                             src={coverImage}
-                            alt={match.post.breed || 'รูปสัตว์เลี้ยงที่จับคู่ได้'}
+                            alt={
+                              hasMeaningfulText(match.post.breed)
+                                ? match.post.breed
+                                : 'รูปสัตว์เลี้ยงที่จับคู่ได้'
+                            }
                             fill
                             sizes="56px"
                             className="object-cover"
@@ -223,7 +232,9 @@ export function AiMatchUploadDialog() {
                         </span>
                         <span className="truncate text-sm font-semibold text-foreground">
                           {PET_TYPE_LABEL_TH[match.post.petType]}
-                          {match.post.breed ? ` · ${match.post.breed}` : ''}
+                          {hasMeaningfulText(match.post.breed)
+                            ? ` · ${match.post.breed}`
+                            : ''}
                         </span>
                         {match.post.province && (
                           <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
