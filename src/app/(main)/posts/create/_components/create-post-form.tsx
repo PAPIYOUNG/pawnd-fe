@@ -5,6 +5,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
+  useForm,
+  type FieldPath,
+  type FieldPathValue,
+} from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
   Camera,
   Plus,
   X,
@@ -38,6 +44,10 @@ import {
   analyzeImageAction,
   uploadPostImagesAction,
 } from '../_actions/create-post.actions';
+import {
+  createPostFormSchema,
+  type CreatePostFormValues,
+} from '../_schemas/create-post.schema';
 
 // ขนาดด้านยาวสุดของรูปหลัง resize และคุณภาพ JPEG ที่ใช้ส่งให้ AI วิเคราะห์
 // รูปจากกล้องมือถือ (2-8MB) พอ resize ตามนี้แล้วมักจะเหลือไม่เกินไม่กี่ร้อย KB
@@ -125,6 +135,53 @@ export function CreatePostForm() {
   // State ประเภทประกาศที่เลือก ซึ่งจะถูกส่งเป็น PostType ไปยัง Backend ตอนเผยแพร่
   const [postType, setPostType] = useState<PostType | null>(null);
 
+  // React Hook Form ถือค่าฟอร์มและเรียก Zod ตรวจสอบก่อนเข้าสู่หน้า Preview
+  const {
+    register,
+    handleSubmit,
+    getValues,
+    setValue,
+    formState: { errors },
+  } = useForm<CreatePostFormValues>({
+    resolver: zodResolver(createPostFormSchema),
+    mode: 'onTouched',
+    defaultValues: {
+      petName: '',
+      petType: 'CAT',
+      breed: '',
+      gender: 'UNKNOWN',
+      color: '',
+      distinctiveFeatures: '',
+      locationDescription: '',
+      eventDate: '',
+      rewardAmount: '',
+      contactPhone: '',
+    },
+  });
+
+  // State สำหรับแสดงค่าปัจจุบันใน Preview โดยทุกการเปลี่ยนค่าจะ sync เข้า React Hook Form ด้วย
+  const [petName, setPetName] = useState('');
+  const [petType, setPetType] = useState<PetType>('CAT');
+  const [breed, setBreed] = useState('');
+  const [color, setColor] = useState('');
+  const [gender, setGender] = useState<PetGender>('UNKNOWN');
+  const [distinctiveFeatures, setDistinctiveFeatures] = useState('');
+  const [locationDescription, setLocationDescription] = useState('');
+  const [eventDate, setEventDate] = useState('');
+  const [rewardAmount, setRewardAmount] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+
+  /** อัปเดตค่าใน RHF พร้อมขอให้ Zod ตรวจสอบ field ที่ผู้ใช้เพิ่งแก้ */
+  const syncFormValue = <K extends FieldPath<CreatePostFormValues>>(
+    field: K,
+    value: FieldPathValue<CreatePostFormValues, K>,
+  ) => {
+    setValue(field, value, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
   // State รูปภาพที่อัปโหลด (สูงสุด 5 รูป) — เก็บเป็น Preview URL สำหรับแสดงผล
   const [images, setImages] = useState<string[]>([
     'https://images.unsplash.com/photo-1573865526739-10659fec78a5?q=80&w=600&auto=format&fit=crop',
@@ -133,22 +190,6 @@ export function CreatePostForm() {
   // State ไฟล์ต้นฉบับของรูปภาพ (คู่กับ images ตาม index) ใช้แปลงเป็น Base64 ส่งให้ AI วิเคราะห์
   // รูปตัวอย่างเริ่มต้น (mock) ไม่มีไฟล์จริง จึงเป็น null
   const [imageFiles, setImageFiles] = useState<(File | null)[]>([null]);
-
-  // State ข้อมูลสัตว์เลี้ยง
-  const [petName, setPetName] = useState('น้องส้มส้ม');
-  const [petType, setPetType] = useState<PetType>('CAT');
-  const [breed, setBreed] = useState('แมวไทย (สลิด)');
-  const [color, setColor] = useState('สีส้มสลับขาว');
-  const [gender, setGender] = useState<PetGender>('FEMALE');
-  const [distinctiveFeatures, setDistinctiveFeatures] = useState(
-    'น้องค่อนข้างเชื่อง กลัวคนแปลกหน้าเล็กน้อย มีปลอกคอสีแดงพร้อมกระดิ่งสีเงิน ชอบนอนตามพุ่มไม้เตี้ยๆ ติดขนสีส้มที่หาง'
-  );
-  const [locationDescription, setLocationDescription] = useState(
-    'เขตลาดพร้าว, กรุงเทพมหานคร'
-  );
-  const [eventDate, setEventDate] = useState('12 ตุลาคม 2568 - เวลา 14:30 น.');
-  const [rewardAmount, setRewardAmount] = useState('5,000');
-  const [contactPhone, setContactPhone] = useState('089-123-4567');
 
   // State AI Assistant & Toast Notification
   const [isAnalyzingAi, setIsAnalyzingAi] = useState(false);
@@ -229,8 +270,24 @@ export function CreatePostForm() {
       const res = await runAiImageAnalysis();
       if (res.success && res.data) {
         setPetType(res.data.type);
-        if (res.data.breed) setBreed(res.data.breed);
-        if (res.data.color) setColor(res.data.color);
+        setValue('petType', res.data.type, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        if (res.data.breed) {
+          setBreed(res.data.breed);
+          setValue('breed', res.data.breed, {
+            shouldDirty: true,
+            shouldValidate: true,
+          });
+        }
+        if (res.data.color) {
+          setColor(res.data.color);
+          setValue('color', res.data.color, {
+            shouldDirty: true,
+            shouldValidate: true,
+          });
+        }
         setShowToast('AI วิเคราะห์สายพันธุ์และสีขนเรียบร้อยแล้ว');
       } else {
         setShowToast(`วิเคราะห์รูปภาพไม่สำเร็จ: ${res.error ?? 'กรุณาลองใหม่อีกครั้ง'}`);
@@ -258,6 +315,10 @@ export function CreatePostForm() {
 
       if (res.success && generatedText) {
         setDistinctiveFeatures(generatedText);
+        setValue('distinctiveFeatures', generatedText, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
         setShowToast('AI สร้างคำบรรยายลักษณะเด่นสำเร็จ');
       } else {
         setShowToast(
@@ -274,21 +335,22 @@ export function CreatePostForm() {
     }
   };
 
-  // ไปยังขั้นตอนที่ 2 (ตรวจสอบก่อนยืนยัน)
-  const handleGoToReview = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!postType) {
-      setCurrentStep(0);
-      setShowToast('กรุณาเลือกประเภทประกาศก่อนกรอกข้อมูล');
-      return;
-    }
-    if (!petName || !breed || !locationDescription || !contactPhone) {
-      alert('กรุณากรอกข้อมูลสำคัญให้ครบถ้วนก่อนไปขั้นตอนตรวจสอบ');
-      return;
-    }
-    setCurrentStep(2);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  // ไปยังขั้นตอนที่ 2 (ตรวจสอบก่อนยืนยัน) หลัง Zod ตรวจสอบข้อมูลครบถ้วน
+  const handleGoToReview = handleSubmit(
+    () => {
+      if (!postType) {
+        setCurrentStep(0);
+        setShowToast('กรุณาเลือกประเภทประกาศก่อนกรอกข้อมูล');
+        return;
+      }
+
+      setCurrentStep(2);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    () => {
+      setShowToast('กรุณาตรวจสอบข้อมูลในช่องที่มีข้อความแจ้งเตือน');
+    },
+  );
 
   // ยืนยันและเผยแพร่ประกาศทันที (เชื่อมต่อ Backend createPostAction)
   const handleFinalPublish = async () => {
@@ -300,6 +362,8 @@ export function CreatePostForm() {
         setShowToast('กรุณาเลือกประเภทประกาศก่อนเผยแพร่');
         return;
       }
+
+      const values = getValues();
 
       const selectedFiles = imageFiles.filter(
         (file): file is File => file !== null,
@@ -321,23 +385,23 @@ export function CreatePostForm() {
 
       // ถ้ามีโพสต์ค้างจากการอัปโหลดครั้งก่อน ให้ลอง upload ต่อโดยไม่สร้างโพสต์ใหม่
       if (!postId) {
-        const numReward = rewardAmount
-          ? parseInt(rewardAmount.replace(/,/g, ''), 10)
+        const numReward = values.rewardAmount
+          ? parseInt(values.rewardAmount.replace(/,/g, ''), 10)
           : undefined;
         const res = await createPostAction({
           type: postType,
-          petName,
-          petType,
-          breed,
-          gender,
-          color,
-          distinctiveFeatures,
-          locationDescription,
+          petName: values.petName,
+          petType: values.petType,
+          breed: values.breed,
+          gender: values.gender,
+          color: values.color,
+          distinctiveFeatures: values.distinctiveFeatures,
+          locationDescription: values.locationDescription,
           eventDate: new Date().toISOString(),
           latitude: 13.7563,
           longitude: 100.5018,
           rewardAmount: isNaN(numReward as number) ? undefined : numReward,
-          contactPhone,
+          contactPhone: values.contactPhone,
         });
 
         if (!res.success) {
@@ -713,13 +777,25 @@ export function CreatePostForm() {
                     ชื่อสัตว์เลี้ยง <span className="text-destructive">*</span>
                   </Label>
                   <Input
+                    {...register('petName')}
                     id="petName"
                     value={petName}
-                    onChange={(e) => setPetName(e.target.value)}
+                    onChange={(event) => {
+                      setPetName(event.target.value);
+                      syncFormValue('petName', event.target.value);
+                    }}
                     placeholder="เช่น น้องส้มส้ม"
-                    className="rounded-2xl"
-                    required
+                    aria-invalid={Boolean(errors.petName)}
+                    className={cn(
+                      'rounded-2xl',
+                      errors.petName && 'border-destructive',
+                    )}
                   />
+                  {errors.petName && (
+                    <p className="text-xs text-destructive" role="alert">
+                      {errors.petName.message}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-1.5">
@@ -727,10 +803,19 @@ export function CreatePostForm() {
                     ประเภทสัตว์เลี้ยง <span className="text-destructive">*</span>
                   </Label>
                   <select
+                    {...register('petType')}
                     id="petType"
                     value={petType}
-                    onChange={(e) => setPetType(e.target.value as PetType)}
-                    className="h-10 rounded-2xl border border-border bg-background px-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    onChange={(event) => {
+                      const value = event.target.value as PetType;
+                      setPetType(value);
+                      syncFormValue('petType', value);
+                    }}
+                    aria-invalid={Boolean(errors.petType)}
+                    className={cn(
+                      'h-10 rounded-2xl border border-border bg-background px-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary',
+                      errors.petType && 'border-destructive',
+                    )}
                   >
                     <option value="CAT">แมว</option>
                     <option value="DOG">สุนัข</option>
@@ -739,6 +824,11 @@ export function CreatePostForm() {
                     <option value="EXOTIC">สัตว์พิเศษ</option>
                     <option value="OTHER">อื่นๆ</option>
                   </select>
+                  {errors.petType && (
+                    <p className="text-xs text-destructive" role="alert">
+                      {errors.petType.message}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -749,13 +839,25 @@ export function CreatePostForm() {
                     สายพันธุ์ <span className="text-destructive">*</span>
                   </Label>
                   <Input
+                    {...register('breed')}
                     id="breed"
                     value={breed}
-                    onChange={(e) => setBreed(e.target.value)}
+                    onChange={(event) => {
+                      setBreed(event.target.value);
+                      syncFormValue('breed', event.target.value);
+                    }}
                     placeholder="เช่น แมวไทย (สลิด)"
-                    className="rounded-2xl"
-                    required
+                    aria-invalid={Boolean(errors.breed)}
+                    className={cn(
+                      'rounded-2xl',
+                      errors.breed && 'border-destructive',
+                    )}
                   />
+                  {errors.breed && (
+                    <p className="text-xs text-destructive" role="alert">
+                      {errors.breed.message}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-1.5">
@@ -763,13 +865,25 @@ export function CreatePostForm() {
                     สีขนหลัก <span className="text-destructive">*</span>
                   </Label>
                   <Input
+                    {...register('color')}
                     id="color"
                     value={color}
-                    onChange={(e) => setColor(e.target.value)}
+                    onChange={(event) => {
+                      setColor(event.target.value);
+                      syncFormValue('color', event.target.value);
+                    }}
                     placeholder="เช่น สีส้มสลับขาว"
-                    className="rounded-2xl"
-                    required
+                    aria-invalid={Boolean(errors.color)}
+                    className={cn(
+                      'rounded-2xl',
+                      errors.color && 'border-destructive',
+                    )}
                   />
+                  {errors.color && (
+                    <p className="text-xs text-destructive" role="alert">
+                      {errors.color.message}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -781,11 +895,14 @@ export function CreatePostForm() {
                 <div className="flex flex-wrap items-center gap-5 pt-1 text-xs sm:text-sm">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
+                      {...register('gender')}
                       type="radio"
-                      name="gender"
                       value="MALE"
                       checked={gender === 'MALE'}
-                      onChange={() => setGender('MALE')}
+                      onChange={() => {
+                        setGender('MALE');
+                        syncFormValue('gender', 'MALE');
+                      }}
                       className="size-4 accent-emerald-600"
                     />
                     <span>ตัวผู้</span>
@@ -793,11 +910,14 @@ export function CreatePostForm() {
 
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
+                      {...register('gender')}
                       type="radio"
-                      name="gender"
                       value="FEMALE"
                       checked={gender === 'FEMALE'}
-                      onChange={() => setGender('FEMALE')}
+                      onChange={() => {
+                        setGender('FEMALE');
+                        syncFormValue('gender', 'FEMALE');
+                      }}
                       className="size-4 accent-emerald-600"
                     />
                     <span>ตัวเมีย</span>
@@ -805,16 +925,24 @@ export function CreatePostForm() {
 
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
+                      {...register('gender')}
                       type="radio"
-                      name="gender"
                       value="UNKNOWN"
                       checked={gender === 'UNKNOWN'}
-                      onChange={() => setGender('UNKNOWN')}
+                      onChange={() => {
+                        setGender('UNKNOWN');
+                        syncFormValue('gender', 'UNKNOWN');
+                      }}
                       className="size-4 accent-emerald-600"
                     />
                     <span>ไม่ทราบเพศ / ไม่ระบุ</span>
                   </label>
                 </div>
+                {errors.gender && (
+                  <p className="text-xs text-destructive" role="alert">
+                    {errors.gender.message}
+                  </p>
+                )}
               </div>
 
               {/* ลักษณะเด่น */}
@@ -836,14 +964,26 @@ export function CreatePostForm() {
                   </button>
                 </div>
                 <textarea
+                  {...register('distinctiveFeatures')}
                   id="features"
                   rows={3}
                   value={distinctiveFeatures}
-                  onChange={(e) => setDistinctiveFeatures(e.target.value)}
+                  onChange={(event) => {
+                    setDistinctiveFeatures(event.target.value);
+                    syncFormValue('distinctiveFeatures', event.target.value);
+                  }}
                   placeholder="ระบุจุดสังเกต เช่น มีปลอกคอ แผลเป็น นิสัย หรือพฤติกรรม..."
-                  className="w-full rounded-2xl border border-border bg-background p-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary leading-relaxed"
-                  required
+                  aria-invalid={Boolean(errors.distinctiveFeatures)}
+                  className={cn(
+                    'w-full rounded-2xl border border-border bg-background p-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary leading-relaxed',
+                    errors.distinctiveFeatures && 'border-destructive',
+                  )}
                 />
+                {errors.distinctiveFeatures && (
+                  <p className="text-xs text-destructive" role="alert">
+                    {errors.distinctiveFeatures.message}
+                  </p>
+                )}
               </div>
 
               {/* พิกัด & วันที่หาย */}
@@ -856,14 +996,26 @@ export function CreatePostForm() {
                   <div className="relative">
                     <MapPin className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-primary" />
                     <Input
+                      {...register('locationDescription')}
                       id="location"
                       value={locationDescription}
-                      onChange={(e) => setLocationDescription(e.target.value)}
+                      onChange={(event) => {
+                        setLocationDescription(event.target.value);
+                        syncFormValue('locationDescription', event.target.value);
+                      }}
                       placeholder="เช่น เขตลาดพร้าว, กรุงเทพมหานคร"
-                      className="rounded-2xl pl-10"
-                      required
+                      aria-invalid={Boolean(errors.locationDescription)}
+                      className={cn(
+                        'rounded-2xl pl-10',
+                        errors.locationDescription && 'border-destructive',
+                      )}
                     />
                   </div>
+                  {errors.locationDescription && (
+                    <p className="text-xs text-destructive" role="alert">
+                      {errors.locationDescription.message}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-1.5">
@@ -874,14 +1026,26 @@ export function CreatePostForm() {
                   <div className="relative">
                     <Calendar className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-primary" />
                     <Input
+                      {...register('eventDate')}
                       id="datetime"
                       value={eventDate}
-                      onChange={(e) => setEventDate(e.target.value)}
+                      onChange={(event) => {
+                        setEventDate(event.target.value);
+                        syncFormValue('eventDate', event.target.value);
+                      }}
                       placeholder="เช่น 12 ตุลาคม 2568 - เวลา 14:30 น."
-                      className="rounded-2xl pl-10"
-                      required
+                      aria-invalid={Boolean(errors.eventDate)}
+                      className={cn(
+                        'rounded-2xl pl-10',
+                        errors.eventDate && 'border-destructive',
+                      )}
                     />
                   </div>
+                  {errors.eventDate && (
+                    <p className="text-xs text-destructive" role="alert">
+                      {errors.eventDate.message}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -896,13 +1060,26 @@ export function CreatePostForm() {
                       ฿
                     </span>
                     <Input
+                      {...register('rewardAmount')}
                       id="reward"
                       value={rewardAmount}
-                      onChange={(e) => setRewardAmount(e.target.value)}
+                      onChange={(event) => {
+                        setRewardAmount(event.target.value);
+                        syncFormValue('rewardAmount', event.target.value);
+                      }}
                       placeholder="5,000"
-                      className="rounded-2xl pl-8 font-semibold"
+                      aria-invalid={Boolean(errors.rewardAmount)}
+                      className={cn(
+                        'rounded-2xl pl-8 font-semibold',
+                        errors.rewardAmount && 'border-destructive',
+                      )}
                     />
                   </div>
+                  {errors.rewardAmount && (
+                    <p className="text-xs text-destructive" role="alert">
+                      {errors.rewardAmount.message}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-1.5">
@@ -912,14 +1089,26 @@ export function CreatePostForm() {
                   <div className="relative">
                     <Phone className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-primary" />
                     <Input
+                      {...register('contactPhone')}
                       id="phone"
                       value={contactPhone}
-                      onChange={(e) => setContactPhone(e.target.value)}
+                      onChange={(event) => {
+                        setContactPhone(event.target.value);
+                        syncFormValue('contactPhone', event.target.value);
+                      }}
                       placeholder="เช่น 089-123-4567"
-                      className="rounded-2xl pl-10"
-                      required
+                      aria-invalid={Boolean(errors.contactPhone)}
+                      className={cn(
+                        'rounded-2xl pl-10',
+                        errors.contactPhone && 'border-destructive',
+                      )}
                     />
                   </div>
+                  {errors.contactPhone && (
+                    <p className="text-xs text-destructive" role="alert">
+                      {errors.contactPhone.message}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
