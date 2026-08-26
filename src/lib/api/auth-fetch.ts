@@ -13,6 +13,11 @@ export async function authFetch<T>(
     redirect('/login');
   }
 
+  // refresh accessToken ไม่สำเร็จ (refreshToken หมดอายุ/ถูกเพิกถอน) -> ต้อง login ใหม่
+  if (session.error === 'RefreshAccessTokenError') {
+    redirect('/login');
+  }
+
   return apiFetch<T>(path, {
     ...options,
     token: session.accessToken,

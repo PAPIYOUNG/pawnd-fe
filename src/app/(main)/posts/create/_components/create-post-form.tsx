@@ -30,7 +30,58 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { PetGender, PetType } from '@/types/post';
-import { createPostAction } from '../_actions/create-post.actions';
+import { AiAnalysisResult } from '@/services/ai.service';
+import { createPostAction, analyzeImageAction } from '../_actions/create-post.actions';
+
+// ขนาดด้านยาวสุดของรูปหลัง resize และคุณภาพ JPEG ที่ใช้ส่งให้ AI วิเคราะห์
+// รูปจากกล้องมือถือ (2-8MB) พอ resize ตามนี้แล้วมักจะเหลือไม่เกินไม่กี่ร้อย KB
+// ป้องกัน error "Body exceeded 1 MB limit" ของ Next.js Server Action ตอนส่ง Base64
+const AI_IMAGE_MAX_DIMENSION = 1024;
+const AI_IMAGE_JPEG_QUALITY = 0.8;
+
+/**
+ * ย่อขนาดรูปภาพด้วย Canvas แล้วแปลงเป็น Base64 Data URL (JPEG)
+ * ใช้สำหรับส่งรูปภาพที่ยังไม่ได้อัปโหลดขึ้น server ไปให้ AI วิเคราะห์
+ * (เพราะตอนกรอกฟอร์มยังไม่มีประกาศให้ผูกไฟล์ด้วย จึงยังไม่มี URL สาธารณะ)
+ * ใช้ window.Image ตรงๆ (ไม่ใช่ตัว Image ที่ import จาก next/image) เพื่อสร้าง HTMLImageElement
+ */
+function resizeImageToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new window.Image();
+
+    img.onload = () => {
+      const scale = Math.min(1, AI_IMAGE_MAX_DIMENSION / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+
+      const ctx = canvas.getContext('2d');
+      URL.revokeObjectURL(objectUrl);
+
+      if (!ctx) {
+        reject(new Error('ไม่สามารถประมวลผลรูปภาพได้'));
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', AI_IMAGE_JPEG_QUALITY));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('ไม่สามารถโหลดรูปภาพได้'));
+    };
+    img.src = objectUrl;
+  });
+}
+
+/**
+ * สร้าง key สำหรับระบุตัวตนของรูปภาพที่ใช้วิเคราะห์ (ใช้เทียบว่าเป็นรูปเดิมหรือไม่)
+ * ไฟล์จริงใช้ name+size+lastModified ส่วน URL (เช่นรูปตัวอย่าง mock) ใช้ค่า URL เป็น key ตรงๆ
+ */
+function getImageKey(file: File | null, fallbackUrl: string): string {
+  return file ? `${file.name}-${file.size}-${file.lastModified}` : fallbackUrl;
+}
 
 /**
  * CreatePostForm Component (Client Component)
@@ -46,10 +97,14 @@ export function CreatePostForm() {
   // State ขั้นตอน: 1 = กรอกข้อมูล, 2 = ตรวจสอบ & ดูตัวอย่าง (Preview)
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
 
-  // State รูปภาพที่อัปโหลด (สูงสุด 5 รูป)
+  // State รูปภาพที่อัปโหลด (สูงสุด 5 รูป) — เก็บเป็น Preview URL สำหรับแสดงผล
   const [images, setImages] = useState<string[]>([
     'https://images.unsplash.com/photo-1573865526739-10659fec78a5?q=80&w=600&auto=format&fit=crop',
   ]);
+
+  // State ไฟล์ต้นฉบับของรูปภาพ (คู่กับ images ตาม index) ใช้แปลงเป็น Base64 ส่งให้ AI วิเคราะห์
+  // รูปตัวอย่างเริ่มต้น (mock) ไม่มีไฟล์จริง จึงเป็น null
+  const [imageFiles, setImageFiles] = useState<(File | null)[]>([null]);
 
   // State ข้อมูลสัตว์เลี้ยง
   const [petName, setPetName] = useState('น้องส้มส้ม');
@@ -73,48 +128,120 @@ export function CreatePostForm() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [showToast, setShowToast] = useState<string | null>(null);
 
+  // Cache ผลวิเคราะห์ AI ล่าสุด ผูกกับ imageKey ของรูปที่ใช้วิเคราะห์
+  // ป้องกันการยิง /analyze-image ซ้ำเมื่อกดปุ่ม AI ทั้งสองปุ่มกับรูปเดิม
+  const [aiAnalysisCache, setAiAnalysisCache] = useState<{
+    imageKey: string;
+    data: AiAnalysisResult;
+  } | null>(null);
+
   // ฟังก์ชันอัปโหลดรูปภาพ (จำกัดสูงสุด 3 รูปตามกฎ Backend)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     const newUrls: string[] = [];
+    const newFiles: File[] = [];
     for (let i = 0; i < files.length; i++) {
       if (images.length + newUrls.length < 3) {
         newUrls.push(URL.createObjectURL(files[i]));
+        newFiles.push(files[i]);
       }
     }
     setImages((prev) => [...prev, ...newUrls].slice(0, 3));
+    setImageFiles((prev) => [...prev, ...newFiles].slice(0, 3));
+    // รูปแรกอาจเปลี่ยน (ถ้าเดิมยังไม่มีรูปเลย) → ล้าง cache ผลวิเคราะห์เก่าทิ้ง
+    setAiAnalysisCache(null);
   };
 
-  // ลบรูปภาพเดี่ยว
+  // ลบรูปภาพเดี่ยว (ลบทั้ง Preview URL และไฟล์ต้นฉบับที่ index เดียวกัน)
   const handleRemoveImage = (indexToRemove: number) => {
     setImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    setImageFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    // รูปแรกอาจเปลี่ยนไปเป็นรูปอื่น → ล้าง cache ผลวิเคราะห์เก่าทิ้ง
+    setAiAnalysisCache(null);
   };
 
-  // เรียก AI วิเคราะห์สายพันธุ์และสีขนจากภาพถ่าย
-  const handleAiAnalyzeImage = () => {
+  // เรียก AI วิเคราะห์รูปภาพ (POST /analyze-image) จากรูปแรกที่อัปโหลด
+  // ถ้ารูปเดิมเคยวิเคราะห์แล้ว (imageKey ตรงกับ cache) จะ reuse ผลลัพธ์เดิมแทนการยิง request ซ้ำ
+  // คืนค่า Promise<AiAnalysisResult> เพื่อให้ handler แต่ละตัวนำ field ที่ต้องการไปใช้ต่อได้เอง
+  const runAiImageAnalysis = async () => {
+    const file = imageFiles[0];
+    const imageKey = getImageKey(file, images[0]);
+
+    if (aiAnalysisCache?.imageKey === imageKey) {
+      return { success: true as const, data: aiAnalysisCache.data };
+    }
+
+    // ถ้ามีไฟล์จริง (ผู้ใช้เพิ่งอัปโหลด) ต้อง resize + แปลงเป็น Base64 ก่อน
+    // (ยังไม่มีประกาศให้ผูกไฟล์ และต้อง resize ไม่ให้เกิน limit ของ Server Action)
+    // ถ้าไม่มีไฟล์ (เช่นรูปตัวอย่าง mock) แปลว่า images[0] เป็น URL ที่เข้าถึงได้อยู่แล้ว
+    const imageUrl = file ? await resizeImageToDataUrl(file) : images[0];
+    const res = await analyzeImageAction(imageUrl);
+
+    if (res.success && res.data) {
+      setAiAnalysisCache({ imageKey, data: res.data });
+    }
+
+    return res;
+  };
+
+  // เรียก AI วิเคราะห์ประเภท สายพันธุ์ และสีขนจากภาพถ่าย
+  const handleAiAnalyzeImage = async () => {
+    if (images.length === 0) {
+      setShowToast('กรุณาอัปโหลดรูปภาพก่อนเริ่มวิเคราะห์');
+      setTimeout(() => setShowToast(null), 3000);
+      return;
+    }
+
     setIsAnalyzingAi(true);
-    setTimeout(() => {
+    try {
+      const res = await runAiImageAnalysis();
+      if (res.success && res.data) {
+        setPetType(res.data.type);
+        if (res.data.breed) setBreed(res.data.breed);
+        if (res.data.color) setColor(res.data.color);
+        setShowToast('AI วิเคราะห์สายพันธุ์และสีขนเรียบร้อยแล้ว');
+      } else {
+        setShowToast(`วิเคราะห์รูปภาพไม่สำเร็จ: ${res.error ?? 'กรุณาลองใหม่อีกครั้ง'}`);
+      }
+    } catch {
+      setShowToast('เกิดข้อผิดพลาดขณะวิเคราะห์รูปภาพ กรุณาลองใหม่อีกครั้ง');
+    } finally {
       setIsAnalyzingAi(false);
-      setBreed('แมวไทย พันธุ์ศุภลักษณ์ผสมเปอร์เซีย');
-      setColor('สีส้ม ลายสลิด มีแต้มขาวที่อก');
-      setShowToast('AI วิเคราะห์สายพันธุ์และสีขนเรียบร้อยแล้ว');
       setTimeout(() => setShowToast(null), 3000);
-    }, 1200);
+    }
   };
 
-  // เรียก AI ช่วยเขียนคำบรรยายลักษณะเด่น
-  const handleAiGenerateDescription = () => {
-    setIsGeneratingDesc(true);
-    setTimeout(() => {
-      setIsGeneratingDesc(false);
-      setDistinctiveFeatures(
-        `น้อง${petName} มีดวงตาสีอำพันสดใส รูปร่างสมส่วน ขนสั้นนุ่มสีส้มลายสลิด ปลายหางเรียวยาว สวมปลอกคอสีแดง นิสัยขี้อ้อนแต่ระแวงเสียงดัง`
-      );
-      setShowToast('AI สร้างคำบรรยายลักษณะเด่นสำเร็จ');
+  // เรียก AI ช่วยเขียนคำบรรยายลักษณะเด่น (ใช้ field "description" จากผลวิเคราะห์ภาพชุดเดียวกัน)
+  const handleAiGenerateDescription = async () => {
+    if (images.length === 0) {
+      setShowToast('กรุณาอัปโหลดรูปภาพก่อนให้ AI ช่วยเขียนคำบรรยาย');
       setTimeout(() => setShowToast(null), 3000);
-    }, 1000);
+      return;
+    }
+
+    setIsGeneratingDesc(true);
+    try {
+      const res = await runAiImageAnalysis();
+      const generatedText = res.data?.description || res.data?.distinctiveFeatures;
+
+      if (res.success && generatedText) {
+        setDistinctiveFeatures(generatedText);
+        setShowToast('AI สร้างคำบรรยายลักษณะเด่นสำเร็จ');
+      } else {
+        setShowToast(
+          res.success
+            ? 'AI ไม่สามารถสร้างคำบรรยายจากรูปภาพนี้ได้'
+            : `สร้างคำบรรยายไม่สำเร็จ: ${res.error ?? 'กรุณาลองใหม่อีกครั้ง'}`
+        );
+      }
+    } catch {
+      setShowToast('เกิดข้อผิดพลาดขณะสร้างคำบรรยาย กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      setIsGeneratingDesc(false);
+      setTimeout(() => setShowToast(null), 3000);
+    }
   };
 
   // ไปยังขั้นตอนที่ 2 (ตรวจสอบก่อนยืนยัน)
@@ -328,7 +455,13 @@ export function CreatePostForm() {
                     key={idx}
                     className="relative size-18 shrink-0 overflow-hidden rounded-2xl border-2 border-border shadow-xs"
                   >
-                    <Image src={imgUrl} alt={`รูปที่ ${idx + 1}`} fill className="object-cover" />
+                    <Image
+                      src={imgUrl}
+                      alt={`รูปที่ ${idx + 1}`}
+                      fill
+                      sizes="72px"
+                      className="object-cover"
+                    />
                     <button
                       type="button"
                       onClick={() => handleRemoveImage(idx)}
@@ -651,6 +784,7 @@ export function CreatePostForm() {
                     }
                     alt={petName}
                     fill
+                    sizes="(min-width: 1024px) 40vw, 100vw"
                     className="object-cover"
                   />
                   <div className="absolute top-3 left-3">

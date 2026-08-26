@@ -1,3 +1,5 @@
+import { unstable_rethrow } from 'next/navigation';
+
 import { UserProfile } from '@/types/user';
 import { authFetch } from '@/lib/api/auth-fetch';
 import { MOCK_PETS } from './pet.service';
@@ -138,8 +140,11 @@ export async function getCurrentUser(): Promise<UserProfile> {
   try {
     const response = await authFetch<UserMeResponse>('/users/me');
     return response.user;
-  } catch {
-    // Fallback เป็น mock data เมื่อ Backend ไม่พร้อม หรือยังไม่ได้ login
+  } catch (err) {
+    // redirect('/login') ใน authFetch จะ throw error พิเศษ (NEXT_REDIRECT)
+    // ต้อง rethrow ก่อน ไม่งั้น Next.js จะ redirect ไม่ทำงานและตกลง catch ด้านล่างแทน
+    unstable_rethrow(err);
+    // Fallback เป็น mock data เมื่อ Backend ไม่พร้อมจริงๆ เท่านั้น
     return MOCK_USER_PROFILE;
   }
 }

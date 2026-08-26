@@ -1,3 +1,5 @@
+import { unstable_rethrow } from 'next/navigation';
+
 import { PetProfile, PetQrCode } from '@/types/pet';
 import { authFetch } from '@/lib/api/auth-fetch';
 
@@ -56,7 +58,7 @@ export const MOCK_PETS: PetProfile[] = [
     profileImageUrl:
       'https://images.unsplash.com/photo-1573865526739-10659fec78a5?q=80&w=400&auto=format&fit=crop',
     coverImageUrl:
-      'https://images.unsplash.com/photo-1513360309081-38f076278f94?q=80&w=1200&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1533738363-b7f9aef128ce?q=80&w=1200&auto=format&fit=crop',
     createdAt: '2026-03-10T12:00:00.000Z',
     updatedAt: '2026-08-22T14:15:00.000Z',
     qrCode: {
@@ -75,29 +77,39 @@ export const MOCK_PETS: PetProfile[] = [
 /**
  * ดึงรายการสัตว์เลี้ยงทั้งหมดของผู้ใช้ (GET /pets)
  * ใช้ authFetch เพื่อส่ง JWT token อัตโนมัติ
- * Backend ส่ง { success, data: [...pets] } → apiFetch unwrap ได้ array ของ PetProfile ตรงๆ
+ * Backend ส่ง { success, data: { pets: [...] } } → apiFetch unwrap .data ให้ แต่ยังต้องแกะ .pets เองอีกชั้น
  */
 export async function getMyPets(): Promise<PetProfile[]> {
   try {
-    const pets = await authFetch<PetProfile[]>('/pets');
+    const { pets } = await authFetch<{ pets: PetProfile[] }>('/pets');
     // ถ้าได้ array ว่าง ให้แสดง mock แทนเพื่อ UX ที่ดี
-    return pets && pets.length > 0 ? pets : MOCK_PETS;
-  } catch {
-    // Fallback เป็น mock data เมื่อ Backend ไม่พร้อม หรือยังไม่ได้ login
-    return MOCK_PETS;
+    // return pets && pets.length > 0 ? pets : MOCK_PETS;
+    return pets;
+  } catch (err) {
+    // redirect('/login') ใน authFetch จะ throw error พิเศษ (NEXT_REDIRECT)
+    // ต้อง rethrow ก่อน ไม่งั้น Next.js จะ redirect ไม่ทำงานและตกลง catch ด้านล่างแทน
+    unstable_rethrow(err);
+    // Fallback เป็น mock data เมื่อ Backend ไม่พร้อมจริงๆ เท่านั้น
+    // return MOCK_PETS;
+    return [];
   }
 }
 
 /**
  * ดึงข้อมูลสัตว์เลี้ยงรายตัว (GET /pets/:id)
  * ใช้ authFetch เพราะ endpoint นี้ต้อง login (ตรวจสอบ ownership)
+ * Backend ส่ง { success, data: { pet: {...} } } → ต้องแกะ .pet อีกชั้นหลัง apiFetch unwrap .data
  */
 export async function getPetById(id: string): Promise<PetProfile | null> {
   try {
-    return await authFetch<PetProfile>(`/pets/${id}`);
-  } catch {
+    const { pet } = await authFetch<{ pet: PetProfile }>(`/pets/${id}`);
+    return pet;
+  } catch (err) {
+    // rethrow NEXT_REDIRECT (จาก authFetch เมื่อไม่มี session) ก่อน ไม่งั้น redirect จะไม่ทำงาน
+    unstable_rethrow(err);
     // Fallback: ค้นหาจาก mock data
-    return MOCK_PETS.find((p) => p.id === id) || null;
+    // return MOCK_PETS.find((p) => p.id === id) || null;
+    return null;
   }
 }
 
@@ -110,7 +122,8 @@ export async function generatePetQr(petId: string): Promise<PetQrCode | null> {
     return await authFetch<PetQrCode>(`/pets/${petId}/qr`, {
       method: 'POST',
     });
-  } catch {
+  } catch (err) {
+    unstable_rethrow(err);
     return null;
   }
 }
@@ -131,10 +144,12 @@ export async function createPet(
     description?: string;
   }
 ): Promise<PetProfile> {
-  return authFetch<PetProfile>('/pets', {
+  // Backend ส่ง { success, data: { pet: {...} } } → ต้องแกะ .pet อีกชั้นหลัง apiFetch unwrap .data
+  const { pet } = await authFetch<{ pet: PetProfile }>('/pets', {
     method: 'POST',
     body: data as Record<string, unknown>,
   });
+  return pet;
 }
 
 /**
@@ -146,10 +161,12 @@ export async function updatePet(
   id: string,
   data: Record<string, unknown>
 ): Promise<PetProfile> {
-  return authFetch<PetProfile>(`/pets/${id}`, {
+  // Backend ส่ง { success, data: { pet: {...} } } → ต้องแกะ .pet อีกชั้นหลัง apiFetch unwrap .data
+  const { pet } = await authFetch<{ pet: PetProfile }>(`/pets/${id}`, {
     method: 'PATCH',
     body: data,
   });
+  return pet;
 }
 
 /**

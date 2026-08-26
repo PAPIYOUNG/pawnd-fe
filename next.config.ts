@@ -1,6 +1,8 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  // อนุญาตให้เข้าถึง dev server จากเครื่องอื่นใน LAN (เช่น ทดสอบผ่านมือถือ)
+  allowedDevOrigins: ['192.168.1.67'],
   images: {
     remotePatterns: [
       {
