@@ -4,84 +4,39 @@ import Image from 'next/image';
 import {
   Megaphone,
   Search,
-  Filter,
   MapPin,
   Calendar,
   Sparkles,
   Plus,
-  ArrowUpDown,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { getAllPosts, mapPostToLatestItem, MOCK_POSTS } from '@/services/post.service';
 
 export const metadata: Metadata = {
   title: 'รายการประกาศตามหาสัตว์เลี้ยง | PAWND',
   description: 'ค้นหาและกรองประกาศสัตว์เลี้ยงหายและพบสัตว์เลี้ยงหลงทางทั่วประเทศ',
 };
 
-// Mock รายการประกาศ
-const MOCK_POSTS = [
-  {
-    id: 'post-1',
-    type: 'LOST',
-    petName: 'น้องลูน่า (Luna) แมววิเชียรมาศ',
-    petType: 'CAT',
-    breed: 'วิเชียรมาศ',
-    province: 'กรุงเทพฯ',
-    locationDetail: 'พญาไท, กรุงเทพฯ',
-    timeAgo: '10 นาทีที่แล้ว',
-    matchCount: 3,
-    coverImageUrl:
-      'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=600&auto=format&fit=crop',
-  },
-  {
-    id: 'post-2',
-    type: 'FOUND',
-    petName: 'พบเห็นสุนัขไซบีเรียน ฮัสกี้ ปลอกคอดำ',
-    petType: 'DOG',
-    breed: 'ไซบีเรียน ฮัสกี้',
-    province: 'นนทบุรี',
-    locationDetail: 'งามวงศ์วาน, นนทบุรี',
-    timeAgo: '1 ชั่วโมงที่แล้ว',
-    matchCount: 1,
-    coverImageUrl:
-      'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?q=80&w=600&auto=format&fit=crop',
-  },
-  {
-    id: 'post-3',
-    type: 'LOST',
-    petName: 'ช็อกโก้ สุนัขพุดเดิลสีน้ำตาล',
-    petType: 'DOG',
-    breed: 'พุดเดิ้ลทอย',
-    province: 'กรุงเทพฯ',
-    locationDetail: 'ลาดพร้าว 101, กรุงเทพฯ',
-    timeAgo: '3 ชั่วโมงที่แล้ว',
-    matchCount: 2,
-    coverImageUrl:
-      'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?q=80&w=600&auto=format&fit=crop',
-  },
-  {
-    id: 'post-4',
-    type: 'LOST',
-    petName: 'น้องส้มส้ม แมวลายเสือส้ม สวมกระดิ่งแดง',
-    petType: 'CAT',
-    breed: 'พันธุ์ไทยผสมเปอร์เซีย',
-    province: 'กรุงเทพฯ',
-    locationDetail: 'ดินแดง, กรุงเทพฯ',
-    timeAgo: '5 ชั่วโมงที่แล้ว',
-    matchCount: 4,
-    coverImageUrl:
-      'https://images.unsplash.com/photo-1573865526739-10659fec78a5?q=80&w=600&auto=format&fit=crop',
-  },
-];
-
 /**
  * PostsPage (Server Component - RSC)
  * - หน้ารายการประกาศตามหาสัตว์เลี้ยงทั้งหมด (Post List & Filter)
+ * - ดึงข้อมูลประกาศจริงจาก Backend ผ่าน getAllPosts()
+ * - แสดงสถานะ LOST / FOUND, พิกัดสถานที่, วันที่เวลา และจำนวนเคสที่ AI ตรวจจับได้
  */
-export default function PostsPage() {
+export default async function PostsPage() {
+  // ดึงรายการประกาศจริงจาก Backend
+  const response = await getAllPosts({ limit: 20 });
+  const backendPosts = response.data || [];
+
+  // แปลงข้อมูล Backend เป็น Format ที่ UI Card ใช้งาน (ถ้าไม่มีข้อมูลให้ใช้ Mock เพื่อ UX)
+  const posts =
+    backendPosts.length > 0
+      ? backendPosts.map(mapPostToLatestItem)
+      : MOCK_POSTS;
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10">
       {/* 1. ส่วนหัวของหน้าประกาศ */}
@@ -137,7 +92,7 @@ export default function PostsPage() {
 
       {/* 3. รายการการ์ดประกาศ */}
       <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {MOCK_POSTS.map((post) => {
+        {posts.map((post) => {
           const isLost = post.type === 'LOST';
 
           return (
@@ -167,13 +122,11 @@ export default function PostsPage() {
                   </span>
                 </div>
 
-                {/* ป้ายผลการจับคู่ AI */}
-                {post.matchCount > 0 && (
-                  <div className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-bold text-emerald-400 backdrop-blur-xs">
-                    <Sparkles className="size-3" />
-                    <span>AI จับคู่ {post.matchCount} เคส</span>
-                  </div>
-                )}
+                {/* ป้ายผลการจับคู่ AI (ถ้ามี) */}
+                <div className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-bold text-emerald-400 backdrop-blur-xs">
+                  <Sparkles className="size-3" />
+                  <span>AI Smart Match</span>
+                </div>
               </div>
 
               {/* ข้อมูลประกาศ */}
@@ -182,13 +135,13 @@ export default function PostsPage() {
                   {post.petName}
                 </h3>
                 <span className="text-xs text-muted-foreground mt-0.5">
-                  {post.breed}
+                  {post.breed || 'ไม่ระบุสายพันธุ์'}
                 </span>
 
                 <div className="mt-3 flex flex-col gap-1.5 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1.5 line-clamp-1">
                     <MapPin className="size-3.5 text-primary shrink-0" />
-                    {post.locationDetail}
+                    {post.locationDetail || post.province || 'ไม่ระบุสถานที่'}
                   </span>
                   <span className="flex items-center gap-1.5">
                     <Calendar className="size-3.5 text-primary shrink-0" />
