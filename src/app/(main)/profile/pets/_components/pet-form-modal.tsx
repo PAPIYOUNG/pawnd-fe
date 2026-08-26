@@ -31,7 +31,7 @@ interface PetFormModalProps {
   isOpen: boolean;
   petToEdit?: PetProfile | null;
   onClose: () => void;
-  onSubmitPet: (data: CreatePetDto & { images?: PetImage[] }) => void;
+  onSubmitPet: (data: CreatePetDto & { images?: PetImage[]; files?: File[] }) => void;
 }
 
 /**
@@ -51,8 +51,12 @@ export function PetFormModal({
 }: PetFormModalProps) {
   const isEditing = !!petToEdit;
 
+  // State เก็บไฟล์รูปภาพจริงสำหรับอัปโหลดขึ้น Cloudinary
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+
   // State จัดการรูปภาพสัตว์เลี้ยงในฟอร์ม (จำลอง Image List)
   const [petImages, setPetImages] = useState<PetImage[]>(() => {
+
     if (!petToEdit) return [];
     return petToEdit.images && petToEdit.images.length > 0
       ? petToEdit.images
@@ -98,6 +102,9 @@ export function PetFormModal({
 
   // จัดการเมื่อมีการเลือกไฟล์รูปภาพใหม่
   const handleUploadImages = (files: FileList) => {
+    const fileArray = Array.from(files);
+    setSelectedFiles((prev) => [...prev, ...fileArray].slice(0, 3));
+
     const newImgs: PetImage[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -140,6 +147,10 @@ export function PetFormModal({
 
   // ลบรูปภาพออกจากแกลเลอรี
   const handleDeleteImage = (imageId: string) => {
+    const targetIdx = petImages.findIndex((img) => img.id === imageId);
+    if (targetIdx !== -1) {
+      setSelectedFiles((prev) => prev.filter((_, idx) => idx !== targetIdx));
+    }
     const remaining = petImages.filter((img) => img.id !== imageId);
     setPetImages(remaining);
 
@@ -165,10 +176,13 @@ export function PetFormModal({
       ...data,
       profileImageUrl: finalProfileImage,
       images: petImages.length > 0 ? petImages : undefined,
+      files: selectedFiles.length > 0 ? selectedFiles : undefined,
     });
     reset();
+    setSelectedFiles([]);
     onClose();
   };
+
 
   return (
     <div

@@ -1,6 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 
 import { signOut } from '@/auth';
 import {
@@ -18,6 +19,9 @@ export async function saveSettingsAction(settings: {
 }) {
   try {
     const result = await updateUserSettings(settings);
+    revalidatePath('/profile/settings');
+    revalidatePath('/profile');
+    revalidatePath('/dashboard');
     return { success: true, data: result.settings };
   } catch (error) {
     const message =

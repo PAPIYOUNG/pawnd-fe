@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import Script from 'next/script';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -57,6 +57,9 @@ type LoginValues = z.infer<typeof loginSchema>;
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const processedLineCodeRef = useRef<string | null>(null);
+  const lineCode = searchParams.get('code');
+  const lineState = searchParams.get('state');
 
   const [step, setStep] = useState<
     'login' | 'otp' | 'line-email' | 'line-verify'
@@ -195,9 +198,8 @@ export function LoginForm() {
   };
 
   useEffect(() => {
-    const code = searchParams.get('code');
-    const state = searchParams.get('state');
-    if (!code) return;
+    if (!lineCode || processedLineCodeRef.current === lineCode) return;
+    processedLineCodeRef.current = lineCode;
 
     router.replace('/login');
 
@@ -206,12 +208,12 @@ export function LoginForm() {
     const redirectUri = `${window.location.origin}/login`;
 
     startLineTransition(async () => {
-      if (!state || state !== savedState) {
+      if (!lineState || lineState !== savedState) {
         setFormError('เข้าสู่ระบบด้วย LINE ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
         return;
       }
 
-      const result = await loginWithLineAction(code, redirectUri);
+      const result = await loginWithLineAction(lineCode, redirectUri);
 
       if (!result.success) {
         setFormError(result.message);
@@ -233,7 +235,7 @@ export function LoginForm() {
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [lineCode, lineState, router]);
 
   const handleLineEmailSubmit = () => {
     setLineError(null);

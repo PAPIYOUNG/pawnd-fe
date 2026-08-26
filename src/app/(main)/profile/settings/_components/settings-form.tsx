@@ -22,20 +22,29 @@ import {
 } from '../_actions/settings.actions';
 
 interface SettingsFormProps {
+  initialNotificationEnabled: boolean;
+  initialTwoFactorEnabled: boolean;
   hasPassword: boolean;
 }
 
 /**
  * SettingsForm Component (Client Component)
- * - หน้าตั้งค่าระบบและบัญชีผู้ใช้งาน (User & System Settings)
- * - รองรับการเปิด-ปิดการแจ้งเตือน, การยืนยันสองชั้น (2FA) ด้วย Toggle Switch สไตล์เลื่อนซ้าย-ขวา
- * - เชื่อมต่อ Backend API ผ่าน Server Actions (saveSettingsAction, changePasswordAction)
+ * - ฟอร์มจัดการการตั้งค่าระบบและการเปลี่ยนรหัสผ่าน
+ * - รับ initialSettings ที่ดึงมาจาก Backend จริงผ่าน Server Component
  * - ลบบัญชี: บัญชีที่มีรหัสผ่านให้กรอกรหัสผ่านยืนยัน ส่วนบัญชี Google/LINE ล้วน (ไม่มีรหัสผ่าน)
- *   ให้พิมพ์อีเมลตัวเองยืนยันแทน (กันกดพลาด — session ที่ login อยู่ยืนยันตัวตนอยู่แล้ว)
+ *   ให้พิมพ์อีเมลตัวเองยืนยันแทน
  */
-export function SettingsForm({ hasPassword }: SettingsFormProps) {
-  const [notificationEnabled, setNotificationEnabled] = useState(true);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(true);
+export function SettingsForm({
+  initialNotificationEnabled,
+  initialTwoFactorEnabled,
+  hasPassword,
+}: SettingsFormProps) {
+  const [notificationEnabled, setNotificationEnabled] = useState(
+    initialNotificationEnabled,
+  );
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(
+    initialTwoFactorEnabled,
+  );
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsFeedback, setSettingsFeedback] = useState<{
     type: 'success' | 'error';
@@ -62,7 +71,7 @@ export function SettingsForm({ hasPassword }: SettingsFormProps) {
     message: string;
   } | null>(null);
 
-  // บันทึกการตั้งค่าการแจ้งเตือนและ 2FA
+  // บันทึกการตั้งค่าการแจ้งเตือนและ 2FA ไปยัง Backend
   const handleSaveSettings = async () => {
     setIsSavingSettings(true);
     setSettingsFeedback(null);
@@ -87,7 +96,7 @@ export function SettingsForm({ hasPassword }: SettingsFormProps) {
     }
   };
 
-  // บันทึกการเปลี่ยนรหัสผ่าน
+  // บันทึกการเปลี่ยนรหัสผ่านไปยัง Backend
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsChangingPassword(true);
@@ -153,7 +162,7 @@ export function SettingsForm({ hasPassword }: SettingsFormProps) {
 
       {settingsFeedback && (
         <div
-          className={`flex items-center gap-2 rounded-2xl p-4 text-sm font-semibold ${
+          className={`flex items-center gap-2 rounded-2xl p-4 text-sm font-semibold animate-in fade-in duration-200 ${
             settingsFeedback.type === 'success'
               ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
               : 'bg-destructive/15 text-destructive'
@@ -243,7 +252,7 @@ export function SettingsForm({ hasPassword }: SettingsFormProps) {
 
         {passwordFeedback && (
           <div
-            className={`flex items-center gap-2 rounded-2xl p-3.5 text-xs font-semibold ${
+            className={`flex items-center gap-2 rounded-2xl p-3.5 text-xs font-semibold animate-in fade-in duration-200 ${
               passwordFeedback.type === 'success'
                 ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
                 : 'bg-destructive/15 text-destructive'
