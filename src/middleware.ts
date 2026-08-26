@@ -8,7 +8,12 @@ import { NextResponse } from 'next/server';
  * - หากเข้าสู่ระบบแล้วแล้วพยายามเข้าถึง /login -> Redirect ไปหน้า /dashboard
  */
 export default auth((req) => {
-  const isLoggedIn = !!req.auth;
+  // session ที่ refresh token หมดอายุยังมี object อยู่ แต่ใช้ต่อไม่ได้แล้ว
+  // ต้องถือว่า logged out เพื่อไม่ให้ /login กับ protected route redirect วนกัน
+  const isLoggedIn =
+    !!req.auth?.user &&
+    !!req.auth.accessToken &&
+    req.auth.error !== 'RefreshAccessTokenError';
   const { pathname } = req.nextUrl;
 
   // กำหนดรายการเส้นทางที่ต้องผ่านการเข้าสู่ระบบก่อน (Protected Routes)

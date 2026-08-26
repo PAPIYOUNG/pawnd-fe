@@ -1,6 +1,6 @@
 import { apiFetch } from '@/lib/api/api-fetch';
 import { authFetch } from '@/lib/api/auth-fetch';
-import { LatestPostItem, PostType } from '@/types/post';
+import { LatestPostItem, PostStatus, PostType } from '@/types/post';
 
 /**
  * Post Service — จัดการประกาศตามหาสัตว์เลี้ยง (Lost & Found Posts)
@@ -16,10 +16,11 @@ import { LatestPostItem, PostType } from '@/types/post';
 /** ข้อมูลโพสต์เต็มรูปแบบที่ Backend ส่งกลับ (รวม user, pet, images) */
 export interface PostDetail {
   id: string;
-  ownerId: string;
+  /** Backend PetPost ใช้ userId เป็น foreign key ของผู้ลงประกาศ */
+  userId: string;
   petId?: string | null;
   type: PostType;
-  status: string;
+  status: PostStatus;
   petName?: string;
   petType?: string;
   breed?: string;
@@ -186,12 +187,13 @@ export const MOCK_POSTS: LatestPostItem[] = [
  */
 function buildQueryString(params: Record<string, unknown>): string {
   const filtered = Object.entries(params).filter(
-    ([, v]) => v !== undefined && v !== null && v !== ''
+    ([, v]) => v !== undefined && v !== null && v !== '',
   );
   if (filtered.length === 0) return '';
-  return '?' + new URLSearchParams(
-    filtered.map(([k, v]) => [k, String(v)])
-  ).toString();
+  return (
+    '?' +
+    new URLSearchParams(filtered.map(([k, v]) => [k, String(v)])).toString()
+  );
 }
 
 /**
@@ -200,7 +202,7 @@ function buildQueryString(params: Record<string, unknown>): string {
  * Backend ส่ง paginated response: { data: [...], meta: {...} }
  */
 export async function getAllPosts(
-  params: PostQueryParams = {}
+  params: PostQueryParams = {},
 ): Promise<PaginatedPostsResponse> {
   try {
     const qs = buildQueryString(params as Record<string, unknown>);
@@ -247,7 +249,7 @@ export async function getMyPosts(): Promise<PostDetail[]> {
  * Endpoint นี้เป็น public
  */
 export async function searchPosts(
-  params: SearchPostsParams = {}
+  params: SearchPostsParams = {},
 ): Promise<PaginatedPostsResponse> {
   try {
     const qs = buildQueryString(params as Record<string, unknown>);
@@ -268,7 +270,7 @@ export async function searchPosts(
  * @param payload — ข้อมูลประกาศใหม่ตาม CreatePostDto ของ Backend
  */
 export async function createPost(
-  payload: CreatePostPayload
+  payload: CreatePostPayload,
 ): Promise<PostDetail> {
   return authFetch<PostDetail>('/posts', {
     method: 'POST',
@@ -282,7 +284,7 @@ export async function createPost(
  */
 export async function updatePost(
   id: string,
-  data: Partial<CreatePostPayload> & { status?: string }
+  data: Partial<CreatePostPayload> & { status?: string },
 ): Promise<PostDetail> {
   return authFetch<PostDetail>(`/posts/${id}`, {
     method: 'PATCH',
@@ -307,7 +309,7 @@ export async function deletePost(id: string): Promise<void> {
  */
 export async function uploadPostImages(
   postId: string,
-  files: File[]
+  files: File[],
 ): Promise<unknown> {
   const formData = new FormData();
   files.forEach((file) => formData.append('images', file));
@@ -350,7 +352,9 @@ export function mapPostToLatestItem(post: PostDetail): LatestPostItem {
     id: post.id,
     type: post.type,
     petName: post.petName || post.pet?.name || 'สัตว์เลี้ยง',
-    petType: (post.petType || post.pet?.type || 'DOG') as LatestPostItem['petType'],
+    petType: (post.petType ||
+      post.pet?.type ||
+      'DOG') as LatestPostItem['petType'],
     breed: post.breed || post.pet?.breed || undefined,
     gender: post.gender as LatestPostItem['gender'],
     color: post.color || undefined,
