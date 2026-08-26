@@ -16,6 +16,8 @@ import { deleteMyPostAction } from '../_actions/dashboard.actions';
 export interface MyPostDashboardItem {
   id: string;
   type: 'LOST' | 'FOUND';
+  /** สถานะประกาศ ใช้ตัดสินการคาดลายน้ำ: REUNITED = กลับบ้านแล้ว (โทนเขียว), CLOSED = ปิดประกาศ (โทนขาวดำ) */
+  status?: 'ACTIVE' | 'REUNITED' | 'CLOSED' | 'HIDDEN' | 'DELETED';
   petName: string;
   petType: string;
   breed: string;
@@ -130,12 +132,34 @@ export function DashboardMyPosts({ initialPosts = DEFAULT_MY_POSTS }: { initialP
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {posts.map((post) => {
           const isLost = post.type === 'LOST';
+          const isReunited = post.status === 'REUNITED';
+          const isClosed = post.status === 'CLOSED';
 
           return (
             <div
               key={post.id}
-              className="group flex flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xs transition-all hover:shadow-md"
+              className={`group relative flex flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xs transition-all hover:shadow-md ${
+                isClosed ? 'grayscale' : ''
+              }`}
             >
+              {/* คาดทับสีทั้งการ์ด: กลับบ้านแล้ว = โทนเขียว, ปิดประกาศ = โทนขาวดำ (ใช้ grayscale ที่ตัวการ์ด) */}
+              {isReunited && (
+                <div className="pointer-events-none absolute inset-0 z-10 rounded-3xl bg-emerald-500/15" />
+              )}
+
+              {/* ริบบิ้นลายน้ำคาดทแยงมุมทั้งการ์ด */}
+              {(isReunited || isClosed) && (
+                <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center overflow-hidden">
+                  <div
+                    className={`w-[150%] rotate-[-35deg] py-1.5 text-center text-xs font-black uppercase tracking-[0.2em] text-white shadow-lg ${
+                      isReunited ? 'bg-emerald-600/90' : 'bg-neutral-700/90'
+                    }`}
+                  >
+                    {isReunited ? 'กลับบ้านแล้ว' : 'CLOSE'}
+                  </div>
+                </div>
+              )}
+
               {/* รูปภาพสัตว์เลี้ยงพร้อมป้ายสถานะ LOST/FOUND */}
               <div className="relative h-44 w-full bg-muted">
                 <Image

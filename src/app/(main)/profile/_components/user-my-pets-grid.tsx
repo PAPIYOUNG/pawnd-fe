@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { QrCode, Plus } from 'lucide-react';
+import { QrCode } from 'lucide-react';
 
 import { PetProfile } from '@/types/pet';
 
@@ -70,15 +70,6 @@ export function UserMyPetsGrid({ pets = [] }: UserMyPetsGridProps) {
             </span>
           </Link>
         ))}
-
-        {/* ปุ่มเพิ่มสัตว์เลี้ยงใหม่ */}
-        <Link
-          href="/profile/pets"
-          className="flex min-h-[72px] items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border/80 bg-muted/20 p-3.5 text-xs font-bold text-muted-foreground transition-all hover:border-primary hover:text-primary"
-        >
-          <Plus className="size-4" />
-          <span>เพิ่มสัตว์เลี้ยง</span>
-        </Link>
       </div>
     </div>
   );

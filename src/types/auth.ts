@@ -28,6 +28,7 @@ export interface LineEmailRequiredResponse {
 }
 
 export interface PendingEmailVerificationResponse {
+  email: string;
   message: string;
 }
 

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Heart, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
-import { PetProfile, CreatePetDto, PetImage } from '@/types/pet';
+import { PetProfile, PetQrCode, CreatePetDto, PetImage } from '@/types/pet';
 import { PetCard } from './pet-card';
 import { PetQrModal } from './pet-qr-modal';
 import { PetFormModal } from './pet-form-modal';
@@ -27,7 +27,9 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
   const router = useRouter();
   const [pets, setPets] = useState<PetProfile[]>(initialPets);
 
-  const [selectedPetForQr, setSelectedPetForQr] = useState<PetProfile | null>(null);
+  const [selectedQrPetId, setSelectedQrPetId] = useState<string | null>(null);
+  // หา pet ล่าสุดจาก id ที่เลือกไว้เสมอ (แทนการเก็บ object แยก) เพื่อให้ Modal เห็นข้อมูล qrCode ที่อัปเดตแล้วทันที
+  const selectedPetForQr = pets.find((p) => p.id === selectedQrPetId) || null;
   const [selectedPetForEdit, setSelectedPetForEdit] = useState<PetProfile | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -172,6 +174,12 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
 
 
 
+  // อัปเดต qrCode ของสัตว์เลี้ยงตัวที่เลือกไว้ หลังสร้าง/ปิดใช้งาน QR Code สำเร็จจาก Modal
+  const handleQrCodeChange = (petId: string, qrCode: PetQrCode) => {
+    setPets((prev) => prev.map((p) => (p.id === petId ? { ...p, qrCode } : p)));
+    router.refresh();
+  };
+
   const currentCount = pets.length;
   const maxQuota = 3;
 
@@ -249,7 +257,7 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
           <PetCard
             key={pet.id}
             pet={pet}
-            onOpenQr={(selected) => setSelectedPetForQr(selected)}
+            onOpenQr={(selected) => setSelectedQrPetId(selected.id)}
             onEdit={(selected) => handleOpenEditModal(selected)}
             onDelete={(id) => handleDeletePet(id)}
           />
@@ -282,7 +290,8 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
       <PetQrModal
         pet={selectedPetForQr}
         isOpen={!!selectedPetForQr}
-        onClose={() => setSelectedPetForQr(null)}
+        onClose={() => setSelectedQrPetId(null)}
+        onQrCodeChange={handleQrCodeChange}
       />
 
       {/* Modal ฟอร์มเพิ่ม/แก้ไขข้อมูลสัตว์เลี้ยง */}

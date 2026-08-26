@@ -1,50 +1,46 @@
-import { Heart, Megaphone, Home, MessageSquare } from 'lucide-react';
+import { Heart, Megaphone, Search, MessageSquare } from 'lucide-react';
 
 interface DashboardMetricsProps {
   totalPets?: number;
-  activePosts?: number;
-  totalReunited?: number;
+  activeLostPosts?: number;
+  activeFoundPosts?: number;
   unreadMessages?: number;
-  dogCount?: number;
-  catCount?: number;
 }
 
 /**
  * DashboardMetrics Component (Server/Client Compatible Component)
- * - การ์ดสถิติ 4 ใบในแถวแรกของหน้าแดชบอร์ด ตรงตาม UI Mockup:
- *   1. สัตว์เลี้ยงของฉัน (3) - สุนัข 2, แมว 1 ตัว
- *   2. ประกาศที่ใช้งาน (2) - กำลังเร่งดำเนินการตามหา
- *   3. กลับบ้านแล้ว (5) - ส่งคืนเจ้าของสำเร็จ
- *   4. ข้อความที่ยังไม่อ่าน (12) - เบาะแสใหม่จากชุมชน
+ * - การ์ดสถิติ 4 ใบในแถวแรกของหน้าแดชบอร์ด:
+ *   1. สัตว์เลี้ยงของฉัน (จำนวนรวม ไม่แยกชนิด)
+ *   2. ประกาศตามหา (LOST) ที่ Active
+ *   3. ประกาศพบเจอ (FOUND) ที่ Active
+ *   4. ข้อความที่ยังไม่อ่าน
  */
 export function DashboardMetrics({
   totalPets = 3,
-  activePosts = 2,
-  totalReunited = 5,
+  activeLostPosts = 1,
+  activeFoundPosts = 1,
   unreadMessages = 12,
-  dogCount = 2,
-  catCount = 1,
 }: DashboardMetricsProps) {
   const metrics = [
     {
       title: 'สัตว์เลี้ยงของฉัน',
       value: totalPets,
-      subtitle: `สุนัข ${dogCount}, แมว ${catCount} ตัว`,
+      subtitle: 'สัตว์เลี้ยงทั้งหมดของคุณ',
       icon: Heart,
       iconBg: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400',
     },
     {
-      title: 'ประกาศที่ใช้งาน',
-      value: activePosts,
+      title: 'ประกาศตามหา (LOST)',
+      value: activeLostPosts,
       subtitle: 'กำลังเร่งดำเนินการตามหา',
       icon: Megaphone,
       iconBg: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400',
     },
     {
-      title: 'กลับบ้านแล้ว',
-      value: totalReunited,
-      subtitle: 'ส่งคืนเจ้าของสำเร็จ',
-      icon: Home,
+      title: 'ประกาศพบเจอ (FOUND)',
+      value: activeFoundPosts,
+      subtitle: 'แจ้งพบเห็นที่ยังไม่จบเคส',
+      icon: Search,
       iconBg: 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400',
     },
     {
