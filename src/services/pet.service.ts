@@ -1,7 +1,9 @@
 import { unstable_rethrow } from 'next/navigation';
 
-import { PetProfile, PetQrCode } from '@/types/pet';
+import { PetProfile, PetQrCode, PublicPetProfile } from '@/types/pet';
 import { authFetch } from '@/lib/api/auth-fetch';
+import { apiFetch } from '@/lib/api/api-fetch';
+import { ApiError } from '@/lib/api/api-error';
 
 /**
  * Pet Service — จัดการข้อมูลสัตว์เลี้ยงของผู้ใช้
@@ -110,6 +112,27 @@ export async function getPetById(id: string): Promise<PetProfile | null> {
     // Fallback: ค้นหาจาก mock data
     // return MOCK_PETS.find((p) => p.id === id) || null;
     return null;
+  }
+}
+
+/**
+ * ดึงโปรไฟล์สัตว์เลี้ยงสาธารณะจาก QR Token (GET /pets/public/qr/:qrToken)
+ * เป็น Public endpoint ไม่ต้องแนบ JWT Token — ใช้ apiFetch ธรรมดา ไม่ใช้ authFetch
+ * Backend คืน 404 เมื่อไม่พบ QR Token หรือ QR Code ถูกปิดใช้งานอยู่ (isActive: false)
+ * @returns ข้อมูลโปรไฟล์สัตว์เลี้ยง หรือ null เมื่อไม่พบ/QR ถูกปิดใช้งาน
+ */
+export async function getPublicPetProfile(
+  qrToken: string
+): Promise<PublicPetProfile | null> {
+  try {
+    return await apiFetch<PublicPetProfile>(`/pets/public/qr/${qrToken}`, {
+      cache: 'no-store',
+    });
+  } catch (err) {
+    if (err instanceof ApiError && err.statusCode === 404) {
+      return null;
+    }
+    throw err;
   }
 }
 
