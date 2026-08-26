@@ -1229,6 +1229,7 @@ export function CreatePostForm({ initialPets }: CreatePostFormProps) {
                   >
                     {initialPets.map((pet) => {
                       const isSelected = selectedPetId === pet.id;
+                      const petImageUrl = getPetProfileImageUrl(pet);
 
                       return (
                         <button
@@ -1249,9 +1250,9 @@ export function CreatePostForm({ initialPets }: CreatePostFormProps) {
                           )}
                         >
                           <div className="relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-muted text-muted-foreground">
-                            {pet.profileImageUrl ? (
+                            {petImageUrl ? (
                               <Image
-                                src={pet.profileImageUrl}
+                                src={petImageUrl}
                                 alt={pet.name}
                                 fill
                                 sizes="56px"
