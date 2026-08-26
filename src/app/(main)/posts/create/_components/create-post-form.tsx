@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { PetGender, PetType } from '@/types/post';
+import { AiAnalysisResult } from '@/services/ai.service';
 import { createPostAction, analyzeImageAction } from '../_actions/create-post.actions';
 
 /**
@@ -44,6 +45,14 @@ function readFileAsDataUrl(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * สร้าง key สำหรับระบุตัวตนของรูปภาพที่ใช้วิเคราะห์ (ใช้เทียบว่าเป็นรูปเดิมหรือไม่)
+ * ไฟล์จริงใช้ name+size+lastModified ส่วน URL (เช่นรูปตัวอย่าง mock) ใช้ค่า URL เป็น key ตรงๆ
+ */
+function getImageKey(file: File | null, fallbackUrl: string): string {
+  return file ? `${file.name}-${file.size}-${file.lastModified}` : fallbackUrl;
 }
 
 /**
@@ -91,6 +100,13 @@ export function CreatePostForm() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [showToast, setShowToast] = useState<string | null>(null);
 
+  // Cache ผลวิเคราะห์ AI ล่าสุด ผูกกับ imageKey ของรูปที่ใช้วิเคราะห์
+  // ป้องกันการยิง /analyze-image ซ้ำเมื่อกดปุ่ม AI ทั้งสองปุ่มกับรูปเดิม
+  const [aiAnalysisCache, setAiAnalysisCache] = useState<{
+    imageKey: string;
+    data: AiAnalysisResult;
+  } | null>(null);
+
   // ฟังก์ชันอัปโหลดรูปภาพ (จำกัดสูงสุด 3 รูปตามกฎ Backend)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -106,22 +122,39 @@ export function CreatePostForm() {
     }
     setImages((prev) => [...prev, ...newUrls].slice(0, 3));
     setImageFiles((prev) => [...prev, ...newFiles].slice(0, 3));
+    // รูปแรกอาจเปลี่ยน (ถ้าเดิมยังไม่มีรูปเลย) → ล้าง cache ผลวิเคราะห์เก่าทิ้ง
+    setAiAnalysisCache(null);
   };
 
   // ลบรูปภาพเดี่ยว (ลบทั้ง Preview URL และไฟล์ต้นฉบับที่ index เดียวกัน)
   const handleRemoveImage = (indexToRemove: number) => {
     setImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
     setImageFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    // รูปแรกอาจเปลี่ยนไปเป็นรูปอื่น → ล้าง cache ผลวิเคราะห์เก่าทิ้ง
+    setAiAnalysisCache(null);
   };
 
   // เรียก AI วิเคราะห์รูปภาพ (POST /analyze-image) จากรูปแรกที่อัปโหลด
+  // ถ้ารูปเดิมเคยวิเคราะห์แล้ว (imageKey ตรงกับ cache) จะ reuse ผลลัพธ์เดิมแทนการยิง request ซ้ำ
   // คืนค่า Promise<AiAnalysisResult> เพื่อให้ handler แต่ละตัวนำ field ที่ต้องการไปใช้ต่อได้เอง
   const runAiImageAnalysis = async () => {
     const file = imageFiles[0];
+    const imageKey = getImageKey(file, images[0]);
+
+    if (aiAnalysisCache?.imageKey === imageKey) {
+      return { success: true as const, data: aiAnalysisCache.data };
+    }
+
     // ถ้ามีไฟล์จริง (ผู้ใช้เพิ่งอัปโหลด) ต้องแปลงเป็น Base64 ก่อน เพราะยังไม่มีประกาศให้ผูกไฟล์
     // ถ้าไม่มีไฟล์ (เช่นรูปตัวอย่าง mock) แปลว่า images[0] เป็น URL ที่เข้าถึงได้อยู่แล้ว
     const imageUrl = file ? await readFileAsDataUrl(file) : images[0];
-    return analyzeImageAction(imageUrl);
+    const res = await analyzeImageAction(imageUrl);
+
+    if (res.success && res.data) {
+      setAiAnalysisCache({ imageKey, data: res.data });
+    }
+
+    return res;
   };
 
   // เรียก AI วิเคราะห์ประเภท สายพันธุ์ และสีขนจากภาพถ่าย
