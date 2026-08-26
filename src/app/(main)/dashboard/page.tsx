@@ -54,6 +54,7 @@ export default async function DashboardMainPage() {
       ? myPosts.map((post) => ({
           id: post.id,
           type: post.type,
+          status: post.status as MyPostDashboardItem['status'],
           petName: post.petName || post.pet?.name || 'สัตว์เลี้ยง',
           petType: post.petType === 'CAT' ? 'แมว' : post.petType === 'DOG' ? 'สุนัข' : 'สัตว์เลี้ยง',
           breed: post.breed || post.pet?.breed || 'ไม่ระบุสายพันธุ์',
