@@ -1,0 +1,287 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+
+import { AdminApi } from '@/lib/api/admin.api';
+import { ApiError } from '@/lib/api/api-error';
+import { ErrorActionResult } from '@/lib/api/types/action.type';
+import {
+  DashboardSummary,
+  GetPetByIdResponse,
+  GetPetsParams,
+  GetPetsResponse,
+  GetPostByIdResponse,
+  GetPostsParams,
+  GetPostsResponse,
+  GetReportsResponse,
+  GetUserByIdResponse,
+  GetUsersParams,
+  GetUsersResponse,
+  MonthlyTrendPoint,
+  ReviewReportPayload,
+  ReviewReportResponse,
+  UpdatePostStatusResponse,
+  UpdateUserStatusResponse,
+} from '@/types/admin';
+import { PostStatus } from '@/types/post';
+import { UserStatus } from '@/types/user';
+
+// ดึงข้อมูลสรุปภาพรวมสำหรับหน้าแดชบอร์ดผู้ดูแลระบบ
+// สำเร็จ -> คืนค่า DashboardSummary, ล้มเหลว -> คืนค่า ErrorActionResult ให้หน้าเพจแสดง Error State
+export async function summaryAction(): Promise<
+  DashboardSummary | ErrorActionResult
+> {
+  try {
+    return await AdminApi.dashboardSummary();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// ดึงข้อมูลกราฟแนวโน้มการโพสต์รายเดือน (Lost/Found/Reunited) ของปีที่ระบุ
+// สำเร็จ -> คืนค่า MonthlyTrendPoint[], ล้มเหลว -> คืนค่า ErrorActionResult ให้หน้าเพจแสดง Error State
+export async function monthlyTrendAction(
+  year: number,
+): Promise<MonthlyTrendPoint[] | ErrorActionResult> {
+  try {
+    return await AdminApi.monthlyTrend(year);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// ดึงรายชื่อผู้ใช้งานสำหรับหน้าจัดการผู้ใช้งาน (แบบแบ่งหน้า)
+// สำเร็จ -> คืนค่า GetUsersResponse, ล้มเหลว -> คืนค่า ErrorActionResult ให้หน้าเพจแสดง Error State
+export async function getUsersAction(
+  params: GetUsersParams = {},
+): Promise<GetUsersResponse | ErrorActionResult> {
+  try {
+    return await AdminApi.getUsers(params);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// ดึงข้อมูลผู้ใช้งานแบบละเอียด 1 คน สำหรับหน้ารายละเอียดผู้ใช้งาน
+// สำเร็จ -> คืนค่า GetUserByIdResponse, ไม่พบผู้ใช้ -> code 'NOT_FOUND', ล้มเหลวอื่น -> code 'API_ERROR'
+export async function getUserByIdAction(
+  id: string,
+): Promise<GetUserByIdResponse | ErrorActionResult> {
+  try {
+    return await AdminApi.getUserById(id);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: error.statusCode === 404 ? 'NOT_FOUND' : 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// เปลี่ยนสถานะบัญชีผู้ใช้งาน (เช่น ระงับบัญชี / ขึ้นบัญชีดำ / เปิดใช้งานอีกครั้ง)
+// สำเร็จ -> revalidate หน้ารายชื่อ + หน้ารายละเอียดผู้ใช้งานคนนี้ แล้วคืนค่า UpdateUserStatusResponse
+export async function updateUserStatusAction(
+  id: string,
+  status: UserStatus,
+): Promise<UpdateUserStatusResponse | ErrorActionResult> {
+  try {
+    const result = await AdminApi.updateUserStatus(id, status);
+    revalidatePath('/admin/users');
+    revalidatePath(`/admin/users/${id}`);
+    return result;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: error.statusCode === 404 ? 'NOT_FOUND' : 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// ดึงรายการประกาศ Lost/Found สำหรับหน้าจัดการประกาศ (แบบแบ่งหน้า พร้อม filter)
+// สำเร็จ -> คืนค่า GetPostsResponse, ล้มเหลว -> คืนค่า ErrorActionResult ให้หน้าเพจแสดง Error State
+export async function getPostsAction(
+  params: GetPostsParams = {},
+): Promise<GetPostsResponse | ErrorActionResult> {
+  try {
+    return await AdminApi.getPosts(params);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// ดึงข้อมูลประกาศแบบละเอียด 1 รายการ สำหรับหน้ารายละเอียดประกาศ
+// สำเร็จ -> คืนค่า GetPostByIdResponse, ไม่พบประกาศ -> code 'NOT_FOUND', ล้มเหลวอื่น -> code 'API_ERROR'
+export async function getPostByIdAction(
+  id: string,
+): Promise<GetPostByIdResponse | ErrorActionResult> {
+  try {
+    return await AdminApi.getPostById(id);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: error.statusCode === 404 ? 'NOT_FOUND' : 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// เปลี่ยนสถานะประกาศ (ปิดประกาศ / ซ่อนประกาศ / ทำเครื่องหมายพากลับบ้านแล้ว / ลบ)
+// สำเร็จ -> revalidate หน้ารายการประกาศ แล้วคืนค่า UpdatePostStatusResponse
+export async function updatePostStatusAction(
+  id: string,
+  status: PostStatus,
+): Promise<UpdatePostStatusResponse | ErrorActionResult> {
+  try {
+    const result = await AdminApi.updatePostStatus(id, status);
+    revalidatePath('/admin/posts');
+    return result;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: error.statusCode === 404 ? 'NOT_FOUND' : 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// ดึงรายการสัตว์เลี้ยงทั้งหมดสำหรับหน้าจัดการสัตว์เลี้ยง (แบบแบ่งหน้า พร้อม filter)
+// สำเร็จ -> คืนค่า GetPetsResponse, ล้มเหลว -> คืนค่า ErrorActionResult ให้หน้าเพจแสดง Error State
+export async function getPetsAction(
+  params: GetPetsParams = {},
+): Promise<GetPetsResponse | ErrorActionResult> {
+  try {
+    return await AdminApi.getPets(params);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// ดึงข้อมูลสัตว์เลี้ยงแบบละเอียด 1 ตัว สำหรับหน้ารายละเอียดสัตว์เลี้ยง
+// สำเร็จ -> คืนค่า GetPetByIdResponse, ไม่พบสัตว์เลี้ยง -> code 'NOT_FOUND', ล้มเหลวอื่น -> code 'API_ERROR'
+export async function getPetByIdAction(
+  id: string,
+): Promise<GetPetByIdResponse | ErrorActionResult> {
+  try {
+    return await AdminApi.getPetById(id);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: error.statusCode === 404 ? 'NOT_FOUND' : 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// ดึงรายการรายงาน (Content Report) ทั้งหมดสำหรับหน้าจัดการรายงาน
+// สำเร็จ -> คืนค่า GetReportsResponse, ล้มเหลว -> คืนค่า ErrorActionResult ให้หน้าเพจแสดง Error State
+export async function getReportsAction(): Promise<
+  GetReportsResponse | ErrorActionResult
+> {
+  try {
+    return await AdminApi.getReports();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// ตรวจสอบรายงาน: เปลี่ยนสถานะเป็น REVIEWED/ACTION_TAKEN และซ่อนเนื้อหาที่ถูกรายงาน (ถ้าเลือก)
+// สำเร็จ -> revalidate หน้ารายการรายงาน แล้วคืนค่า ReviewReportResponse
+export async function reviewReportAction(
+  id: string,
+  payload: ReviewReportPayload,
+): Promise<ReviewReportResponse | ErrorActionResult> {
+  try {
+    const result = await AdminApi.reviewReport(id, payload);
+    revalidatePath('/admin/reports');
+    return result;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: error.statusCode === 404 ? 'NOT_FOUND' : 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
+
+// สั่งให้ AI ค้นหาคู่จับคู่ใหม่สำหรับประกาศ (re-run matching engine)
+// สำเร็จ -> revalidate หน้ารายละเอียดประกาศนี้ แล้วคืนค่า { triggered: true }
+// (ไม่ใช้ key `success` ในผลลัพธ์สำเร็จ เพราะหน้าเว็บเช็ค error ด้วย `'success' in result`)
+export async function triggerAiMatchAction(
+  postId: string,
+): Promise<{ triggered: true } | ErrorActionResult> {
+  try {
+    await AdminApi.triggerAiMatch(postId);
+    revalidatePath(`/admin/posts/${postId}`);
+    return { triggered: true };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        success: false,
+        message: error.message,
+        code: error.statusCode === 404 ? 'NOT_FOUND' : 'API_ERROR',
+      };
+    }
+    throw error;
+  }
+}
