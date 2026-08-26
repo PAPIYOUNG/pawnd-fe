@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { listCommunityPosts } from '@/lib/api/community';
-import type { CommunityPost, CommunityPostType } from '@/types/type-community';
+import type { CommunityPost, CommunityPostType } from '@/types/community';
 
 import { CommunityFeedSkeleton } from './community-feed-skeleton';
 import { CommunityPostCard } from './community-post-card';

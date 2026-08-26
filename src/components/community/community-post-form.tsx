@@ -8,7 +8,7 @@ import {
   createCommunityPost,
   uploadCommunityImages,
 } from '@/lib/api/community';
-import type { CreatableCommunityPostType } from '@/types/type-community';
+import type { CreatableCommunityPostType } from '@/types/community';
 
 interface CommunityPostFormProps {
   open: boolean;

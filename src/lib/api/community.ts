@@ -7,7 +7,7 @@ import type {
   CommunityPostPage,
   CommunityPostType,
   CreatableCommunityPostType,
-} from '@/types/type-community';
+} from '@/types/community';
 
 interface CommunityPostInput {
   type: CreatableCommunityPostType;

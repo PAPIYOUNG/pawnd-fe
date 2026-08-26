@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { Heart, Link2, MessageCircle } from 'lucide-react';
 
-import type { CommunityPost, CommunityPostType } from '@/types/type-community';
+import type { CommunityPost, CommunityPostType } from '@/types/community';
 import { useState } from 'react';
 import { likeCommunityPost, unlikeCommunityPost } from '@/lib/api/community';
 
