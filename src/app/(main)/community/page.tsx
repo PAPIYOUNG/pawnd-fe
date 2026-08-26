@@ -1,16 +1,5 @@
-<<<<<<< HEAD
-import { CommunityFeed } from '@/components/community/community-feed';
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = {
-  title: 'ชุมชน',
-  description: 'พูดคุย แลกเปลี่ยนความรู้ และเรื่องราวของคนรักสัตว์',
-};
-
-export default function CommunityPage() {
-  return <CommunityFeed />;
-=======
-import { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -28,16 +17,19 @@ import { Button } from '@/components/ui/button';
 
 export const metadata: Metadata = {
   title: 'คอมมูนิตี้คนรักสัตว์ | PAWND',
-  description: 'กระดานพูดคุย แลกเปลี่ยนข้อมูล แนะนำการตามหาสัตว์เลี้ยง และทีมจิตอาสา',
+  description:
+    'กระดานพูดคุย แลกเปลี่ยนข้อมูล แนะนำการตามหาสัตว์เลี้ยง และทีมจิตอาสา',
 };
 
 const MOCK_COMMUNITY_POSTS = [
   {
     id: 'comm-1',
     author: 'หมอโอ๊ต สัตวแพทย์',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
+    avatar:
+      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
     title: '5 วิธีเบื้องต้นในการตามหาแมวที่หลุดออกจากบ้านใน 24 ชั่วโมงแรก',
-    excerpt: 'แมวมักจะหลบซ่อนตัวอยู่ในรัศมี 100-300 เมตรจากบ้านใน 24 ชม. แรก ควรวางทรายแมวหรือเสื้อผ้าที่มีกลิ่นเจ้าของไว้หน้าบ้าน...',
+    excerpt:
+      'แมวมักจะหลบซ่อนตัวอยู่ในรัศมี 100-300 เมตรจากบ้านใน 24 ชม. แรก ควรวางทรายแมวหรือเสื้อผ้าที่มีกลิ่นเจ้าของไว้หน้าบ้าน...',
     likes: 128,
     comments: 24,
     tag: 'คำแนะนำ',
@@ -46,9 +38,11 @@ const MOCK_COMMUNITY_POSTS = [
   {
     id: 'comm-2',
     author: 'กลุ่มจิตอาสาช่วยสัตว์สายไหม',
-    avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?q=80&w=200&auto=format&fit=crop',
+    avatar:
+      'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?q=80&w=200&auto=format&fit=crop',
     title: 'ประกาศรวมพลทีมค้นหาสุนัขหลงทาง โซนสายไหม-วัชรพล เสาร์นี้',
-    excerpt: 'ใครสะดวกมาร่วมลงพื้นที่ช่วยกันค้นหาน้องหมาไซบีเรียน สามารถลงชื่อและรวมตัวกันที่สวนสาธารณะได้เลยครับ...',
+    excerpt:
+      'ใครสะดวกมาร่วมลงพื้นที่ช่วยกันค้นหาน้องหมาไซบีเรียน สามารถลงชื่อและรวมตัวกันที่สวนสาธารณะได้เลยครับ...',
     likes: 85,
     comments: 19,
     tag: 'รวมทีมจิตอาสา',
@@ -76,7 +70,8 @@ export default function CommunityPage() {
             คอมมูนิตี้คนรักสัตว์ PAWND
           </h1>
           <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">
-            พูดคุย แลกเปลี่ยนประสบการณ์ ขอความช่วยเหลือ และแบ่งปันเรื่องราวอบอุ่น
+            พูดคุย แลกเปลี่ยนประสบการณ์ ขอความช่วยเหลือ
+            และแบ่งปันเรื่องราวอบอุ่น
           </p>
         </div>
 
@@ -96,11 +91,20 @@ export default function CommunityPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="relative size-10 overflow-hidden rounded-full border">
-                  <Image src={post.avatar} alt={post.author} fill className="object-cover" />
+                  <Image
+                    src={post.avatar}
+                    alt={post.author}
+                    fill
+                    className="object-cover"
+                  />
                 </div>
                 <div>
-                  <span className="font-bold text-sm text-foreground">{post.author}</span>
-                  <span className="block text-[11px] text-muted-foreground">{post.timeAgo}</span>
+                  <span className="font-bold text-sm text-foreground">
+                    {post.author}
+                  </span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    {post.timeAgo}
+                  </span>
                 </div>
               </div>
 
@@ -131,5 +135,4 @@ export default function CommunityPage() {
       </div>
     </div>
   );
->>>>>>> dev
 }
