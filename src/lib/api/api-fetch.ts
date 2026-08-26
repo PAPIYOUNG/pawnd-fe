@@ -44,13 +44,19 @@ export async function apiFetch<T>(
     let message = response.statusText;
     if (errorText) {
       try {
-        message = JSON.parse(errorText).message ?? message;
+        const errorJson = JSON.parse(errorText);
+        if (Array.isArray(errorJson.message)) {
+          message = errorJson.message.join(', ');
+        } else if (errorJson.message) {
+          message = String(errorJson.message);
+        }
       } catch {
         message = errorText;
       }
     }
     throw new ApiError(response.status, message);
   }
+
   const text = await response.text();
   if (!text) {
     return undefined as T;

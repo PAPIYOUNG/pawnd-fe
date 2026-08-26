@@ -47,6 +47,7 @@ export const MOCK_USER_PROFILE: UserProfile = {
   firstName: 'สมชาย',
   lastName: 'รักสัตว์',
   email: 'somchai.pets@gmail.com',
+  hasPassword: true,
   phone: '081-234-XXXX',
   role: 'ADMIN',
   status: 'ACTIVE',
@@ -153,14 +154,12 @@ export async function getCurrentUser(): Promise<UserProfile> {
  * อัปเดตข้อมูลโปรไฟล์ผู้ใช้ (PATCH /users/me)
  * @param data — ข้อมูลที่ต้องการแก้ไข (firstName, lastName, phone, address)
  */
-export async function updateUserProfile(
-  data: {
-    firstName?: string;
-    lastName?: string;
-    phone?: string;
-    address?: string;
-  }
-): Promise<UpdateProfileResponse> {
+export async function updateUserProfile(data: {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  address?: string;
+}): Promise<UpdateProfileResponse> {
   return authFetch<UpdateProfileResponse>('/users/me', {
     method: 'PATCH',
     body: data as Record<string, unknown>,
@@ -173,12 +172,10 @@ export async function updateUserProfile(
  * @param notificationEnabled — เปิด/ปิดการแจ้งเตือน
  * @param twoFactorEnabled — เปิด/ปิดการยืนยันตัวตนสองชั้น
  */
-export async function updateUserSettings(
-  settings: {
-    notificationEnabled?: boolean;
-    twoFactorEnabled?: boolean;
-  }
-): Promise<UpdateSettingsResponse> {
+export async function updateUserSettings(settings: {
+  notificationEnabled?: boolean;
+  twoFactorEnabled?: boolean;
+}): Promise<UpdateSettingsResponse> {
   // แปลง key จาก frontend (twoFactorEnabled) เป็น backend format ('2FAEnabled')
   const backendPayload: Record<string, unknown> = {};
   if (settings.notificationEnabled !== undefined) {
@@ -201,7 +198,7 @@ export async function updateUserSettings(
  */
 export async function changePassword(
   oldPassword: string,
-  newPassword: string
+  newPassword: string,
 ): Promise<{ message: string }> {
   return authFetch<{ message: string }>('/users/me/password', {
     method: 'PATCH',
@@ -213,14 +210,27 @@ export async function changePassword(
  * อัปโหลดรูปอวาตาร์ผู้ใช้ (PATCH /users/me/avatar)
  * ส่งเป็น FormData (multipart/form-data) ไฟล์ JPEG/PNG/WEBP ขนาดไม่เกิน 5MB
  */
-export async function uploadAvatar(
-  file: File
-): Promise<{ avatarUrl: string }> {
+export async function uploadAvatar(file: File): Promise<{ avatarUrl: string }> {
   const formData = new FormData();
   formData.append('avatar', file);
 
   return authFetch<{ avatarUrl: string }>('/users/me/avatar', {
     method: 'PATCH',
     body: formData as unknown as Record<string, unknown>,
+  });
+}
+
+/**
+ * ลบบัญชีผู้ใช้แบบถาวร (DELETE /users/me)
+ * ต้องยืนยันด้วยรหัสผ่านปัจจุบันก่อนเพื่อความปลอดภัย
+ * @param password — รหัสผ่านปัจจุบันของผู้ใช้ เพื่อยืนยันตัวตนก่อนลบ
+ */
+export async function deleteAccount(payload: {
+  password?: string;
+  confirmEmail?: string;
+}): Promise<{ message: string }> {
+  return authFetch<{ message: string }>('/users/me', {
+    method: 'DELETE',
+    body: { ...payload },
   });
 }

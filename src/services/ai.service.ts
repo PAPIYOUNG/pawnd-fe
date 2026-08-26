@@ -27,3 +27,46 @@ export async function analyzeImage(imageUrl: string): Promise<AiAnalysisResult> 
     body: { imageUrl },
   });
 }
+
+/**
+ * ข้อมูลสำหรับส่งไปเจนภาพ Avatar สัตว์เลี้ยง (POST /ai/generate-pet-avatar)
+ */
+export interface GeneratePetAvatarDto {
+  petId: string;
+  imageUrls: string[];
+}
+
+/**
+ * ผลลัพธ์จากการเจนภาพ Avatar สัตว์เลี้ยงจาก Backend
+ */
+export interface GeneratePetAvatarResponse {
+  petId: string;
+  sourceImages: { id: string; imageUrl: string }[];
+  avatar: {
+    imageUrl: string;
+    model: string;
+    style: string;
+  };
+  quota: {
+    used: number;
+    limit: number;
+    remaining: number;
+    cycle: number;
+  };
+}
+
+/**
+ * สร้างภาพ AI Avatar สำหรับสัตว์เลี้ยง (POST /ai/generate-pet-avatar)
+ * - เรียกใช้ AI Studio ใน Backend เพื่อเจนภาพสไตล์ 3D Voxel
+ * - ต้องระบุ petId และ imageUrls ของสัตว์เลี้ยงตัวนั้นอย่างน้อย 1 รูป
+ * @param dto — { petId: string, imageUrls: string[] }
+ */
+export async function generatePetAvatar(
+  dto: GeneratePetAvatarDto
+): Promise<GeneratePetAvatarResponse> {
+  return authFetch<GeneratePetAvatarResponse>('/ai/generate-pet-avatar', {
+    method: 'POST',
+    body: dto as unknown as Record<string, unknown>,
+  });
+}
+

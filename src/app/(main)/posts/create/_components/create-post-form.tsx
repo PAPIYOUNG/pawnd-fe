@@ -279,14 +279,15 @@ export function CreatePostForm() {
     setIsPublishing(false);
     if (res.success) {
       setShowToast('เผยแพร่ประกาศสำเร็จ! ระบบกำลังเริ่มค้นหาด้วย AI Smart Matching');
+      router.refresh();
       setTimeout(() => {
         router.push(res.data?.id ? `/posts/${res.data.id}` : '/posts');
       }, 1500);
     } else {
-      setShowToast(`เผยแพร่ประกาศสำเร็จในระบบจำลอง (${res.error || 'โหมดออฟไลน์'})`);
+      setShowToast(res.error || 'เกิดข้อผิดพลาดในการเผยแพร่ประกาศ กรุณาเข้าสู่ระบบและลองใหม่อีกครั้ง');
       setTimeout(() => {
-        router.push('/posts');
-      }, 1800);
+        setShowToast(null);
+      }, 4000);
     }
   };
 
