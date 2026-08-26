@@ -2,7 +2,7 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   // อนุญาตให้เข้าถึง dev server จากเครื่องอื่นใน LAN (เช่น ทดสอบผ่านมือถือ)
-  allowedDevOrigins: ['192.168.1.67'],
+  allowedDevOrigins: ['192.168.1.176'],
   experimental: {
     serverActions: {
       // ค่า default ของ Next.js คือ 1MB ซึ่งเล็กเกินไปสำหรับ FormData ที่มีไฟล์รูปภาพ
