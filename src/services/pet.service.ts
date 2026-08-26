@@ -116,16 +116,23 @@ export async function getPetById(id: string): Promise<PetProfile | null> {
 /**
  * สร้าง QR Code สำหรับสัตว์เลี้ยง (POST /pets/:id/qr)
  * สร้าง QR Token เฉพาะสำหรับสัตว์เลี้ยงเพื่อติดปลอกคอหรือป้ายชื่อ
+ * เรียกซ้ำได้เพื่อเปิดใช้งาน QR Code อีกครั้งหลังจากถูกปิดใช้งานไปแล้ว
+ * ไม่ catch error เพราะให้ Server Action ชั้นบน (pet.actions.ts) เป็นผู้จัดการข้อความ error ที่จะแสดงผู้ใช้
  */
-export async function generatePetQr(petId: string): Promise<PetQrCode | null> {
-  try {
-    return await authFetch<PetQrCode>(`/pets/${petId}/qr`, {
-      method: 'POST',
-    });
-  } catch (err) {
-    unstable_rethrow(err);
-    return null;
-  }
+export async function generatePetQrCode(petId: string): Promise<PetQrCode> {
+  return authFetch<PetQrCode>(`/pets/${petId}/qr`, {
+    method: 'POST',
+  });
+}
+
+/**
+ * ปิดใช้งาน QR Code ของสัตว์เลี้ยง (PATCH /pets/:id/qr/deactivate)
+ * ใช้เมื่อป้ายปลอกคอสูญหายหรือไม่ต้องการให้คนสแกนเข้าถึงโปรไฟล์สาธารณะได้อีก
+ */
+export async function deactivatePetQrCode(petId: string): Promise<PetQrCode> {
+  return authFetch<PetQrCode>(`/pets/${petId}/qr/deactivate`, {
+    method: 'PATCH',
+  });
 }
 
 /**
