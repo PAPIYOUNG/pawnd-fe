@@ -6,13 +6,13 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Eye, EyeOff } from 'lucide-react';
-
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { GoogleIcon, LineIcon } from '@/components/auth/BrandIcons';
 import { OtpBoxes } from '@/components/auth/OtpBoxes';
+import { useResendCooldown } from '@/hooks/use-resend-cooldown';
 import { cn } from '@/lib/utils';
 import { registerAction } from '../_actions/register.actions';
 import {
@@ -80,6 +80,8 @@ export function RegisterForm() {
   const [formError, setFormError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isResending, startResendTransition] = useTransition();
+  // ตัวนับถอยหลังก่อนอนุญาตให้กดขอ OTP ใหม่อีกครั้ง
+  const resendCooldown = useResendCooldown(60);
 
   const {
     register,
@@ -114,6 +116,7 @@ export function RegisterForm() {
 
     setRegisteredEmail(values.email);
     setStep('otp');
+    resendCooldown.start();
   });
 
   const handleVerifyOtp = () => {
@@ -142,6 +145,7 @@ export function RegisterForm() {
         return;
       }
       setResendMessage('ส่งรหัสยืนยันใหม่แล้ว กรุณาตรวจสอบอีเมลของคุณ');
+      resendCooldown.start();
     });
   };
 
@@ -178,10 +182,14 @@ export function RegisterForm() {
         <button
           type="button"
           onClick={handleResendOtp}
-          disabled={isResending}
-          className="text-center text-sm text-muted-foreground hover:text-foreground"
+          disabled={isResending || resendCooldown.isActive}
+          className="text-center text-sm text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isResending ? 'กำลังส่ง...' : 'ส่งรหัสยืนยันอีกครั้ง'}
+          {isResending
+            ? 'กำลังส่ง...'
+            : resendCooldown.isActive
+              ? `ส่งรหัสยืนยันอีกครั้งใน ${resendCooldown.remaining} วินาที`
+              : 'ส่งรหัสยืนยันอีกครั้ง'}
         </button>
       </div>
     );

@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { GoogleIcon, LineIcon } from '@/components/auth/BrandIcons';
 import { OtpBoxes } from '@/components/auth/OtpBoxes';
+import { useResendCooldown } from '@/hooks/use-resend-cooldown';
 import {
   verifyEmailAction,
   resendVerificationAction,
@@ -77,6 +78,8 @@ export function LoginForm() {
   const [lineError, setLineError] = useState<string | null>(null);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
   const [isResending, startResendTransition] = useTransition();
+  // ตัวนับถอยหลังก่อนอนุญาตให้กดขอ OTP ใหม่อีกครั้ง (ใช้ร่วมกับหน้า line-verify)
+  const resendCooldown = useResendCooldown(60);
 
   const {
     register,
@@ -187,15 +190,14 @@ export function LoginForm() {
 
     const savedState = sessionStorage.getItem(LINE_OAUTH_STATE_KEY);
     sessionStorage.removeItem(LINE_OAUTH_STATE_KEY);
-
-    if (!state || state !== savedState) {
-      setFormError('เข้าสู่ระบบด้วย LINE ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
-      return;
-    }
-
     const redirectUri = `${window.location.origin}/login`;
 
     startLineTransition(async () => {
+      if (!state || state !== savedState) {
+        setFormError('เข้าสู่ระบบด้วย LINE ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+        return;
+      }
+
       const result = await loginWithLineAction(code, redirectUri);
 
       if (!result.success) {
@@ -238,8 +240,10 @@ export function LoginForm() {
       if ('needsVerification' in result) {
         setLineEmail(lineEmailInput);
         setStep('line-verify');
+        resendCooldown.start();
         return;
       }
+
       if (result.needsOtp) {
         setTempToken(result.tempToken);
         setStep('otp');
@@ -271,6 +275,7 @@ export function LoginForm() {
         return;
       }
       setResendMessage('ส่งรหัสยืนยันใหม่แล้ว กรุณาตรวจสอบอีเมลของคุณ');
+      resendCooldown.start();
     });
   };
 
@@ -345,10 +350,14 @@ export function LoginForm() {
         <button
           type="button"
           onClick={handleResendLineOtp}
-          disabled={isResending}
-          className="text-center text-sm text-muted-foreground hover:text-foreground"
+          disabled={isResending || resendCooldown.isActive}
+          className="text-center text-sm text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isResending ? 'กำลังส่ง...' : 'ส่งรหัสยืนยันอีกครั้ง'}
+          {isResending
+            ? 'กำลังส่ง...'
+            : resendCooldown.isActive
+              ? `ส่งรหัสยืนยันอีกครั้งใน ${resendCooldown.remaining} วินาที`
+              : 'ส่งรหัสยืนยันอีกครั้ง'}
         </button>
       </div>
     );
