@@ -16,7 +16,7 @@ async function proxyChatRequest(
 ): Promise<Response> {
   const session = await auth();
 
-  if (!session?.accessToken) {
+  if (!session?.accessToken || session.error === 'RefreshAccessTokenError') {
     return Response.json(
       { success: false, message: 'กรุณาเข้าสู่ระบบก่อนใช้งานแชท' },
       { status: 401 },

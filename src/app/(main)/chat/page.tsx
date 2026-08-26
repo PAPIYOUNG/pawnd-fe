@@ -16,7 +16,13 @@ interface ChatPageProps {
 /** Server Component ตรวจ session ก่อนส่งเฉพาะข้อมูลที่ Chat Client ต้องใช้ */
 export default async function ChatPage({ searchParams }: ChatPageProps) {
   const session = await auth();
-  if (!session?.user || !session.accessToken) redirect('/login');
+  if (
+    !session?.user ||
+    !session.accessToken ||
+    session.error === 'RefreshAccessTokenError'
+  ) {
+    redirect('/login');
+  }
 
   const query = await searchParams;
   const initialRoomId = Array.isArray(query.room) ? query.room[0] : query.room;
