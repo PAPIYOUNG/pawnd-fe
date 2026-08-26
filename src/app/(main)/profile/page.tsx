@@ -18,10 +18,7 @@ export const metadata: Metadata = {
  * - แสดงข้อมูลผู้ใช้และรายการสัตว์เลี้ยงของฉัน (การ์ดสถิติสรุปและประวัติประกาศตามหาย้ายไปอยู่ที่หน้าแดชบอร์ดแทน)
  */
 export default async function ProfileOverviewPage() {
-  const [user, myPets] = await Promise.all([
-    getCurrentUser(),
-    getMyPets(),
-  ]);
+  const [user, myPets] = await Promise.all([getCurrentUser(), getMyPets()]);
 
   // ใช้ข้อมูลจริงจาก Backend หรือ fallback ไปที่ mock ถ้าไม่มีข้อมูล
   const pets = myPets.length > 0 ? myPets : user.pets;
