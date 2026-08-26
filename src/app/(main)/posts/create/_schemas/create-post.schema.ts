@@ -27,7 +27,14 @@ export const createPostFormSchema = z.object({
     .trim()
     .min(1, 'กรุณากรอกลักษณะเด่นหรือข้อมูลเพิ่มเติม'),
   locationDescription: z.string().trim().min(1, 'กรุณากรอกสถานที่เกิดเหตุ'),
-  eventDate: z.string().trim().min(1, 'กรุณาระบุวันที่และเวลาเกิดเหตุ'),
+  eventDate: z
+    .string()
+    .trim()
+    .min(1, 'กรุณาระบุวันที่และเวลาเกิดเหตุ')
+    .refine(
+      (value) => !Number.isNaN(new Date(value).getTime()),
+      'รูปแบบวันที่และเวลาไม่ถูกต้อง',
+    ),
   rewardAmount: z
     .string()
     .trim()

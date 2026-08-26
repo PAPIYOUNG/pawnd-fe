@@ -1,14 +1,11 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  useForm,
-  type FieldPath,
-  type FieldPathValue,
-} from 'react-hook-form';
+import { useForm, type FieldPath, type FieldPathValue } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Camera,
@@ -34,9 +31,12 @@ import {
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useCurrentLocation } from '@/app/(main)/map/_components/use-current-location';
 import { cn } from '@/lib/utils';
+import type { CurrentLocation } from '@/types/map';
 import type { PetGender, PetType, PostType } from '@/types/post';
 import { AiAnalysisResult } from '@/services/ai.service';
 import {
@@ -44,6 +44,11 @@ import {
   analyzeImageAction,
   uploadPostImagesAction,
 } from '../_actions/create-post.actions';
+import {
+  reverseGeocode,
+  searchGeocodingPlaces,
+  type GeocodingSearchResult,
+} from '@/services/geocoding.service';
 import {
   createPostFormSchema,
   type CreatePostFormValues,
@@ -54,6 +59,25 @@ import {
 // ป้องกัน error "Body exceeded 1 MB limit" ของ Next.js Server Action ตอนส่ง Base64
 const AI_IMAGE_MAX_DIMENSION = 1024;
 const AI_IMAGE_JPEG_QUALITY = 0.8;
+const MAX_POST_IMAGES = 3;
+const MAX_POST_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_POST_IMAGE_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
+
+const CreatePostLocationMap = dynamic(
+  () => import('@/components/map/RealLeafletMap'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-64 items-center justify-center bg-muted/60 text-xs text-muted-foreground sm:h-72">
+        กำลังโหลดแผนที่...
+      </div>
+    ),
+  },
+);
 
 /** ตัวเลือกประเภทประกาศที่ตรงกับ PostType enum ของ Backend */
 const POST_TYPE_OPTIONS: Array<{
@@ -85,7 +109,10 @@ function resizeImageToDataUrl(file: File): Promise<string> {
     const img = new window.Image();
 
     img.onload = () => {
-      const scale = Math.min(1, AI_IMAGE_MAX_DIMENSION / Math.max(img.width, img.height));
+      const scale = Math.min(
+        1,
+        AI_IMAGE_MAX_DIMENSION / Math.max(img.width, img.height),
+      );
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(img.width * scale);
       canvas.height = Math.round(img.height * scale);
@@ -111,10 +138,29 @@ function resizeImageToDataUrl(file: File): Promise<string> {
 
 /**
  * สร้าง key สำหรับระบุตัวตนของรูปภาพที่ใช้วิเคราะห์ (ใช้เทียบว่าเป็นรูปเดิมหรือไม่)
- * ไฟล์จริงใช้ name+size+lastModified ส่วน URL (เช่นรูปตัวอย่าง mock) ใช้ค่า URL เป็น key ตรงๆ
+ * ใช้ name+size+lastModified เพื่อไม่วิเคราะห์ไฟล์เดิมซ้ำโดยไม่จำเป็น
  */
-function getImageKey(file: File | null, fallbackUrl: string): string {
-  return file ? `${file.name}-${file.size}-${file.lastModified}` : fallbackUrl;
+function getImageKey(file: File): string {
+  return `${file.name}-${file.size}-${file.lastModified}`;
+}
+
+/** แปลงค่า datetime-local ให้แสดงใน Preview เป็นวันที่และเวลาอ่านง่าย */
+function formatEventDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat('th-TH', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+}
+
+/** สร้างค่าเริ่มต้นสำหรับ input datetime-local ตามเวลาท้องถิ่นของผู้ใช้ */
+function getLocalDateTimeValue(date = new Date()): string {
+  const localDate = new Date(
+    date.getTime() - date.getTimezoneOffset() * 60_000,
+  );
+  return localDate.toISOString().slice(0, 16);
 }
 
 /**
@@ -128,12 +174,46 @@ function getImageKey(file: File | null, fallbackUrl: string): string {
 export function CreatePostForm() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageUrlsRef = useRef<string[]>([]);
+  const locationLookupAbortRef = useRef<AbortController | null>(null);
+  const locationSearchAbortRef = useRef<AbortController | null>(null);
 
   // State ขั้นตอน: 0 = เลือกประเภท, 1 = กรอกข้อมูล, 2 = ตรวจสอบ & ดูตัวอย่าง
   const [currentStep, setCurrentStep] = useState<0 | 1 | 2>(0);
 
   // State ประเภทประกาศที่เลือก ซึ่งจะถูกส่งเป็น PostType ไปยัง Backend ตอนเผยแพร่
   const [postType, setPostType] = useState<PostType | null>(null);
+  const {
+    currentLocation,
+    isLocating,
+    locationError: geolocationError,
+    requestCurrentLocation,
+  } = useCurrentLocation();
+  const [selectedCoordinates, setSelectedCoordinates] =
+    useState<CurrentLocation | null>(null);
+  // พิกัดนี้ใช้ส่งเข้า CreatePostPayload เท่านั้น ไม่ถูกนำไปใส่ใน locationDescription
+  const coordinates = selectedCoordinates;
+  const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
+  const [isResolvingLocation, setIsResolvingLocation] = useState(false);
+  const [locationLookupError, setLocationLookupError] = useState<string | null>(
+    null,
+  );
+  const [locationValidationError, setLocationValidationError] = useState<
+    string | null
+  >(null);
+  const [locationSearchQuery, setLocationSearchQuery] = useState('');
+  const [locationSearchResults, setLocationSearchResults] = useState<
+    GeocodingSearchResult[]
+  >([]);
+  const [isSearchingLocations, setIsSearchingLocations] = useState(false);
+  const [locationSearchError, setLocationSearchError] = useState<string | null>(
+    null,
+  );
+  const [searchLocation, setSearchLocation] = useState<CurrentLocation | null>(
+    null,
+  );
+  const [searchLocationRequestToken, setSearchLocationRequestToken] =
+    useState(0);
 
   // React Hook Form ถือค่าฟอร์มและเรียก Zod ตรวจสอบก่อนเข้าสู่หน้า Preview
   const {
@@ -182,22 +262,172 @@ export function CreatePostForm() {
     });
   };
 
-  // State รูปภาพที่อัปโหลด (สูงสุด 5 รูป) — เก็บเป็น Preview URL สำหรับแสดงผล
-  const [images, setImages] = useState<string[]>([
-    'https://images.unsplash.com/photo-1573865526739-10659fec78a5?q=80&w=600&auto=format&fit=crop',
-  ]);
+  /** เก็บพิกัดที่เลือกและเติมที่อยู่เต็มจากจุดที่ผู้ใช้คลิกบนแผนที่ */
+  const handleLocationSelect = (location: CurrentLocation) => {
+    setSelectedCoordinates(location);
+    setSearchLocation(null);
+    setLocationValidationError(null);
+    setLocationLookupError(null);
+    locationLookupAbortRef.current?.abort();
+
+    const controller = new AbortController();
+    locationLookupAbortRef.current = controller;
+    setIsResolvingLocation(true);
+    setLocationDescription('');
+    syncFormValue('locationDescription', '');
+
+    void reverseGeocode(location, controller.signal)
+      .then((displayName) => {
+        if (
+          controller.signal.aborted ||
+          locationLookupAbortRef.current !== controller
+        ) {
+          return;
+        }
+
+        setLocationDescription(displayName);
+        syncFormValue('locationDescription', displayName);
+      })
+      .catch(() => {
+        if (
+          controller.signal.aborted ||
+          locationLookupAbortRef.current !== controller
+        ) {
+          return;
+        }
+
+        setLocationLookupError(
+          'ไม่สามารถดึงที่อยู่เต็มจากจุดนี้ได้ กรุณาลองคลิกจุดอื่นบนแผนที่',
+        );
+      })
+      .finally(() => {
+        if (locationLookupAbortRef.current !== controller) return;
+
+        locationLookupAbortRef.current = null;
+        setIsResolvingLocation(false);
+      });
+  };
+
+  /** ค้นหาสถานที่เมื่อผู้ใช้กดปุ่มค้นหาเอง แล้วเลื่อนแผนที่ไปยังผลลัพธ์ */
+  const handleLocationSearch = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+
+    const query = locationSearchQuery.trim();
+    if (!query) {
+      locationSearchAbortRef.current?.abort();
+      locationSearchAbortRef.current = null;
+      setIsSearchingLocations(false);
+      setLocationSearchResults([]);
+      setLocationSearchError('กรุณาพิมพ์ชื่อสถานที่ก่อนค้นหา');
+      return;
+    }
+
+    locationSearchAbortRef.current?.abort();
+    const controller = new AbortController();
+    locationSearchAbortRef.current = controller;
+    setIsSearchingLocations(true);
+    setLocationSearchError(null);
+    setLocationSearchResults([]);
+    setSearchLocation(null);
+
+    try {
+      const results = await searchGeocodingPlaces(query, controller.signal);
+      if (
+        controller.signal.aborted ||
+        locationSearchAbortRef.current !== controller
+      ) {
+        return;
+      }
+
+      setLocationSearchResults(results);
+      if (results.length === 0) {
+        setLocationSearchError(
+          'ไม่พบสถานที่จากคำค้นนี้ ลองใช้คำค้นที่ละเอียดขึ้น',
+        );
+      }
+    } catch {
+      if (
+        controller.signal.aborted ||
+        locationSearchAbortRef.current !== controller
+      ) {
+        return;
+      }
+
+      setLocationSearchError(
+        'ค้นหาสถานที่ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง',
+      );
+    } finally {
+      if (locationSearchAbortRef.current !== controller) return;
+
+      locationSearchAbortRef.current = null;
+      setIsSearchingLocations(false);
+    }
+  };
+
+  /** เลือกผลค้นหาเป็นพิกัดประกาศทันที และเลื่อนแผนที่ไปยังจุดนั้น */
+  const handleLocationSearchResultSelect = (result: GeocodingSearchResult) => {
+    const nextLocation = {
+      latitude: result.latitude,
+      longitude: result.longitude,
+    };
+
+    locationLookupAbortRef.current?.abort();
+    locationLookupAbortRef.current = null;
+    setIsResolvingLocation(false);
+    setSelectedCoordinates(nextLocation);
+    setSearchLocation({
+      ...nextLocation,
+    });
+    setSearchLocationRequestToken((token) => token + 1);
+    setLocationValidationError(null);
+    setLocationLookupError(null);
+    setLocationDescription(result.displayName);
+    syncFormValue('locationDescription', result.displayName);
+    setLocationSearchError(null);
+  };
+
+  // State รูปภาพที่อัปโหลด (สูงสุด 3 รูปตามกฎ Backend) — เก็บเป็น Preview URL สำหรับแสดงผล
+  const [images, setImages] = useState<string[]>([]);
 
   // State ไฟล์ต้นฉบับของรูปภาพ (คู่กับ images ตาม index) ใช้แปลงเป็น Base64 ส่งให้ AI วิเคราะห์
-  // รูปตัวอย่างเริ่มต้น (mock) ไม่มีไฟล์จริง จึงเป็น null
-  const [imageFiles, setImageFiles] = useState<(File | null)[]>([null]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
 
   // State AI Assistant & Toast Notification
   const [isAnalyzingAi, setIsAnalyzingAi] = useState(false);
   const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   // เก็บ id ของโพสต์ที่สร้างสำเร็จแต่ยังอัปโหลดรูปไม่ผ่าน เพื่อให้กดลองอัปโหลดซ้ำได้โดยไม่สร้างโพสต์ซ้ำ
-  const [pendingUploadPostId, setPendingUploadPostId] = useState<string | null>(null);
+  const [pendingUploadPostId, setPendingUploadPostId] = useState<string | null>(
+    null,
+  );
   const [showToast, setShowToast] = useState<string | null>(null);
+
+  /** แสดงข้อความชั่วคราวสำหรับผลการเลือกไฟล์หรือข้อผิดพลาดจาก Browser */
+  const notify = (message: string, duration = 3000) => {
+    setShowToast(message);
+    window.setTimeout(() => setShowToast(null), duration);
+  };
+
+  useEffect(() => {
+    imageUrlsRef.current = images;
+  }, [images]);
+
+  useEffect(() => {
+    return () => {
+      imageUrlsRef.current.forEach((imageUrl) => {
+        if (imageUrl.startsWith('blob:')) URL.revokeObjectURL(imageUrl);
+      });
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      locationLookupAbortRef.current?.abort();
+      locationSearchAbortRef.current?.abort();
+    };
+  }, []);
 
   // Cache ผลวิเคราะห์ AI ล่าสุด ผูกกับ imageKey ของรูปที่ใช้วิเคราะห์
   // ป้องกันการยิง /analyze-image ซ้ำเมื่อกดปุ่ม AI ทั้งสองปุ่มกับรูปเดิม
@@ -206,27 +436,58 @@ export function CreatePostForm() {
     data: AiAnalysisResult;
   } | null>(null);
 
-  // ฟังก์ชันอัปโหลดรูปภาพ (จำกัดสูงสุด 3 รูปตามกฎ Backend)
+  // ฟังก์ชันเลือกไฟล์รูปภาพ โดยตรวจ MIME type, ขนาด และจำนวนให้ตรงกับกฎ Backend
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    const files = Array.from(e.target.files ?? []);
+    // ล้างค่า input เพื่อให้เลือกไฟล์เดิมซ้ำได้หลังจากลบหรือแก้ไขไฟล์
+    e.target.value = '';
+    if (files.length === 0) return;
 
-    const newUrls: string[] = [];
-    const newFiles: File[] = [];
-    for (let i = 0; i < files.length; i++) {
-      if (images.length + newUrls.length < 3) {
-        newUrls.push(URL.createObjectURL(files[i]));
-        newFiles.push(files[i]);
-      }
+    const remainingSlots = MAX_POST_IMAGES - images.length;
+    if (remainingSlots <= 0) {
+      notify('อัปโหลดรูปภาพได้สูงสุด 3 รูป');
+      return;
     }
-    setImages((prev) => [...prev, ...newUrls].slice(0, 3));
-    setImageFiles((prev) => [...prev, ...newFiles].slice(0, 3));
-    // รูปแรกอาจเปลี่ยน (ถ้าเดิมยังไม่มีรูปเลย) → ล้าง cache ผลวิเคราะห์เก่าทิ้ง
-    setAiAnalysisCache(null);
+
+    const validFiles: File[] = [];
+    let hasInvalidType = false;
+    let hasOversizedFile = false;
+
+    files.forEach((file) => {
+      if (!ALLOWED_POST_IMAGE_TYPES.has(file.type)) {
+        hasInvalidType = true;
+        return;
+      }
+      if (file.size > MAX_POST_IMAGE_SIZE_BYTES) {
+        hasOversizedFile = true;
+        return;
+      }
+      validFiles.push(file);
+    });
+
+    const filesToAdd = validFiles.slice(0, remainingSlots);
+    const newUrls = filesToAdd.map((file) => URL.createObjectURL(file));
+
+    if (filesToAdd.length > 0) {
+      setImages((prev) => [...prev, ...newUrls]);
+      setImageFiles((prev) => [...prev, ...filesToAdd]);
+      // รูปแรกอาจเปลี่ยน → ล้าง cache ผลวิเคราะห์เก่าทิ้ง
+      setAiAnalysisCache(null);
+    }
+
+    const feedback: string[] = [];
+    if (hasInvalidType) feedback.push('รองรับเฉพาะไฟล์ JPG, PNG และ WEBP');
+    if (hasOversizedFile) feedback.push('แต่ละไฟล์ต้องมีขนาดไม่เกิน 5 MB');
+    if (validFiles.length > filesToAdd.length) {
+      feedback.push('อัปโหลดรูปภาพได้สูงสุด 3 รูป');
+    }
+    if (feedback.length > 0) notify(feedback.join(' '));
   };
 
   // ลบรูปภาพเดี่ยว (ลบทั้ง Preview URL และไฟล์ต้นฉบับที่ index เดียวกัน)
   const handleRemoveImage = (indexToRemove: number) => {
+    const imageUrl = images[indexToRemove];
+    if (imageUrl?.startsWith('blob:')) URL.revokeObjectURL(imageUrl);
     setImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
     setImageFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
     // รูปแรกอาจเปลี่ยนไปเป็นรูปอื่น → ล้าง cache ผลวิเคราะห์เก่าทิ้ง
@@ -238,16 +499,18 @@ export function CreatePostForm() {
   // คืนค่า Promise<AiAnalysisResult> เพื่อให้ handler แต่ละตัวนำ field ที่ต้องการไปใช้ต่อได้เอง
   const runAiImageAnalysis = async () => {
     const file = imageFiles[0];
-    const imageKey = getImageKey(file, images[0]);
+    if (!file) {
+      throw new Error('กรุณาอัปโหลดรูปภาพก่อนเริ่มวิเคราะห์');
+    }
+
+    const imageKey = getImageKey(file);
 
     if (aiAnalysisCache?.imageKey === imageKey) {
       return { success: true as const, data: aiAnalysisCache.data };
     }
 
-    // ถ้ามีไฟล์จริง (ผู้ใช้เพิ่งอัปโหลด) ต้อง resize + แปลงเป็น Base64 ก่อน
-    // (ยังไม่มีประกาศให้ผูกไฟล์ และต้อง resize ไม่ให้เกิน limit ของ Server Action)
-    // ถ้าไม่มีไฟล์ (เช่นรูปตัวอย่าง mock) แปลว่า images[0] เป็น URL ที่เข้าถึงได้อยู่แล้ว
-    const imageUrl = file ? await resizeImageToDataUrl(file) : images[0];
+    // ยังไม่มีประกาศให้ผูกไฟล์ จึง resize + แปลงไฟล์จริงเป็น Base64 ก่อนส่งให้ AI
+    const imageUrl = await resizeImageToDataUrl(file);
     const res = await analyzeImageAction(imageUrl);
 
     if (res.success && res.data) {
@@ -259,7 +522,7 @@ export function CreatePostForm() {
 
   // เรียก AI วิเคราะห์ประเภท สายพันธุ์ และสีขนจากภาพถ่าย
   const handleAiAnalyzeImage = async () => {
-    if (images.length === 0) {
+    if (imageFiles.length === 0) {
       setShowToast('กรุณาอัปโหลดรูปภาพก่อนเริ่มวิเคราะห์');
       setTimeout(() => setShowToast(null), 3000);
       return;
@@ -290,7 +553,9 @@ export function CreatePostForm() {
         }
         setShowToast('AI วิเคราะห์สายพันธุ์และสีขนเรียบร้อยแล้ว');
       } else {
-        setShowToast(`วิเคราะห์รูปภาพไม่สำเร็จ: ${res.error ?? 'กรุณาลองใหม่อีกครั้ง'}`);
+        setShowToast(
+          `วิเคราะห์รูปภาพไม่สำเร็จ: ${res.error ?? 'กรุณาลองใหม่อีกครั้ง'}`,
+        );
       }
     } catch {
       setShowToast('เกิดข้อผิดพลาดขณะวิเคราะห์รูปภาพ กรุณาลองใหม่อีกครั้ง');
@@ -302,7 +567,7 @@ export function CreatePostForm() {
 
   // เรียก AI ช่วยเขียนคำบรรยายลักษณะเด่น (ใช้ field "description" จากผลวิเคราะห์ภาพชุดเดียวกัน)
   const handleAiGenerateDescription = async () => {
-    if (images.length === 0) {
+    if (imageFiles.length === 0) {
       setShowToast('กรุณาอัปโหลดรูปภาพก่อนให้ AI ช่วยเขียนคำบรรยาย');
       setTimeout(() => setShowToast(null), 3000);
       return;
@@ -311,7 +576,8 @@ export function CreatePostForm() {
     setIsGeneratingDesc(true);
     try {
       const res = await runAiImageAnalysis();
-      const generatedText = res.data?.description || res.data?.distinctiveFeatures;
+      const generatedText =
+        res.data?.description || res.data?.distinctiveFeatures;
 
       if (res.success && generatedText) {
         setDistinctiveFeatures(generatedText);
@@ -324,7 +590,7 @@ export function CreatePostForm() {
         setShowToast(
           res.success
             ? 'AI ไม่สามารถสร้างคำบรรยายจากรูปภาพนี้ได้'
-            : `สร้างคำบรรยายไม่สำเร็จ: ${res.error ?? 'กรุณาลองใหม่อีกครั้ง'}`
+            : `สร้างคำบรรยายไม่สำเร็จ: ${res.error ?? 'กรุณาลองใหม่อีกครั้ง'}`,
         );
       }
     } catch {
@@ -344,6 +610,20 @@ export function CreatePostForm() {
         return;
       }
 
+      if (imageFiles.length === 0) {
+        notify('กรุณาอัปโหลดรูปภาพอย่างน้อย 1 รูปก่อนตรวจสอบประกาศ');
+        return;
+      }
+
+      if (!coordinates) {
+        const message =
+          'กรุณาเลือกตำแหน่งบนแผนที่หรือกดปุ่มตำแหน่งของฉันก่อนตรวจสอบประกาศ';
+        setLocationValidationError(message);
+        notify(message);
+        return;
+      }
+
+      setLocationValidationError(null);
       setCurrentStep(2);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
@@ -363,14 +643,28 @@ export function CreatePostForm() {
         return;
       }
 
+      if (!coordinates) {
+        const message =
+          'กรุณาเลือกตำแหน่งบนแผนที่หรือกดปุ่มตำแหน่งของฉันก่อนเผยแพร่ประกาศ';
+        setCurrentStep(1);
+        setLocationValidationError(message);
+        notify(message);
+        return;
+      }
+
       const values = getValues();
 
-      const selectedFiles = imageFiles.filter(
-        (file): file is File => file !== null,
-      );
+      const selectedFiles = imageFiles;
 
       if (selectedFiles.length === 0) {
-        setShowToast('กรุณาอัปโหลดรูปภาพอย่างน้อย 1 รูปก่อนเผยแพร่ประกาศ');
+        notify('กรุณาอัปโหลดรูปภาพอย่างน้อย 1 รูปก่อนเผยแพร่ประกาศ');
+        return;
+      }
+
+      const parsedEventDate = new Date(values.eventDate);
+      if (Number.isNaN(parsedEventDate.getTime())) {
+        setCurrentStep(1);
+        notify('กรุณาระบุวันที่และเวลาเกิดเหตุให้ถูกต้อง');
         return;
       }
 
@@ -397,9 +691,9 @@ export function CreatePostForm() {
           color: values.color,
           distinctiveFeatures: values.distinctiveFeatures,
           locationDescription: values.locationDescription,
-          eventDate: new Date().toISOString(),
-          latitude: 13.7563,
-          longitude: 100.5018,
+          eventDate: parsedEventDate.toISOString(),
+          latitude: coordinates.latitude,
+          longitude: coordinates.longitude,
           rewardAmount: isNaN(numReward as number) ? undefined : numReward,
           contactPhone: values.contactPhone,
         });
@@ -515,10 +809,14 @@ export function CreatePostForm() {
                   'flex size-8.5 items-center justify-center rounded-full text-xs font-bold shadow-xs transition-colors',
                   currentStep === 1
                     ? 'bg-emerald-700 text-white ring-4 ring-emerald-600/15'
-                    : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400'
+                    : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400',
                 )}
               >
-                {currentStep === 2 ? <Check className="size-4 stroke-[3]" /> : '1'}
+                {currentStep === 2 ? (
+                  <Check className="size-4 stroke-[3]" />
+                ) : (
+                  '1'
+                )}
               </div>
               <div className="flex flex-col">
                 <span
@@ -526,7 +824,7 @@ export function CreatePostForm() {
                     'text-xs font-bold sm:text-sm transition-colors',
                     currentStep === 1
                       ? 'text-emerald-800 dark:text-emerald-400'
-                      : 'text-foreground'
+                      : 'text-foreground',
                   )}
                 >
                   ข้อมูลสัตว์เลี้ยง
@@ -547,7 +845,7 @@ export function CreatePostForm() {
                   'flex size-8.5 items-center justify-center rounded-full text-xs font-bold shadow-xs transition-colors',
                   currentStep === 2
                     ? 'bg-emerald-700 text-white ring-4 ring-emerald-600/15'
-                    : 'bg-muted text-muted-foreground'
+                    : 'bg-muted text-muted-foreground',
                 )}
               >
                 2
@@ -558,7 +856,7 @@ export function CreatePostForm() {
                     'text-xs font-bold sm:text-sm transition-colors',
                     currentStep === 2
                       ? 'text-emerald-800 dark:text-emerald-400'
-                      : 'text-muted-foreground'
+                      : 'text-muted-foreground',
                   )}
                 >
                   ตรวจสอบ & ยืนยัน
@@ -643,6 +941,16 @@ export function CreatePostForm() {
               disabled={!postType}
               onClick={() => {
                 if (!postType) return;
+
+                if (!getValues('eventDate')) {
+                  const defaultEventDate = getLocalDateTimeValue();
+                  setEventDate(defaultEventDate);
+                  setValue('eventDate', defaultEventDate, {
+                    shouldDirty: false,
+                    shouldValidate: false,
+                  });
+                }
+
                 setCurrentStep(1);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
@@ -662,7 +970,9 @@ export function CreatePostForm() {
         <div className="rounded-3xl border border-border/80 bg-card p-5 shadow-sm sm:p-8 lg:p-10 dark:border-border/60 animate-in fade-in duration-200">
           <div className="mb-6 flex items-center justify-between gap-3 border-b border-border/60 pb-5">
             <div>
-              <span className="text-xs text-muted-foreground">ประเภทประกาศ</span>
+              <span className="text-xs text-muted-foreground">
+                ประเภทประกาศ
+              </span>
               <p className="text-sm font-bold text-foreground sm:text-base">
                 {postType === 'FOUND' ? 'ฉันพบสัตว์' : 'สัตว์เลี้ยงของฉันหาย'}
               </p>
@@ -677,7 +987,10 @@ export function CreatePostForm() {
               เปลี่ยนประเภท
             </Button>
           </div>
-          <form onSubmit={handleGoToReview} className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
+          <form
+            onSubmit={handleGoToReview}
+            className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10"
+          >
             {/* ฝั่งซ้าย: รูปภาพสัตว์เลี้ยง (Pet Images) */}
             <div className="flex flex-col gap-4 lg:col-span-5">
               <h3 className="text-base font-bold text-foreground sm:text-lg">
@@ -696,7 +1009,8 @@ export function CreatePostForm() {
                   คลิกเพื่ออัปโหลดรูปภาพ
                 </span>
                 <span className="mt-1 text-xs text-muted-foreground">
-                  อัปโหลดได้สูงสุด 3 รูป (ไฟล์ JPG, PNG, WEBP)
+                  อัปโหลดได้สูงสุด 3 รูป (ไฟล์ JPG, PNG, WEBP ขนาดไม่เกิน 5
+                  MB/ไฟล์)
                 </span>
               </div>
 
@@ -722,6 +1036,7 @@ export function CreatePostForm() {
                       alt={`รูปที่ ${idx + 1}`}
                       fill
                       sizes="72px"
+                      unoptimized
                       className="object-cover"
                     />
                     <button
@@ -735,17 +1050,19 @@ export function CreatePostForm() {
                   </div>
                 ))}
 
-                {Array.from({ length: Math.max(0, 3 - images.length) }).map((_, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex size-18 shrink-0 items-center justify-center rounded-2xl border-2 border-dashed border-border/80 bg-muted/30 text-muted-foreground transition-colors hover:border-primary hover:text-primary"
-                    aria-label="เพิ่มรูปภาพเพิ่มเติม"
-                  >
-                    <Plus className="size-6" />
-                  </button>
-                ))}
+                {Array.from({ length: Math.max(0, 3 - images.length) }).map(
+                  (_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex size-18 shrink-0 items-center justify-center rounded-2xl border-2 border-dashed border-border/80 bg-muted/30 text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                      aria-label="เพิ่มรูปภาพเพิ่มเติม"
+                    >
+                      <Plus className="size-6" />
+                    </button>
+                  ),
+                )}
               </div>
 
               {/* ปุ่ม AI วิเคราะห์สายพันธุ์และลักษณะสีขน */}
@@ -800,7 +1117,8 @@ export function CreatePostForm() {
 
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="petType" className="text-xs font-semibold">
-                    ประเภทสัตว์เลี้ยง <span className="text-destructive">*</span>
+                    ประเภทสัตว์เลี้ยง{' '}
+                    <span className="text-destructive">*</span>
                   </Label>
                   <select
                     {...register('petType')}
@@ -949,7 +1267,8 @@ export function CreatePostForm() {
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="features" className="text-xs font-semibold">
-                    ลักษณะเด่น / ข้อมูลเพิ่มเติม <span className="text-destructive">*</span>
+                    ลักษณะเด่น / ข้อมูลเพิ่มเติม{' '}
+                    <span className="text-destructive">*</span>
                   </Label>
                   <button
                     type="button"
@@ -959,7 +1278,9 @@ export function CreatePostForm() {
                   >
                     <Wand2 className="size-3" />
                     <span>
-                      {isGeneratingDesc ? 'กำลังเขียน...' : '✨ AI ช่วยเขียนคำบรรยาย'}
+                      {isGeneratingDesc
+                        ? 'กำลังเขียน...'
+                        : '✨ AI ช่วยเขียนคำบรรยาย'}
                     </span>
                   </button>
                 </div>
@@ -989,31 +1310,79 @@ export function CreatePostForm() {
               {/* พิกัด & วันที่หาย */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="location" className="text-xs font-semibold">
-                    {postType === 'FOUND' ? 'พิกัด/สถานที่พบ' : 'พิกัด/สถานที่หาย'}{' '}
+                  <Label
+                    htmlFor="location-picker-button"
+                    className="text-xs font-semibold"
+                  >
+                    {postType === 'FOUND'
+                      ? 'พิกัด/สถานที่พบ'
+                      : 'พิกัด/สถานที่หาย'}{' '}
                     <span className="text-destructive">*</span>
                   </Label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-primary" />
-                    <Input
-                      {...register('locationDescription')}
-                      id="location"
-                      value={locationDescription}
-                      onChange={(event) => {
-                        setLocationDescription(event.target.value);
-                        syncFormValue('locationDescription', event.target.value);
-                      }}
-                      placeholder="เช่น เขตลาดพร้าว, กรุงเทพมหานคร"
-                      aria-invalid={Boolean(errors.locationDescription)}
+                  <div
+                    id="location"
+                    role="status"
+                    aria-live="polite"
+                    className={cn(
+                      'flex min-h-11 items-center gap-2 rounded-2xl border bg-muted/20 px-3.5 text-xs sm:text-sm',
+                      errors.locationDescription
+                        ? 'border-destructive'
+                        : 'border-border',
+                    )}
+                  >
+                    <MapPin className="size-4 shrink-0 text-primary" />
+                    <span
                       className={cn(
-                        'rounded-2xl pl-10',
-                        errors.locationDescription && 'border-destructive',
+                        'break-words leading-relaxed',
+                        !locationDescription && 'text-muted-foreground',
                       )}
-                    />
+                    >
+                      {locationDescription || 'ยังไม่ได้เลือกตำแหน่งจากแผนที่'}
+                    </span>
                   </div>
                   {errors.locationDescription && (
                     <p className="text-xs text-destructive" role="alert">
                       {errors.locationDescription.message}
+                    </p>
+                  )}
+                  <p className="text-[11px] text-muted-foreground">
+                    กดปุ่มด้านล่างเพื่อค้นหาหรือเลือกจุดบนแผนที่
+                  </p>
+                  <Button
+                    id="location-picker-button"
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsLocationPickerOpen(true)}
+                    className="h-11 w-full rounded-2xl text-xs font-semibold sm:text-sm"
+                  >
+                    <MapPin className="mr-1.5 size-4 text-primary" />
+                    {coordinates
+                      ? 'เปลี่ยนตำแหน่งจากแผนที่'
+                      : 'เลือกตำแหน่งจากแผนที่'}
+                  </Button>
+                  {coordinates && (
+                    <p className="text-[11px] text-emerald-700 dark:text-emerald-300">
+                      เลือกตำแหน่งสำหรับประกาศแล้ว
+                    </p>
+                  )}
+                  {isResolvingLocation && (
+                    <p className="text-[11px] text-muted-foreground">
+                      กำลังดึงที่อยู่เต็มจากจุดที่เลือก...
+                    </p>
+                  )}
+                  {locationLookupError && (
+                    <p className="text-xs text-destructive" role="alert">
+                      {locationLookupError}
+                    </p>
+                  )}
+                  {!coordinates && !geolocationError && (
+                    <p className="text-[11px] text-muted-foreground">
+                      ต้องเลือกตำแหน่งบนแผนที่ก่อนเข้าสู่หน้าตรวจสอบ
+                    </p>
+                  )}
+                  {locationValidationError && (
+                    <p className="text-xs text-destructive" role="alert">
+                      {locationValidationError}
                     </p>
                   )}
                 </div>
@@ -1023,24 +1392,15 @@ export function CreatePostForm() {
                     วันที่และเวลาที่{postType === 'FOUND' ? 'พบ' : 'หาย'}{' '}
                     <span className="text-destructive">*</span>
                   </Label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-primary" />
-                    <Input
-                      {...register('eventDate')}
-                      id="datetime"
-                      value={eventDate}
-                      onChange={(event) => {
-                        setEventDate(event.target.value);
-                        syncFormValue('eventDate', event.target.value);
-                      }}
-                      placeholder="เช่น 12 ตุลาคม 2568 - เวลา 14:30 น."
-                      aria-invalid={Boolean(errors.eventDate)}
-                      className={cn(
-                        'rounded-2xl pl-10',
-                        errors.eventDate && 'border-destructive',
-                      )}
-                    />
-                  </div>
+                  <DateTimePicker
+                    id="datetime"
+                    value={eventDate}
+                    onChange={(value) => {
+                      setEventDate(value);
+                      syncFormValue('eventDate', value);
+                    }}
+                    hasError={Boolean(errors.eventDate)}
+                  />
                   {errors.eventDate && (
                     <p className="text-xs text-destructive" role="alert">
                       {errors.eventDate.message}
@@ -1084,7 +1444,8 @@ export function CreatePostForm() {
 
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="phone" className="text-xs font-semibold">
-                    เบอร์ติดต่อเจ้าของ <span className="text-destructive">*</span>
+                    เบอร์ติดต่อเจ้าของ{' '}
+                    <span className="text-destructive">*</span>
                   </Label>
                   <div className="relative">
                     <Phone className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-primary" />
@@ -1150,7 +1511,8 @@ export function CreatePostForm() {
                 ระบบพร้อมกระจายประกาศและเปิดใช้งาน AI Smart Matching
               </span>
               <p className="text-xs text-muted-foreground">
-                เมื่อกดยืนยัน ประกาศจะขึ้นบนหน้าฟีด แผนที่เรียลไทม์ และเริ่มสแกนจับคู่กับสัตว์เลี้ยงที่พบเห็นทันที
+                เมื่อกดยืนยัน ประกาศจะขึ้นบนหน้าฟีด แผนที่เรียลไทม์
+                และเริ่มสแกนจับคู่กับสัตว์เลี้ยงที่พบเห็นทันที
               </p>
             </div>
           </div>
@@ -1166,19 +1528,26 @@ export function CreatePostForm() {
 
               <div className="overflow-hidden rounded-3xl border border-border/80 bg-card shadow-lg">
                 <div className="relative h-60 w-full bg-muted">
-                  <Image
-                    src={
-                      images[0] ||
-                      'https://images.unsplash.com/photo-1573865526739-10659fec78a5?q=80&w=600&auto=format&fit=crop'
-                    }
-                    alt={petName}
-                    fill
-                    sizes="(min-width: 1024px) 40vw, 100vw"
-                    className="object-cover"
-                  />
+                  {images[0] ? (
+                    <Image
+                      src={images[0]}
+                      alt={petName}
+                      fill
+                      sizes="(min-width: 1024px) 40vw, 100vw"
+                      unoptimized
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
+                      <Camera className="size-8" />
+                      <span className="text-xs">ยังไม่มีรูปภาพ</span>
+                    </div>
+                  )}
                   <div className="absolute top-3 left-3">
                     <span className="rounded-full bg-destructive px-3 py-1 text-xs font-bold text-white shadow-xs">
-                      {postType === 'FOUND' ? 'พบสัตว์ (FOUND)' : 'ตามหา (LOST)'}
+                      {postType === 'FOUND'
+                        ? 'พบสัตว์ (FOUND)'
+                        : 'ตามหา (LOST)'}
                     </span>
                   </div>
 
@@ -1191,9 +1560,12 @@ export function CreatePostForm() {
                 </div>
 
                 <div className="p-5">
-                  <h4 className="text-lg font-bold text-foreground">{petName}</h4>
+                  <h4 className="text-lg font-bold text-foreground">
+                    {petName}
+                  </h4>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {getPetTypeLabel(petType)} • {breed} • {getGenderLabel(gender)}
+                    {getPetTypeLabel(petType)} • {breed} •{' '}
+                    {getGenderLabel(gender)}
                   </p>
 
                   <div className="mt-3 flex flex-col gap-1.5 text-xs text-muted-foreground border-t border-border/50 pt-3">
@@ -1203,7 +1575,7 @@ export function CreatePostForm() {
                     </span>
                     <span className="flex items-center gap-1.5">
                       <Calendar className="size-3.5 text-primary shrink-0" />
-                      {eventDate}
+                      {formatEventDate(eventDate)}
                     </span>
                     <span className="flex items-center gap-1.5 font-bold text-foreground">
                       <Phone className="size-3.5 text-primary shrink-0" />
@@ -1224,26 +1596,36 @@ export function CreatePostForm() {
                 {/* ข้อมูลทั่วไป */}
                 <div className="grid grid-cols-2 gap-3 text-xs sm:text-sm">
                   <div className="rounded-2xl bg-muted/40 p-3">
-                    <span className="text-xs text-muted-foreground">ชื่อสัตว์เลี้ยง</span>
-                    <p className="font-bold text-foreground mt-0.5">{petName}</p>
+                    <span className="text-xs text-muted-foreground">
+                      ชื่อสัตว์เลี้ยง
+                    </span>
+                    <p className="font-bold text-foreground mt-0.5">
+                      {petName}
+                    </p>
                   </div>
 
                   <div className="rounded-2xl bg-muted/40 p-3">
-                    <span className="text-xs text-muted-foreground">ประเภท & สายพันธุ์</span>
+                    <span className="text-xs text-muted-foreground">
+                      ประเภท & สายพันธุ์
+                    </span>
                     <p className="font-bold text-foreground mt-0.5">
                       {getPetTypeLabel(petType)} ({breed})
                     </p>
                   </div>
 
                   <div className="rounded-2xl bg-muted/40 p-3">
-                    <span className="text-xs text-muted-foreground">สีขน & เพศ</span>
+                    <span className="text-xs text-muted-foreground">
+                      สีขน & เพศ
+                    </span>
                     <p className="font-bold text-foreground mt-0.5">
                       {color} • {getGenderLabel(gender)}
                     </p>
                   </div>
 
                   <div className="rounded-2xl bg-muted/40 p-3">
-                    <span className="text-xs text-muted-foreground">เงินรางวัล</span>
+                    <span className="text-xs text-muted-foreground">
+                      เงินรางวัล
+                    </span>
                     <p className="font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
                       {rewardAmount ? `฿ ${rewardAmount} บาท` : 'ไม่มีระบุ'}
                     </p>
@@ -1269,7 +1651,8 @@ export function CreatePostForm() {
                   <div className="flex items-center gap-2 text-foreground font-semibold">
                     <Calendar className="size-4 text-emerald-600 shrink-0" />
                     <span>
-                      วันที่และเวลาที่{postType === 'FOUND' ? 'พบ' : 'หาย'}: {eventDate}
+                      วันที่และเวลาที่{postType === 'FOUND' ? 'พบ' : 'หาย'}:{' '}
+                      {formatEventDate(eventDate)}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-foreground font-semibold">
@@ -1318,6 +1701,196 @@ export function CreatePostForm() {
               </span>
             </Button>
           </div>
+        </div>
+      )}
+
+      {/* หน้าต่างเลือกพิกัดที่เปิดเมื่อผู้ใช้ต้องการเลือกจุดจากแผนที่ */}
+      {isLocationPickerOpen && (
+        <div
+          className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 p-3 backdrop-blur-sm sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="location-picker-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsLocationPickerOpen(false);
+            }
+          }}
+        >
+          <section className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-2xl sm:max-h-[calc(100vh-3rem)]">
+            <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-3 sm:px-6 sm:py-4">
+              <div>
+                <h2
+                  id="location-picker-title"
+                  className="text-base font-bold text-foreground sm:text-lg"
+                >
+                  เลือกตำแหน่งประกาศ
+                </h2>
+                <p className="mt-0.5 text-[11px] text-muted-foreground sm:text-xs">
+                  ค้นหาสถานที่หรือคลิกบนแผนที่เพื่อเลือกพิกัด
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsLocationPickerOpen(false)}
+                aria-label="ปิดหน้าต่างเลือกตำแหน่ง"
+                className="shrink-0 rounded-full"
+              >
+                <X className="size-5" />
+              </Button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 sm:p-5">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  แผนที่นี้ใช้เลือกพิกัดสำหรับประกาศเท่านั้น ไม่มีหมุดโพสต์อื่น
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={requestCurrentLocation}
+                  disabled={isLocating}
+                  className="rounded-xl text-xs font-semibold"
+                >
+                  {isLocating ? (
+                    <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                  ) : (
+                    <MapPin className="mr-1.5 size-3.5" />
+                  )}
+                  {isLocating ? 'กำลังค้นหาตำแหน่ง...' : 'ใช้ตำแหน่งปัจจุบัน'}
+                </Button>
+              </div>
+
+              <form
+                onSubmit={handleLocationSearch}
+                className="mb-3 flex flex-col gap-2"
+              >
+                <div className="flex gap-2">
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={locationSearchQuery}
+                      onChange={(event) => {
+                        setLocationSearchQuery(event.target.value);
+                        setLocationSearchError(null);
+                      }}
+                      placeholder="ค้นหาสถานที่ เช่น Metro Fashion Mall"
+                      aria-label="ค้นหาสถานที่"
+                      className="rounded-2xl pl-10 text-xs sm:text-sm"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={
+                      isSearchingLocations || !locationSearchQuery.trim()
+                    }
+                    className="shrink-0 rounded-2xl px-4 text-xs font-semibold sm:text-sm"
+                  >
+                    {isSearchingLocations ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Search className="size-4" />
+                    )}
+                    <span className="sr-only sm:not-sr-only sm:ml-1.5">
+                      ค้นหา
+                    </span>
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  คลิกผลค้นหาเพื่อเลือกพิกัดทันที หรือคลิกจุดที่ต้องการบนแผนที่
+                </p>
+              </form>
+
+              {locationSearchError && (
+                <p className="mb-3 text-xs text-destructive" role="alert">
+                  {locationSearchError}
+                </p>
+              )}
+              {locationSearchResults.length > 0 && (
+                <div className="mb-3 overflow-hidden rounded-2xl border border-border/80 bg-background">
+                  <p className="border-b border-border/60 px-3 py-2 text-[11px] font-semibold text-muted-foreground">
+                    ผลการค้นหา — คลิกเพื่อเลือกพิกัด
+                  </p>
+                  <div className="divide-y divide-border/60">
+                    {locationSearchResults.map((result) => (
+                      <button
+                        key={result.id}
+                        type="button"
+                        onClick={() => handleLocationSearchResultSelect(result)}
+                        className="flex w-full items-start gap-2.5 px-3 py-2.5 text-left text-xs transition-colors hover:bg-muted/60 sm:text-sm"
+                      >
+                        <MapPin className="mt-0.5 size-4 shrink-0 text-violet-600" />
+                        <span className="leading-relaxed text-foreground">
+                          {result.displayName}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="overflow-hidden rounded-2xl border border-border/80">
+                <CreatePostLocationMap
+                  heightClass="h-[55vh] min-h-72 max-h-[480px]"
+                  scrollWheelZoom
+                  showPostMarkers={false}
+                  currentLocation={currentLocation}
+                  isLocating={isLocating}
+                  locationError={geolocationError}
+                  selectedLocation={coordinates}
+                  searchLocation={searchLocation}
+                  searchLocationRequestToken={searchLocationRequestToken}
+                  onLocationSelect={handleLocationSelect}
+                />
+              </div>
+
+              {geolocationError && (
+                <p className="mt-2 text-xs text-destructive" role="alert">
+                  {geolocationError}
+                </p>
+              )}
+              {coordinates && (
+                <p className="mt-3 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                  เลือกตำแหน่งแล้ว กด “ใช้ตำแหน่งนี้” เพื่อกลับไปกรอกข้อมูล
+                </p>
+              )}
+              {isResolvingLocation && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  กำลังดึงที่อยู่เต็มจากจุดที่เลือก...
+                </p>
+              )}
+              {locationLookupError && (
+                <p className="mt-2 text-xs text-destructive" role="alert">
+                  {locationLookupError}
+                </p>
+              )}
+              <p className="mt-2 text-[10px] text-muted-foreground">
+                ที่อยู่จาก Nominatim / OpenStreetMap contributors
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-border/70 px-4 py-3 sm:px-6 sm:py-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsLocationPickerOpen(false)}
+                className="rounded-xl text-xs font-semibold sm:text-sm"
+              >
+                ปิด
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setIsLocationPickerOpen(false)}
+                disabled={!coordinates || isLocating || isResolvingLocation}
+                className="rounded-xl text-xs font-semibold sm:text-sm"
+              >
+                ใช้ตำแหน่งนี้
+              </Button>
+            </div>
+          </section>
         </div>
       )}
     </div>
