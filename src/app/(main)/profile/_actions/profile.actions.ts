@@ -6,6 +6,7 @@ import {
   updateUserProfile,
   requestEmailChange,
   confirmEmailChange,
+  uploadAvatar,
 } from '@/services/user.service';
 
 /**
@@ -90,6 +91,30 @@ export async function confirmEmailChangeAction(
     unstable_rethrow(error);
     const message =
       error instanceof Error ? error.message : 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ';
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Server Action: อัปโหลดรูปอวาตาร์ผู้ใช้ (PATCH /users/me/avatar)
+ * รับ FormData ที่บรรจุไฟล์ 'avatar' — Backend รับเฉพาะ JPEG/PNG/WEBP ขนาดไม่เกิน 5MB
+ */
+export async function uploadAvatarAction(
+  formData: FormData
+): Promise<ActionResponse<{ avatarUrl: string }>> {
+  const file = formData.get('avatar');
+  if (!(file instanceof File) || file.size === 0) {
+    return { success: false, error: 'กรุณาเลือกไฟล์รูปภาพ' };
+  }
+
+  try {
+    const result = await uploadAvatar(file);
+    revalidatePath('/profile');
+    return { success: true, data: result };
+  } catch (error) {
+    unstable_rethrow(error);
+    const message =
+      error instanceof Error ? error.message : 'ไม่สามารถอัปโหลดรูปอวาตาร์ได้';
     return { success: false, error: message };
   }
 }
