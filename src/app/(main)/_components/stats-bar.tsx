@@ -1,61 +1,91 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { io, type Socket } from 'socket.io-client';
+
 import { Card } from '@/components/ui/card';
 import { SummaryStats } from '@/types/home';
 import { cn } from '@/lib/utils';
 
 interface StatsBarProps {
   stats: SummaryStats;
+  socketUrl?: string;
 }
 
 /**
  * StatsBar Component (Client Component)
  * - แสดงแถบตัวเลขสถิติ 4 ช่อง (กำลังตามหา, แจ้งพบ, พากลับบ้านสำเร็จ, สมาชิกชุมชน)
  * - ตัวเลขและหัวข้อขนาดใหญ่ ชัดเจน โดดเด่น มองเห็นง่าย
- * - แสดงค่ายอดรวมจริงทันทีเมื่อโหลดหน้าเว็บ
- * - มีระบบ Realtime Live Ticker Simulation สุ่มจำลองการเพิ่มขึ้นของตัวเลข (+1) ทุกๆ 6 วินาที
- *   พร้อมแอนิเมชัน Highlight และป้ายเตือน `+1` เพื่อให้หน้าเว็บดูมีความเคลื่อนไหวของคอมมูนิตี้
+ * - แสดงค่ายอดรวมจริงจาก Backend ผ่าน Props ตั้งต้น
+ * - เชื่อมต่อ WebSocket กับ Backend (/home namespace) เพื่อรับ Event stats_update แบบ Realtime แท้จริง
+ * - นำ Mock ticker simulation ที่สุ่มขยับตัวเลขออกทั้งหมด 100%
  */
-export function StatsBar({ stats: initialStats }: StatsBarProps) {
-  // State เก็บตัวเลขสถิติที่แสดงผลแบบ Realtime (เริ่มต้นจากค่าที่ Fetch มาจาก Backend)
+export function StatsBar({ stats: initialStats, socketUrl }: StatsBarProps) {
+  // State เก็บตัวเลขสถิติที่แสดงผลแบบ Realtime จาก Database จริง
   const [liveStats, setLiveStats] = useState(initialStats);
-  // State เก็บ Index ของการ์ดที่กำลังได้รับการ Highlight เมื่อมีตัวเลขเพิ่มขึ้น (+1)
+  // State เก็บ Index ของการ์ดที่กำลังได้รับการ Highlight เมื่อมีตัวเลขอัปเดตจริงจาก Socket
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
 
-  // ระบบจำลอง Realtime Live Ticker สุ่มขยับตัวเลขเพิ่มขึ้นเป็นระยะ
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // สุ่มเลือกการ์ดสถิติ 1 ใน 4 ช่อง
-      const randomStatIndex = Math.floor(Math.random() * 4);
-      setHighlightedIndex(randomStatIndex);
+  // ซิงค์ liveStats เมื่อ initialStats อัปเดตจาก Server ตามคำแนะนำของ React
+  const [prevInitialStats, setPrevInitialStats] = useState(initialStats);
+  if (initialStats !== prevInitialStats) {
+    setPrevInitialStats(initialStats);
+    setLiveStats(initialStats);
+  }
 
-      // อัปเดตยอดตัวเลขเพิ่มขึ้น +1 ในช่องที่สุ่มได้
-      setLiveStats((prev) => {
-        switch (randomStatIndex) {
-          case 0:
-            return { ...prev, totalLost: prev.totalLost + 1 };
-          case 1:
-            return { ...prev, totalFound: prev.totalFound + 1 };
-          case 2:
-            return { ...prev, totalReunited: prev.totalReunited + 1 };
-          case 3:
-            return { ...prev, totalUsers: prev.totalUsers + 1 };
-          default:
-            return prev;
-        }
+  // เชื่อมต่อ WebSocket จริงกับ Backend HomeGateway (namespace: /home)
+  useEffect(() => {
+    const baseUrl =
+      socketUrl ||
+      process.env.NEXT_PUBLIC_SOCKET_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      'http://localhost:8000';
+
+    const namespaceUrl = `${baseUrl.replace(/\/$/, '')}/home`;
+    let socket: Socket | null = null;
+
+    try {
+      socket = io(namespaceUrl, {
+        transports: ['websocket', 'polling'],
+        reconnectionAttempts: 5,
+        reconnectionDelay: 3000,
       });
 
-      // ปลดสถานะ Highlight หลังผ่านไป 1.5 วินาที
-      const timeout = setTimeout(() => {
-        setHighlightedIndex(null);
-      }, 1500);
+      // เมื่อเชื่อมต่อสำเร็จ ส่งคำขอ subscribe ข้อมูลล่าสุด
+      socket.on('connect', () => {
+        socket?.emit('subscribe');
+      });
 
-      return () => clearTimeout(timeout);
-    }, 6000);
+      // รับ Event stats_update ข้อมูลสถิติจริงจากเซิร์ฟเวอร์
+      socket.on('stats_update', (newStats: SummaryStats) => {
+        if (!newStats) return;
 
-    return () => clearInterval(interval);
-  }, []);
+        // ตรวจสอบว่ามีช่องไหนที่มีตัวเลขเปลี่ยนแปลงจริงเพื่อทำแอนิเมชัน Highlight
+        setLiveStats((prev) => {
+          if (newStats.totalLost > prev.totalLost) setHighlightedIndex(0);
+          else if (newStats.totalFound > prev.totalFound) setHighlightedIndex(1);
+          else if (newStats.totalReunited > prev.totalReunited) setHighlightedIndex(2);
+          else if (newStats.totalUsers > prev.totalUsers) setHighlightedIndex(3);
+          return newStats;
+        });
+
+        // ปลดสถานะ Highlight หลังแสดงผล 1.5 วินาที
+        const timeout = setTimeout(() => {
+          setHighlightedIndex(null);
+        }, 1500);
+        return () => clearTimeout(timeout);
+      });
+    } catch {
+      // หากเชื่อมต่อ socket ไม่สำเร็จ จะใช้ข้อมูลจริงจาก HTTP SSR ต่อไป
+    }
+
+    return () => {
+      if (socket) {
+        socket.disconnect();
+      }
+    };
+  }, [socketUrl]);
+
 
   // โครงสร้างข้อมูลสำหรับวนลูปเรนเดอร์การ์ดสถิติทั้ง 4 ช่อง
   const statItems = [

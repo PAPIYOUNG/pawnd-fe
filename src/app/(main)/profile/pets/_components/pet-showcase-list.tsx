@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Heart, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
@@ -35,10 +35,12 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // ซิงค์ state pets เมื่อ initialPets จาก Server Component มีการเปลี่ยนแปลง
-  useEffect(() => {
+  // ซิงค์ state pets เมื่อ initialPets จาก Server Component มีการเปลี่ยนแปลงตามคำแนะนำของ React
+  const [prevInitialPets, setPrevInitialPets] = useState(initialPets);
+  if (initialPets !== prevInitialPets) {
+    setPrevInitialPets(initialPets);
     setPets(initialPets);
-  }, [initialPets]);
+  }
 
   // แสดงผล Feedback เป็นเวลา 4 วินาทีแล้วเคลียร์
   const triggerFeedback = (type: 'success' | 'error', message: string) => {
