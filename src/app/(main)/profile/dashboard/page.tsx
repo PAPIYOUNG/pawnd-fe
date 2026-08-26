@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import { getCurrentUser } from '@/services/user.service';
 import { getMyPets } from '@/services/pet.service';
 import { getMyPosts } from '@/services/post.service';
+import { getMyChatRooms } from '@/services/chat.service';
 import { ProfileSidebar } from '@/components/layout/ProfileSidebar';
 import { DashboardMetrics } from '../../dashboard/_components/dashboard-metrics';
 import { DashboardMyPosts, MyPostDashboardItem } from '../../dashboard/_components/dashboard-my-posts';
@@ -32,15 +33,17 @@ function formatRelativeTime(dateStr?: string): string {
  * - ดึงข้อมูลสดจาก Backend เพื่อคำนวณสถิติและแสดงผลการ์ดตามหาของฉัน
  */
 export default async function ProfileDashboardPage() {
-  const [user, myPets, myPosts] = await Promise.all([
+  const [user, myPets, myPosts, myChatRooms] = await Promise.all([
     getCurrentUser(),
     getMyPets(),
     getMyPosts(),
+    getMyChatRooms(),
   ]);
 
   const totalPets = myPets.length;
   const activeLostPosts = myPosts.filter((p) => p.status === 'ACTIVE' && p.type === 'LOST').length;
   const activeFoundPosts = myPosts.filter((p) => p.status === 'ACTIVE' && p.type === 'FOUND').length;
+  const unreadMessages = myChatRooms.reduce((sum, room) => sum + (room.unreadCount || 0), 0);
 
   const dashboardPosts: MyPostDashboardItem[] | undefined =
     myPosts.length > 0
@@ -81,7 +84,7 @@ export default async function ProfileDashboardPage() {
           totalPets={totalPets}
           activeLostPosts={activeLostPosts}
           activeFoundPosts={activeFoundPosts}
-          unreadMessages={0}
+          unreadMessages={unreadMessages}
         />
 
         <DashboardMyPosts initialPosts={dashboardPosts} />

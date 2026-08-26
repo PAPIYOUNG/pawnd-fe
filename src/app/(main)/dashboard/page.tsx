@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import { getCurrentUser } from '@/services/user.service';
 import { getMyPets } from '@/services/pet.service';
 import { getMyPosts } from '@/services/post.service';
+import { getMyChatRooms } from '@/services/chat.service';
 import { ProfileSidebar } from '@/components/layout/ProfileSidebar';
 import { DashboardMetrics } from './_components/dashboard-metrics';
 import { DashboardMyPosts, MyPostDashboardItem } from './_components/dashboard-my-posts';
@@ -33,20 +34,23 @@ function formatRelativeTime(dateStr?: string): string {
  *   1. getCurrentUser() -> ข้อมูลผู้ใช้และโปรไฟล์
  *   2. getMyPets() -> รายการสัตว์เลี้ยงของผู้ใช้เพื่อคำนวณสถิติ
  *   3. getMyPosts() -> รายการประกาศตามหาของฉัน
+ *   4. getMyChatRooms() -> รายการห้องแชท ใช้รวม unreadCount เป็นจำนวนข้อความที่ยังไม่อ่าน
  * - คำนวณ Metrics สดจากข้อมูลจริง และส่งต่อไปยัง Component ย่อย
  */
 export default async function DashboardMainPage() {
   // ดึงข้อมูลพร้อมกันแบบ Parallel สำหรับ RSC
-  const [user, myPets, myPosts] = await Promise.all([
+  const [user, myPets, myPosts, myChatRooms] = await Promise.all([
     getCurrentUser(),
     getMyPets(),
     getMyPosts(),
+    getMyChatRooms(),
   ]);
 
   // คำนวณสถิติจากข้อมูลจริง
   const totalPets = myPets.length;
   const activeLostPosts = myPosts.filter((p) => p.status === 'ACTIVE' && p.type === 'LOST').length;
   const activeFoundPosts = myPosts.filter((p) => p.status === 'ACTIVE' && p.type === 'FOUND').length;
+  const unreadMessages = myChatRooms.reduce((sum, room) => sum + (room.unreadCount || 0), 0);
 
   // แปลงรายการ PostDetail จาก Backend -> MyPostDashboardItem สำหรับ Dashboard Grid
   const dashboardPosts: MyPostDashboardItem[] | undefined =
@@ -92,7 +96,7 @@ export default async function DashboardMainPage() {
           totalPets={totalPets}
           activeLostPosts={activeLostPosts}
           activeFoundPosts={activeFoundPosts}
-          unreadMessages={0}
+          unreadMessages={unreadMessages}
         />
 
         {/* แถวที่ 2: ประกาศตามหาของฉัน */}
