@@ -13,11 +13,17 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { getAllPosts, mapPostToLatestItem, MOCK_POSTS } from '@/services/post.service';
+import {
+  getAllPosts,
+  mapPostToLatestItem,
+  MOCK_POSTS,
+} from '@/services/post.service';
+import { AiMatchUploadDialog } from './_components/ai-match-upload-dialog';
 
 export const metadata: Metadata = {
   title: 'รายการประกาศตามหาสัตว์เลี้ยง | PAWND',
-  description: 'ค้นหาและกรองประกาศสัตว์เลี้ยงหายและพบสัตว์เลี้ยงหลงทางทั่วประเทศ',
+  description:
+    'ค้นหาและกรองประกาศสัตว์เลี้ยงหายและพบสัตว์เลี้ยงหลงทางทั่วประเทศ',
 };
 
 /**
@@ -52,16 +58,22 @@ export default async function PostsPage() {
             ประกาศสัตว์เลี้ยงหาย & พบสัตว์เลี้ยง
           </h1>
           <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">
-            ค้นหา ช่วยเหลือ หรือแจ้งเบาะแสสัตว์เลี้ยงพลัดหลงด้วยระบบ AI Smart Matching
+            ค้นหา ช่วยเหลือ หรือแจ้งเบาะแสสัตว์เลี้ยงพลัดหลงด้วยระบบ AI Smart
+            Matching
           </p>
         </div>
 
-        <Link href="/posts/create">
-          <Button className="h-11 w-full gap-2 rounded-2xl bg-primary px-5 font-semibold text-primary-foreground shadow-md hover:bg-primary/90 sm:w-auto">
-            <Plus className="size-5 stroke-[2.5]" />
-            <span>สร้างประกาศใหม่</span>
-          </Button>
-        </Link>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          {/* ปุ่มเปิด Dialog อัปโหลดรูปเพื่อค้นหาด้วย AI Smart Matching */}
+          <AiMatchUploadDialog />
+
+          <Link href="/posts/create" className="sm:w-auto">
+            <Button className="h-11 w-full gap-2 rounded-2xl bg-primary px-5 font-semibold text-primary-foreground shadow-md hover:bg-primary/90 sm:w-auto">
+              <Plus className="size-5 stroke-[2.5]" />
+              <span>สร้างประกาศใหม่</span>
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* 2. แถบตัวกรองและการค้นหา */}
@@ -115,7 +127,7 @@ export default async function PostsPage() {
                   <span
                     className={cn(
                       'rounded-full px-3 py-1 text-xs font-bold shadow-xs text-white',
-                      isLost ? 'bg-destructive' : 'bg-emerald-600'
+                      isLost ? 'bg-destructive' : 'bg-emerald-600',
                     )}
                   >
                     {isLost ? 'ตามหา (LOST)' : 'พบเห็น (FOUND)'}
@@ -152,12 +164,19 @@ export default async function PostsPage() {
                 {/* ปุ่ม Action */}
                 <div className="mt-5 flex items-center gap-2 border-t border-border/50 pt-4">
                   <Link href={`/posts/${post.id}`} className="flex-1">
-                    <Button variant="outline" className="h-9 w-full rounded-xl text-xs font-semibold">
+                    <Button
+                      variant="outline"
+                      className="h-9 w-full rounded-xl text-xs font-semibold"
+                    >
                       ดูรายละเอียด
                     </Button>
                   </Link>
                   <Link href={`/posts/${post.id}/flyer`}>
-                    <Button variant="ghost" size="sm" className="h-9 rounded-xl text-xs text-primary font-semibold">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 rounded-xl text-xs text-primary font-semibold"
+                    >
                       ใบปลิว
                     </Button>
                   </Link>
