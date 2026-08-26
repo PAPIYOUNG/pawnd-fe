@@ -26,6 +26,7 @@ import {
   loginWithGoogleAction,
   loginWithLineAction,
   completeLineRegistrationAction,
+  resendTwoFactorAction,
 } from '../_actions/login.actions';
 
 declare global {
@@ -102,6 +103,7 @@ export function LoginForm() {
     if (result.needsOtp) {
       setTempToken(result.tempToken);
       setStep('otp');
+      resendCooldown.start();
     }
   });
 
@@ -136,6 +138,7 @@ export function LoginForm() {
       if (result.needsOtp) {
         setTempToken(result.tempToken);
         setStep('otp');
+        resendCooldown.start();
       }
     });
   }, []);
@@ -216,6 +219,7 @@ export function LoginForm() {
       if (result.needsOtp) {
         setTempToken(result.tempToken);
         setStep('otp');
+        resendCooldown.start();
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -270,6 +274,20 @@ export function LoginForm() {
     setOtpError(null);
     startResendTransition(async () => {
       const result = await resendVerificationAction({ email: lineEmail });
+      if (!result.success) {
+        setOtpError(result.message);
+        return;
+      }
+      setResendMessage('ส่งรหัสยืนยันใหม่แล้ว กรุณาตรวจสอบอีเมลของคุณ');
+      resendCooldown.start();
+    });
+  };
+
+  const handleResendTwoFactorOtp = () => {
+    setResendMessage(null);
+    setOtpError(null);
+    startResendTransition(async () => {
+      const result = await resendTwoFactorAction({ tempToken });
       if (!result.success) {
         setOtpError(result.message);
         return;
@@ -379,6 +397,9 @@ export function LoginForm() {
         <OtpBoxes value={otp} onChange={setOtp} />
 
         {otpError && <p className="text-sm text-destructive">{otpError}</p>}
+        {resendMessage && (
+          <p className="text-sm text-primary">{resendMessage}</p>
+        )}
 
         <Button
           type="button"
@@ -389,6 +410,19 @@ export function LoginForm() {
         >
           {isPending ? 'กำลังยืนยัน...' : 'ยืนยันรหัส OTP'}
         </Button>
+
+        <button
+          type="button"
+          onClick={handleResendTwoFactorOtp}
+          disabled={isResending || resendCooldown.isActive}
+          className="text-center text-sm text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isResending
+            ? 'กำลังส่ง...'
+            : resendCooldown.isActive
+              ? `ส่งรหัสยืนยันอีกครั้งใน ${resendCooldown.remaining} วินาที`
+              : 'ส่งรหัสยืนยันอีกครั้ง'}
+        </button>
 
         <button
           type="button"

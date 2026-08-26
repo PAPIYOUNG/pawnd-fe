@@ -11,11 +11,14 @@ import {
   loginWithGoogleRequest,
   loginWithLineRequest,
   completeLineRegistrationRequest,
+  resendTwoFactorRequest,
   LoginPayload,
   VerifyTwoFactorPayload,
   CompleteLineRegistrationPayload,
+  ResendTwoFactorPayload,
   getMeRequest,
 } from '@/services/auth.service';
+
 import {
   isOtpRequired,
   isPendingEmailVerification,
@@ -201,4 +204,19 @@ export async function verifyLoginOtpAction(
   });
 
   redirect('/');
+}
+
+export async function resendTwoFactorAction(
+  payload: ResendTwoFactorPayload,
+): Promise<ErrorActionResult | { success: true }> {
+  try {
+    await resendTwoFactorRequest(payload);
+  } catch (err) {
+    return toErrorResult(
+      err,
+      'ส่งรหัสยืนยันใหม่ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
+    );
+  }
+
+  return { success: true };
 }

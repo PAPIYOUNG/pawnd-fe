@@ -155,3 +155,16 @@ export async function completeLineRegistrationRequest(
     body: { ...payload },
   });
 }
+
+export interface ResendTwoFactorPayload {
+  tempToken: string;
+}
+
+export async function resendTwoFactorRequest(
+  payload: ResendTwoFactorPayload,
+): Promise<{ message: string }> {
+  return apiFetch('/auth/2fa/resend', {
+    method: 'POST',
+    body: { ...payload },
+  });
+}
