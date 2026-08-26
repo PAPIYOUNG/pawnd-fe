@@ -1,25 +1,74 @@
 'use client';
 
 import { useState } from 'react';
-import { Settings, Bell, Shield, Lock, Trash2, CheckCircle2 } from 'lucide-react';
+import { Bell, Shield, Lock, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { saveSettingsAction, changePasswordAction } from './_actions/settings.actions';
 
 /**
  * SettingsPage Component (Client Component)
  * - หน้าตั้งค่าระบบและบัญชีผู้ใช้งาน (User & System Settings)
- * - รองรับการเปิด-ปิดการแจ้งเตือน, การยืนยันสองชั้น (2FA), เปลี่ยนรหัสผ่าน ตรงตาม Backend DTO
+ * - รองรับการเปิด-ปิดการแจ้งเตือน, การยืนยันสองชั้น (2FA) ด้วย Toggle Switch สไตล์เลื่อนซ้าย-ขวา
+ * - เชื่อมต่อ Backend API ผ่าน Server Actions (saveSettingsAction, changePasswordAction)
  */
 export default function SettingsPage() {
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(true);
-  const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [settingsFeedback, setSettingsFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const handleSaveSettings = () => {
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+  // State สำหรับเปลี่ยนรหัสผ่าน
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordFeedback, setPasswordFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // บันทึกการตั้งค่าการแจ้งเตือนและ 2FA
+  const handleSaveSettings = async () => {
+    setIsSavingSettings(true);
+    setSettingsFeedback(null);
+
+    const res = await saveSettingsAction({
+      notificationEnabled,
+      twoFactorEnabled,
+    });
+
+    setIsSavingSettings(false);
+    if (res.success) {
+      setSettingsFeedback({ type: 'success', message: 'บันทึกการตั้งค่าระบบเรียบร้อยแล้ว' });
+      setTimeout(() => setSettingsFeedback(null), 4000);
+    } else {
+      setSettingsFeedback({ type: 'error', message: res.error || 'เกิดข้อผิดพลาดในการบันทึก' });
+    }
+  };
+
+  // บันทึกการเปลี่ยนรหัสผ่าน
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsChangingPassword(true);
+    setPasswordFeedback(null);
+
+    const res = await changePasswordAction({
+      oldPassword,
+      newPassword,
+      confirmPassword,
+    });
+
+    setIsChangingPassword(false);
+    if (res.success) {
+      setPasswordFeedback({ type: 'success', message: res.message || 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว' });
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => setPasswordFeedback(null), 4000);
+    } else {
+      setPasswordFeedback({ type: 'error', message: res.error || 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน' });
+    }
   };
 
   return (
@@ -34,10 +83,20 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {savedSuccess && (
-        <div className="flex items-center gap-2 rounded-2xl bg-emerald-500/15 p-4 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-          <CheckCircle2 className="size-5" />
-          <span>บันทึกการตั้งค่าระบบเรียบร้อยแล้ว</span>
+      {settingsFeedback && (
+        <div
+          className={`flex items-center gap-2 rounded-2xl p-4 text-sm font-semibold ${
+            settingsFeedback.type === 'success'
+              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+              : 'bg-destructive/15 text-destructive'
+          }`}
+        >
+          {settingsFeedback.type === 'success' ? (
+            <CheckCircle2 className="size-5 shrink-0" />
+          ) : (
+            <AlertCircle className="size-5 shrink-0" />
+          )}
+          <span>{settingsFeedback.message}</span>
         </div>
       )}
 
@@ -47,7 +106,7 @@ export default function SettingsPage() {
           การแจ้งเตือนและความปลอดภัย
         </h3>
 
-        {/* สวิตช์การแจ้งเตือน */}
+        {/* สวิตช์การแจ้งเตือน (Toggle Switch เลื่อนเปิด-ปิด) */}
         <div className="flex items-center justify-between border-b border-border/50 pb-4">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -60,15 +119,14 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
-          <input
-            type="checkbox"
+          <Switch
             checked={notificationEnabled}
-            onChange={(e) => setNotificationEnabled(e.target.checked)}
-            className="size-5 accent-primary cursor-pointer"
+            onCheckedChange={setNotificationEnabled}
+            aria-label="เปิด-ปิดการแจ้งเตือนในระบบ"
           />
         </div>
 
-        {/* สวิตช์ 2FA */}
+        {/* สวิตช์ 2FA (Toggle Switch เลื่อนเปิด-ปิด) */}
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -83,49 +141,102 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
-          <input
-            type="checkbox"
+          <Switch
             checked={twoFactorEnabled}
-            onChange={(e) => setTwoFactorEnabled(e.target.checked)}
-            className="size-5 accent-primary cursor-pointer"
+            onCheckedChange={setTwoFactorEnabled}
+            aria-label="เปิด-ปิดการยืนยันตัวตนสองชั้น"
           />
+        </div>
+
+        {/* ปุ่มบันทึกการตั้งค่าการแจ้งเตือน & 2FA */}
+        <div className="flex justify-end pt-2">
+          <Button
+            type="button"
+            onClick={handleSaveSettings}
+            disabled={isSavingSettings}
+            className="gap-2 rounded-2xl bg-primary px-6 font-semibold text-primary-foreground shadow-md hover:bg-primary/90"
+          >
+            {isSavingSettings && <Loader2 className="size-4 animate-spin" />}
+            <span>{isSavingSettings ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}</span>
+          </Button>
         </div>
       </div>
 
       {/* 2. การเปลี่ยนรหัสผ่าน */}
-      <div className="flex flex-col gap-4 rounded-3xl border border-border/80 bg-card p-6 shadow-sm dark:border-border/60">
+      <form onSubmit={handleChangePassword} className="flex flex-col gap-4 rounded-3xl border border-border/80 bg-card p-6 shadow-sm dark:border-border/60">
         <div className="flex items-center gap-2.5">
           <Lock className="size-5 text-primary" />
           <h3 className="text-lg font-bold text-foreground">เปลี่ยนรหัสผ่าน</h3>
         </div>
 
+        {passwordFeedback && (
+          <div
+            className={`flex items-center gap-2 rounded-2xl p-3.5 text-xs font-semibold ${
+              passwordFeedback.type === 'success'
+                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+                : 'bg-destructive/15 text-destructive'
+            }`}
+          >
+            {passwordFeedback.type === 'success' ? (
+              <CheckCircle2 className="size-4 shrink-0" />
+            ) : (
+              <AlertCircle className="size-4 shrink-0" />
+            )}
+            <span>{passwordFeedback.message}</span>
+          </div>
+        )}
+
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs font-semibold">รหัสผ่านปัจจุบัน</Label>
-          <Input type="password" placeholder="••••••••" className="rounded-2xl" />
+          <Input
+            type="password"
+            placeholder="••••••••"
+            value={oldPassword}
+            onChange={(e) => setOldPassword(e.target.value)}
+            className="rounded-2xl"
+            required
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs font-semibold">รหัสผ่านใหม่</Label>
-            <Input type="password" placeholder="อย่างน้อย 8 ตัวอักษร" className="rounded-2xl" />
+            <Input
+              type="password"
+              placeholder="อย่างน้อย 8 ตัวอักษร"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="rounded-2xl"
+              required
+              minLength={8}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs font-semibold">ยืนยันรหัสผ่านใหม่</Label>
-            <Input type="password" placeholder="••••••••" className="rounded-2xl" />
+            <Input
+              type="password"
+              placeholder="••••••••"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="rounded-2xl"
+              required
+              minLength={8}
+            />
           </div>
         </div>
-      </div>
 
-      {/* ปุ่มบันทึกการตั้งค่า */}
-      <div className="flex justify-end">
-        <Button
-          type="button"
-          onClick={handleSaveSettings}
-          className="rounded-2xl bg-primary px-8 font-semibold text-primary-foreground shadow-md hover:bg-primary/90"
-        >
-          บันทึกการเปลี่ยนแปลง
-        </Button>
-      </div>
+        {/* ปุ่มเปลี่ยนรหัสผ่าน */}
+        <div className="flex justify-end pt-2">
+          <Button
+            type="submit"
+            disabled={isChangingPassword}
+            className="gap-2 rounded-2xl bg-primary px-6 font-semibold text-primary-foreground shadow-md hover:bg-primary/90"
+          >
+            {isChangingPassword && <Loader2 className="size-4 animate-spin" />}
+            <span>{isChangingPassword ? 'กำลังเปลี่ยน...' : 'เปลี่ยนรหัสผ่าน'}</span>
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   User,
@@ -16,9 +16,9 @@ import {
   Menu,
   X,
 } from 'lucide-react';
-
 import { cn } from '@/lib/utils';
 import { UserProfile } from '@/types/user';
+import { logoutAction } from '@/lib/action/logout.actions';
 
 interface ProfileSidebarProps {
   user: UserProfile;
@@ -29,7 +29,7 @@ interface ProfileSidebarProps {
  */
 const PROFILE_NAV_ITEMS = [
   {
-    href: '/profile/dashboard',
+    href: '/dashboard',
     label: 'แดชบอร์ด',
     icon: LayoutDashboard,
   },
@@ -58,7 +58,6 @@ const PROFILE_NAV_ITEMS = [
  */
 export function ProfileSidebar({ user }: ProfileSidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
 
   // State ย่อ-ขยาย Sidebar บน Desktop (True = ขยายเต็ม, False = ย่อเหลือกะทัดรัด)
   const [isExpanded, setIsExpanded] = useState(true);
@@ -70,8 +69,8 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
     setIsExpanded((prev) => !prev);
   };
 
-  const handleLogout = () => {
-    router.push('/login');
+  const handleLogout = async () => {
+    await logoutAction();
   };
 
   return (
@@ -124,7 +123,9 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
           {PROFILE_NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive =
-              item.href === '/profile'
+              item.href === '/dashboard'
+                ? pathname === '/dashboard' || pathname === '/profile/dashboard'
+                : item.href === '/profile'
                 ? pathname === '/profile'
                 : pathname.startsWith(item.href);
 
@@ -136,7 +137,7 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
                   'flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all',
                   isActive
                     ? 'bg-primary text-primary-foreground shadow-xs'
-                    : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground',
                 )}
               >
                 <Icon className="size-3.5" />
@@ -212,7 +213,7 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
                       'flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition-colors',
                       isActive
                         ? 'bg-primary/15 font-semibold text-primary'
-                        : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+                        : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground',
                     )}
                   >
                     <Icon className="size-4.5" />
@@ -243,7 +244,7 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
       <aside
         className={cn(
           'relative hidden md:flex min-h-[calc(100vh-4rem)] flex-col border-r border-border/70 bg-card/60 transition-all duration-300 ease-in-out dark:bg-card/40 backdrop-blur-xs',
-          isExpanded ? 'w-64 sm:w-72 p-5' : 'w-20 p-3 items-center'
+          isExpanded ? 'w-64 sm:w-72 p-5' : 'w-20 p-3 items-center',
         )}
         aria-label="เมนูโปรไฟล์ผู้ใช้งาน"
       >
@@ -266,7 +267,7 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
         <div
           className={cn(
             'flex flex-col items-center border-b border-border/60 pb-6 transition-all',
-            !isExpanded && 'pb-4'
+            !isExpanded && 'pb-4',
           )}
         >
           <button
@@ -278,7 +279,7 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
             <div
               className={cn(
                 'relative overflow-hidden rounded-full transition-all',
-                isExpanded ? 'size-20' : 'size-12'
+                isExpanded ? 'size-20' : 'size-12',
               )}
             >
               <Image
@@ -314,7 +315,9 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
           {PROFILE_NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive =
-              item.href === '/profile'
+              item.href === '/dashboard'
+                ? pathname === '/dashboard' || pathname === '/profile/dashboard'
+                : item.href === '/profile'
                 ? pathname === '/profile'
                 : pathname.startsWith(item.href);
 
@@ -324,10 +327,12 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
                 href={item.href}
                 className={cn(
                   'group flex items-center rounded-2xl transition-all duration-200',
-                  isExpanded ? 'gap-3.5 px-4 py-3 text-sm font-medium' : 'justify-center p-3',
+                  isExpanded
+                    ? 'gap-3.5 px-4 py-3 text-sm font-medium'
+                    : 'justify-center p-3',
                   isActive
                     ? 'bg-primary/15 font-semibold text-primary shadow-2xs dark:bg-primary/20'
-                    : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+                    : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground',
                 )}
                 title={!isExpanded ? item.label : undefined}
               >
@@ -335,7 +340,9 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
                   className={cn(
                     'shrink-0 transition-transform group-hover:scale-110',
                     isExpanded ? 'size-5' : 'size-5.5',
-                    isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
+                    isActive
+                      ? 'text-primary'
+                      : 'text-muted-foreground group-hover:text-foreground',
                   )}
                 />
                 {isExpanded && <span className="truncate">{item.label}</span>}
@@ -350,7 +357,9 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
               onClick={handleLogout}
               className={cn(
                 'group flex w-full items-center rounded-2xl text-destructive transition-all duration-200 hover:bg-destructive/10 hover:text-destructive',
-                isExpanded ? 'gap-3.5 px-4 py-3 text-sm font-medium' : 'justify-center p-3'
+                isExpanded
+                  ? 'gap-3.5 px-4 py-3 text-sm font-medium'
+                  : 'justify-center p-3',
               )}
               title={!isExpanded ? 'ออกจากระบบ' : undefined}
             >

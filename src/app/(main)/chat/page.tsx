@@ -32,6 +32,7 @@ export default function ChatPage() {
                   src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop"
                   alt="คุณอารยา"
                   fill
+                  sizes="44px"
                   className="object-cover"
                 />
               </div>
@@ -57,6 +58,7 @@ export default function ChatPage() {
                 src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop"
                 alt="คุณอารยา"
                 fill
+                sizes="40px"
                 className="object-cover"
               />
             </div>

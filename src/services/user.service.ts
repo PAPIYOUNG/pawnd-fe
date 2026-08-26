@@ -1,13 +1,44 @@
 import { UserProfile } from '@/types/user';
+import { authFetch } from '@/lib/api/auth-fetch';
 import { MOCK_PETS } from './pet.service';
 
-const API_BASE_URL =
-  process.env.API_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  'http://localhost:8000';
+/**
+ * User Service — จัดการข้อมูลผู้ใช้งานและการตั้งค่า
+ * ใช้ authFetch สำหรับ endpoint ที่ต้อง login (ส่ง token อัตโนมัติ + unwrap response)
+ *
+ * หมายเหตุ: apiFetch จะ unwrap { success, data } อัตโนมัติ
+ * แต่ Backend /users/me ส่ง data = { user: {...} } ดังนั้นต้อง access .user อีกชั้น
+ */
+
+/** Interface สำหรับ response ที่ได้จาก Backend GET /users/me (หลัง unwrap { success, data }) */
+interface UserMeResponse {
+  user: UserProfile;
+}
+
+/** Interface สำหรับ response ที่ได้จาก Backend PATCH /users/me/settings */
+interface UpdateSettingsResponse {
+  settings: {
+    notificationEnabled: boolean;
+    twoFactorEnabled: boolean;
+  };
+}
+
+/** Interface สำหรับ response ที่ได้จาก Backend PATCH /users/me */
+interface UpdateProfileResponse {
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string | null;
+    lineId: string | null;
+    address: string | null;
+    updatedAt: string;
+  };
+}
 
 /**
  * Mock ข้อมูลโปรไฟล์ผู้ใช้งานจำลอง (ตรงตามภาพตัวอย่าง UI)
+ * ใช้เป็น fallback เมื่อ Backend ไม่พร้อมใช้งาน
  */
 export const MOCK_USER_PROFILE: UserProfile = {
   id: 'user-somchai-1',
@@ -100,15 +131,91 @@ export const MOCK_USER_PROFILE: UserProfile = {
 
 /**
  * ดึงข้อมูลโปรไฟล์ผู้ใช้ปัจจุบัน (GET /users/me)
+ * ใช้ authFetch เพื่อส่ง JWT token อัตโนมัติจาก NextAuth session
+ * Backend ส่ง { success, data: { user: {...} } } → apiFetch unwrap ได้ { user: {...} }
  */
 export async function getCurrentUser(): Promise<UserProfile> {
   try {
-    const res = await fetch(`${API_BASE_URL}/users/me`, {
-      next: { revalidate: 0 },
-    });
-    if (!res.ok) return MOCK_USER_PROFILE;
-    return await res.json();
+    const response = await authFetch<UserMeResponse>('/users/me');
+    return response.user;
   } catch {
+    // Fallback เป็น mock data เมื่อ Backend ไม่พร้อม หรือยังไม่ได้ login
     return MOCK_USER_PROFILE;
   }
+}
+
+/**
+ * อัปเดตข้อมูลโปรไฟล์ผู้ใช้ (PATCH /users/me)
+ * @param data — ข้อมูลที่ต้องการแก้ไข (firstName, lastName, phone, address)
+ */
+export async function updateUserProfile(
+  data: {
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    address?: string;
+  }
+): Promise<UpdateProfileResponse> {
+  return authFetch<UpdateProfileResponse>('/users/me', {
+    method: 'PATCH',
+    body: data as Record<string, unknown>,
+  });
+}
+
+/**
+ * อัปเดตการตั้งค่าระบบ (PATCH /users/me/settings)
+ * Backend DTO ใช้ key '2FAEnabled' สำหรับ two-factor authentication
+ * @param notificationEnabled — เปิด/ปิดการแจ้งเตือน
+ * @param twoFactorEnabled — เปิด/ปิดการยืนยันตัวตนสองชั้น
+ */
+export async function updateUserSettings(
+  settings: {
+    notificationEnabled?: boolean;
+    twoFactorEnabled?: boolean;
+  }
+): Promise<UpdateSettingsResponse> {
+  // แปลง key จาก frontend (twoFactorEnabled) เป็น backend format ('2FAEnabled')
+  const backendPayload: Record<string, unknown> = {};
+  if (settings.notificationEnabled !== undefined) {
+    backendPayload.notificationEnabled = settings.notificationEnabled;
+  }
+  if (settings.twoFactorEnabled !== undefined) {
+    backendPayload['2FAEnabled'] = settings.twoFactorEnabled;
+  }
+
+  return authFetch<UpdateSettingsResponse>('/users/me/settings', {
+    method: 'PATCH',
+    body: backendPayload,
+  });
+}
+
+/**
+ * เปลี่ยนรหัสผ่าน (PATCH /users/me/password)
+ * @param oldPassword — รหัสผ่านปัจจุบัน
+ * @param newPassword — รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)
+ */
+export async function changePassword(
+  oldPassword: string,
+  newPassword: string
+): Promise<{ message: string }> {
+  return authFetch<{ message: string }>('/users/me/password', {
+    method: 'PATCH',
+    body: { oldPassword, newPassword },
+  });
+}
+
+/**
+ * อัปโหลดรูปอวาตาร์ผู้ใช้ (PATCH /users/me/avatar)
+ * ส่งเป็น FormData (multipart/form-data) ไฟล์ JPEG/PNG/WEBP ขนาดไม่เกิน 5MB
+ */
+export async function uploadAvatar(
+  file: File
+): Promise<{ avatarUrl: string }> {
+  const formData = new FormData();
+  formData.append('avatar', file);
+
+  return authFetch<{ avatarUrl: string }>('/users/me/avatar', {
+    method: 'PATCH',
+    body: formData as unknown as Record<string, unknown>,
+  });
 }
