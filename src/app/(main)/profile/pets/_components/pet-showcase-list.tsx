@@ -1,13 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Heart } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Plus, Heart, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 import { PetProfile, CreatePetDto, PetImage } from '@/types/pet';
 import { PetCard } from './pet-card';
 import { PetQrModal } from './pet-qr-modal';
 import { PetFormModal } from './pet-form-modal';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { createPetAction, updatePetAction, deletePetAction, uploadPetImagesAction } from '../_actions/pet.actions';
 
 interface PetShowcaseListProps {
   initialPets: PetProfile[];
@@ -18,13 +21,23 @@ interface PetShowcaseListProps {
  * - ส่วนแสดงรายการสัตว์เลี้ยงทั้งหมดของผู้ใช้งาน (Pet Showcase List)
  * - จัดแสดงผลในรูปแบบ Grid 3 คอลัมน์บน Desktop (1 คอลัมน์บน Mobile)
  * - การ์ดเส้นประ "เพิ่มสัตว์เลี้ยงใหม่" จัดวางรวมใน Grid เดียวกันอย่างสมดุล
- * - จัดการ State การเปิด-ปิด QR Code Modal และ Form Modal (เพิ่ม/แก้ไข/ลบ)
+ * - เชื่อมต่อ Backend จริงผ่าน Server Actions (createPetAction, updatePetAction, deletePetAction, uploadPetImagesAction)
  */
 export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
+  const router = useRouter();
   const [pets, setPets] = useState<PetProfile[]>(initialPets);
+
   const [selectedPetForQr, setSelectedPetForQr] = useState<PetProfile | null>(null);
   const [selectedPetForEdit, setSelectedPetForEdit] = useState<PetProfile | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // แสดงผล Feedback เป็นเวลา 4 วินาทีแล้วเคลียร์
+  const triggerFeedback = (type: 'success' | 'error', message: string) => {
+    setFeedback({ type, message });
+    setTimeout(() => setFeedback(null), 4000);
+  };
 
   // เปิด Modal เพิ่มสัตว์เลี้ยงใหม่
   const handleOpenAddModal = () => {
@@ -38,66 +51,100 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
     setIsFormOpen(true);
   };
 
-  // จัดการการส่งข้อมูลฟอร์ม (สร้างใหม่ หรือ อัปเดต)
-  const handleSavePet = (data: CreatePetDto & { images?: PetImage[] }) => {
-    if (selectedPetForEdit) {
-      // แก้ไขสัตว์เลี้ยงเดิม
-      setPets((prev) =>
-        prev.map((p) =>
-          p.id === selectedPetForEdit.id
-            ? {
-                ...p,
-                ...data,
-                coverImageUrl: data.profileImageUrl || p.coverImageUrl,
-                images: data.images || p.images,
-                updatedAt: new Date().toISOString(),
-              }
-            : p
-        )
-      );
-    } else {
-      // เพิ่มสัตว์เลี้ยงใหม่
-      const newPet: PetProfile = {
-        id: `pet-${Date.now()}`,
-        ownerId: 'user-somchai-1',
-        name: data.name,
-        type: data.type,
-        breed: data.breed || 'ไม่ระบุสายพันธุ์',
-        gender: data.gender || 'FEMALE',
-        color: data.color || 'สีครีม',
-        age: data.age || 1,
-        distinctiveFeatures: data.distinctiveFeatures || '',
-        description: data.description || '',
-        profileImageUrl: data.profileImageUrl,
-        coverImageUrl:
-          data.profileImageUrl ||
-          (data.type === 'DOG'
-            ? 'https://images.unsplash.com/photo-1552053831-71594a27632d?q=80&w=1200&auto=format&fit=crop'
-            : 'https://images.unsplash.com/photo-1533738363-b7f9aef128ce?q=80&w=1200&auto=format&fit=crop'),
-        images: data.images,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        qrCode: {
-          id: `qr-${Date.now()}`,
-          petId: `pet-${Date.now()}`,
-          qrToken: `qr_${data.name.toLowerCase()}_${Date.now()}`,
-          qrImageUrl: null,
-          publicProfileUrl: `https://pawnd.co/p/qr_${data.name.toLowerCase()}`,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      };
-      setPets((prev) => [newPet, ...prev]);
+  // จัดการการส่งข้อมูลฟอร์ม (สร้างใหม่ หรือ อัปเดตผ่าน Backend จริง + อัปโหลดรูปภาพไป Cloudinary อัตโนมัติ)
+  const handleSavePet = async (
+    data: CreatePetDto & { images?: PetImage[]; files?: File[] }
+  ) => {
+    setIsLoading(true);
+    setFeedback(null);
+
+    try {
+      if (selectedPetForEdit) {
+        // แก้ไขสัตว์เลี้ยงเดิมผ่าน Server Action
+        const res = await updatePetAction(selectedPetForEdit.id, data);
+        if (res.success && res.data) {
+          // ถ้ามีไฟล์รูปภาพใหม่ ให้อัปโหลดต่อไปยัง Cloudinary
+          if (data.files && data.files.length > 0) {
+            const formData = new FormData();
+            data.files.forEach((f) => formData.append('images', f));
+            await uploadPetImagesAction(selectedPetForEdit.id, formData);
+          }
+
+          setPets((prev) =>
+            prev.map((p) => (p.id === selectedPetForEdit.id ? res.data! : p))
+          );
+          router.refresh();
+          triggerFeedback('success', `อัปเดตข้อมูลของ "${data.name}" เรียบร้อยแล้ว`);
+        } else {
+          triggerFeedback('error', res.error || 'ไม่สามารถอัปเดตข้อมูลสัตว์เลี้ยงได้');
+        }
+      } else {
+        // 1. เพิ่มสัตว์เลี้ยงใหม่ผ่าน Server Action
+        const res = await createPetAction(data);
+        if (res.success && res.data) {
+          const finalPet = res.data;
+
+          // 2. ถ้ามีไฟล์รูปภาพที่ผู้ใช้เลือก ให้อัปโหลดไปยัง Cloudinary อัตโนมัติทันที
+          if (data.files && data.files.length > 0) {
+            console.log('[PetShowcase] Uploading', data.files.length, 'files for pet:', res.data.id);
+            const formData = new FormData();
+            data.files.forEach((f) => formData.append('images', f));
+            const uploadRes = await uploadPetImagesAction(res.data.id, formData);
+            if (uploadRes.success) {
+              console.log('[PetShowcase] Images uploaded successfully');
+            } else {
+              console.warn('[PetShowcase] Image upload failed:', uploadRes.error);
+              triggerFeedback('error', `บันทึกข้อมูล "${data.name}" สำเร็จ แต่อัปโหลดรูปภาพไม่สำเร็จ: ${uploadRes.error}`);
+              setPets((prev) => [finalPet, ...prev]);
+              router.refresh();
+              setIsLoading(false);
+              return;
+            }
+          }
+
+          setPets((prev) => [finalPet, ...prev]);
+          router.refresh();
+          triggerFeedback('success', `เพิ่ม "${data.name}" เข้าสู่โปรไฟล์เรียบร้อยแล้ว`);
+        } else {
+          triggerFeedback('error', res.error || 'ไม่สามารถเพิ่มสัตว์เลี้ยงได้');
+        }
+      }
+
+    } catch {
+      triggerFeedback('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์');
+    } finally {
+
+      setIsLoading(false);
     }
   };
 
-  // จัดการลบสัตว์เลี้ยง
-  const handleDeletePet = (petId: string) => {
-    if (confirm('คุณต้องการลบข้อมูลสัตว์เลี้ยงตัวนี้ใช่หรือไม่?')) {
-      setPets((prev) => prev.filter((p) => p.id !== petId));
+  // จัดการลบสัตว์เลี้ยงผ่าน Backend จริง
+  const handleDeletePet = async (petId: string) => {
+    const petToDelete = pets.find((p) => p.id === petId);
+    const petName = petToDelete?.name || 'สัตว์เลี้ยง';
+
+    if (confirm(`คุณต้องการลบข้อมูลของ "${petName}" ใช่หรือไม่?`)) {
+      setIsLoading(true);
+      setFeedback(null);
+
+      try {
+        const res = await deletePetAction(petId);
+        if (res.success) {
+          setPets((prev) => prev.filter((p) => p.id !== petId));
+          router.refresh();
+          triggerFeedback('success', `ลบข้อมูลของ "${petName}" เรียบร้อยแล้ว`);
+        } else {
+          triggerFeedback('error', res.error || 'ไม่สามารถลบสัตว์เลี้ยงได้');
+        }
+      } catch {
+        triggerFeedback('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
+
+
 
   const currentCount = pets.length;
   const maxQuota = 3;
@@ -119,13 +166,36 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
         <Button
           type="button"
           onClick={handleOpenAddModal}
-          disabled={currentCount >= maxQuota}
+          disabled={currentCount >= maxQuota || isLoading}
           className="h-10 min-h-[40px] w-full gap-1.5 rounded-2xl bg-primary px-4 font-semibold text-primary-foreground shadow-md transition-transform hover:scale-105 hover:bg-primary/90 sm:w-auto"
         >
-          <Plus className="size-4.5 stroke-[2.5]" />
+          {isLoading ? (
+            <Loader2 className="size-4.5 animate-spin" />
+          ) : (
+            <Plus className="size-4.5 stroke-[2.5]" />
+          )}
           <span>เพิ่มสัตว์เลี้ยง</span>
         </Button>
       </div>
+
+      {/* แจ้งเตือนสถานะผลลัพธ์การบันทึก/ลบข้อมูล */}
+      {feedback && (
+        <div
+          className={cn(
+            'flex items-center gap-2.5 rounded-2xl p-4 text-sm font-semibold shadow-xs animate-in fade-in duration-200',
+            feedback.type === 'success'
+              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+              : 'bg-destructive/15 text-destructive'
+          )}
+        >
+          {feedback.type === 'success' ? (
+            <CheckCircle2 className="size-5 shrink-0" />
+          ) : (
+            <AlertCircle className="size-5 shrink-0" />
+          )}
+          <span>{feedback.message}</span>
+        </div>
+      )}
 
       {/* 2. กริดแสดงการ์ดสัตว์เลี้ยงทั้งหมดและปุ่มเพิ่มสัตว์เลี้ยงใหม่ */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">

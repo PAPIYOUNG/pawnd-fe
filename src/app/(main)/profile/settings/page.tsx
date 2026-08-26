@@ -9,14 +9,21 @@ export const metadata: Metadata = {
 
 /**
  * SettingsPage (Server Component - RSC)
+<<<<<<< HEAD
  * - หน้าตั้งค่าระบบและบัญชีผู้ใช้งาน (User & System Settings)
  * - ดึงค่าการตั้งค่าปัจจุบันจริงจาก Backend (GET /users/me) มาเป็นค่าเริ่มต้น
  *   แล้วส่งต่อให้ SettingsForm (Client Component) เพื่อจัดการ State และ Interaction ต่อ
+=======
+ * - ดึงข้อมูลการตั้งค่าจริงของผู้ใช้งานจาก Backend (getCurrentUser)
+ * - ส่งข้อมูล initialSettings เข้าสู่ SettingsForm (Client Component)
+ * - ค่า Toggle การแจ้งเตือนและ 2FA จะตรงกับฐานข้อมูลเสมอเมื่อรีเฟรชหน้า
+>>>>>>> dev
  */
 export default async function SettingsPage() {
   const user = await getCurrentUser();
 
   return (
+<<<<<<< HEAD
     <div className="flex max-w-2xl flex-col gap-8">
       {/* ส่วนหัวหน้าตั้งค่า */}
       <div>
@@ -33,5 +40,12 @@ export default async function SettingsPage() {
         initialTwoFactorEnabled={user.twoFactorEnabled}
       />
     </div>
+=======
+    <SettingsForm
+      initialNotificationEnabled={user.notificationEnabled ?? true}
+      initialTwoFactorEnabled={user.twoFactorEnabled ?? true}
+    />
+>>>>>>> dev
   );
 }
+

@@ -24,8 +24,14 @@ export default async function ProfileOverviewPage() {
     getMyPets(),
   ]);
 
+<<<<<<< HEAD
   // ใช้ข้อมูลจริงจาก Backend หรือ fallback ไปที่ mock ถ้าไม่มีข้อมูล
   const pets = myPets.length > 0 ? myPets : user.pets;
+=======
+  // แปลงรายการประกาศจาก Backend
+  const mappedPosts = myPosts.map(mapPostToLatestItem);
+  const pets = myPets;
+>>>>>>> dev
 
   return (
     <div className="flex flex-col gap-8">
@@ -33,6 +39,7 @@ export default async function ProfileOverviewPage() {
       <div className="flex flex-col gap-6 rounded-3xl border border-border/80 bg-card p-4 shadow-sm sm:p-7 dark:border-border/60">
         <UserProfileHeader user={user} />
 
+<<<<<<< HEAD
         <UserProfileDetailsGrid user={user} />
 
         {/* ปุ่มแก้ไขโปรไฟล์ อยู่ด้านล่างสุดของกรอบ */}
@@ -49,6 +56,17 @@ export default async function ProfileOverviewPage() {
       </div>
 
       {/* 2. ส่วนสัตว์เลี้ยงของฉัน */}
+=======
+      {/* 2. ส่วนสถิติ 3 กล่องข้อมูล คำนวณจากข้อมูลจริง */}
+      <UserStatsGrid
+        totalPets={pets.length}
+        totalLostPosts={totalActiveLost}
+        totalReunited={totalReunited}
+      />
+
+
+      {/* 3. ส่วนสัตว์เลี้ยงของฉัน */}
+>>>>>>> dev
       <UserMyPetsGrid pets={pets} />
     </div>
   );
