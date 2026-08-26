@@ -100,7 +100,7 @@ export function PostSidebar({ user }: PostSidebarProps) {
       <div className="flex items-center justify-between border-b border-border/70 bg-card/90 px-4 py-2.5 backdrop-blur-md md:hidden">
         <div className="flex items-center gap-2.5">
           <div className="relative size-8.5 overflow-hidden rounded-full ring-2 ring-primary/30">
-            <Image src={avatarUrl} alt={userName} fill className="object-cover" />
+            <Image src={avatarUrl} alt={userName} fill sizes="34px" className="object-cover" />
           </div>
           <div className="flex flex-col">
             <span className="text-xs font-bold text-foreground line-clamp-1">{userName}</span>
@@ -142,7 +142,7 @@ export function PostSidebar({ user }: PostSidebarProps) {
             {/* ข้อมูลโปรไฟล์ผู้ใช้ */}
             <div className="flex items-center gap-3 border-b border-border/60 pb-4 pt-2">
               <div className="relative size-12 overflow-hidden rounded-full ring-2 ring-primary/30">
-                <Image src={avatarUrl} alt={userName} fill className="object-cover" />
+                <Image src={avatarUrl} alt={userName} fill sizes="48px" className="object-cover" />
               </div>
               <div className="flex flex-col">
                 <span className="text-sm font-bold text-foreground">{userName}</span>
@@ -225,7 +225,14 @@ export function PostSidebar({ user }: PostSidebarProps) {
               isExpanded ? 'size-12' : 'size-10'
             )}
           >
-            <Image src={avatarUrl} alt={userName} fill className="object-cover" priority />
+            <Image
+              src={avatarUrl}
+              alt={userName}
+              fill
+              sizes="48px"
+              className="object-cover"
+              priority
+            />
           </div>
 
           {isExpanded && (

@@ -426,7 +426,13 @@ export function CreatePostForm() {
                     key={idx}
                     className="relative size-18 shrink-0 overflow-hidden rounded-2xl border-2 border-border shadow-xs"
                   >
-                    <Image src={imgUrl} alt={`รูปที่ ${idx + 1}`} fill className="object-cover" />
+                    <Image
+                      src={imgUrl}
+                      alt={`รูปที่ ${idx + 1}`}
+                      fill
+                      sizes="72px"
+                      className="object-cover"
+                    />
                     <button
                       type="button"
                       onClick={() => handleRemoveImage(idx)}
@@ -749,6 +755,7 @@ export function CreatePostForm() {
                     }
                     alt={petName}
                     fill
+                    sizes="(min-width: 1024px) 40vw, 100vw"
                     className="object-cover"
                   />
                   <div className="absolute top-3 left-3">
