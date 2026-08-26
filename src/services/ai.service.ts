@@ -1,9 +1,9 @@
-import { apiFetch } from '@/lib/api/api-fetch';
+import { authFetch } from '@/lib/api/auth-fetch';
 import { PetType } from '@/types/post';
 
 /**
  * AI Service — เรียกใช้ AI Vision Analysis ของ Backend สำหรับวิเคราะห์รูปภาพสัตว์เลี้ยง
- * Endpoint นี้เป็น public (ไม่ต้องใช้ token) — ใช้ apiFetch
+ * Endpoint นี้ต้อง login — ใช้ authFetch (ส่ง Bearer token อัตโนมัติ)
  */
 
 /** ผลลัพธ์การวิเคราะห์ภาพสัตว์เลี้ยงจาก AI (ตรงตาม Backend AiAnalysisResult) */
@@ -22,7 +22,7 @@ export interface AiAnalysisResult {
  * @param imageUrl — URL หรือ Base64 Data URL ของรูปภาพที่ต้องการวิเคราะห์
  */
 export async function analyzeImage(imageUrl: string): Promise<AiAnalysisResult> {
-  return apiFetch<AiAnalysisResult>('/ai/analyze-image', {
+  return authFetch<AiAnalysisResult>('/ai/analyze-image', {
     method: 'POST',
     body: { imageUrl },
   });
