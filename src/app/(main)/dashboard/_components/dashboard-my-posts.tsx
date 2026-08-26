@@ -7,7 +7,11 @@ import {
   Eye,
   Edit2,
   Trash2,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
+import { deleteMyPostAction } from '../_actions/dashboard.actions';
 
 export interface MyPostDashboardItem {
   id: string;
@@ -56,14 +60,35 @@ const DEFAULT_MY_POSTS: MyPostDashboardItem[] = [
  * - การ์ดรายการประกาศตามหาของฉันในหน้า Dashboard ตรงตามดีไซน์ UI
  * - แสดงสถานะ LOST / FOUND
  * - รายละเอียด: ชื่อ, ชนิด, สายพันธุ์, อายุ, พิกัดสถานที่ และเวลาอัปเดต
- * - แถบล่าง: ป้ายรางวัล และปุ่ม Action (ดูใบปลิว/Flyer, แก้ไข, ลบ)
+ * - แถบล่าง: ป้ายรางวัล และปุ่ม Action (ดูใบปลิว/Flyer, แก้ไข, ลบผ่าน Backend จริง)
  */
 export function DashboardMyPosts({ initialPosts = DEFAULT_MY_POSTS }: { initialPosts?: MyPostDashboardItem[] }) {
   const [posts, setPosts] = useState<MyPostDashboardItem[]>(initialPosts);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const handleDeletePost = (id: string, name: string) => {
+  const triggerFeedback = (type: 'success' | 'error', message: string) => {
+    setFeedback({ type, message });
+    setTimeout(() => setFeedback(null), 4000);
+  };
+
+  const handleDeletePost = async (id: string, name: string) => {
     if (confirm(`คุณต้องการลบประกาศของ "${name}" ใช่หรือไม่?`)) {
-      setPosts((prev) => prev.filter((p) => p.id !== id));
+      setDeletingId(id);
+      setFeedback(null);
+      try {
+        const res = await deleteMyPostAction(id);
+        if (res.success) {
+          setPosts((prev) => prev.filter((p) => p.id !== id));
+          triggerFeedback('success', `ลบประกาศของ "${name}" เรียบร้อยแล้ว`);
+        } else {
+          triggerFeedback('error', res.error || 'ไม่สามารถลบประกาศได้');
+        }
+      } catch {
+        triggerFeedback('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+      } finally {
+        setDeletingId(null);
+      }
     }
   };
 
@@ -81,6 +106,25 @@ export function DashboardMyPosts({ initialPosts = DEFAULT_MY_POSTS }: { initialP
           ดูทั้งหมด
         </Link>
       </div>
+
+      {/* แจ้งเตือนสถานะผลลัพธ์การลบประกาศ */}
+      {feedback && (
+        <div
+          className={`flex items-center gap-2 rounded-2xl p-3.5 text-xs font-semibold animate-in fade-in duration-200 ${
+            feedback.type === 'success'
+              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+              : 'bg-destructive/15 text-destructive'
+          }`}
+        >
+          {feedback.type === 'success' ? (
+            <CheckCircle2 className="size-4 shrink-0" />
+          ) : (
+            <AlertCircle className="size-4 shrink-0" />
+          )}
+          <span>{feedback.message}</span>
+        </div>
+      )}
+
 
       {/* กริดการ์ดประกาศ (2 คอลัมน์) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -170,10 +214,15 @@ export function DashboardMyPosts({ initialPosts = DEFAULT_MY_POSTS }: { initialP
                     <button
                       type="button"
                       onClick={() => handleDeletePost(post.id, post.petName)}
-                      className="flex size-7.5 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-destructive/20 hover:text-destructive"
+                      disabled={deletingId === post.id}
+                      className="flex size-7.5 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-destructive/20 hover:text-destructive disabled:opacity-50"
                       title="ลบประกาศ"
                     >
-                      <Trash2 className="size-3.5" />
+                      {deletingId === post.id ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-3.5" />
+                      )}
                     </button>
                   </div>
                 </div>

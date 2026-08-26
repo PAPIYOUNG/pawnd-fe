@@ -1,5 +1,6 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { updateUserSettings, changePassword } from '@/services/user.service';
 
 /**
@@ -11,6 +12,9 @@ export async function saveSettingsAction(settings: {
 }) {
   try {
     const result = await updateUserSettings(settings);
+    revalidatePath('/profile/settings');
+    revalidatePath('/profile');
+    revalidatePath('/dashboard');
     return { success: true, data: result.settings };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'ไม่สามารถบันทึกการตั้งค่าได้';

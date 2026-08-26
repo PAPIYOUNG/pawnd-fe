@@ -130,6 +130,7 @@ export async function generatePetQr(petId: string): Promise<PetQrCode | null> {
 
 /**
  * สร้างโปรไฟล์สัตว์เลี้ยงใหม่ (POST /pets)
+ * กรองเฉพาะฟิลด์ที่ Backend CreatePetDto อนุญาต (ป้องกัน non-whitelisted property error)
  * @param data — ข้อมูลสัตว์เลี้ยง (name, type, breed, gender, color, age, etc.)
  */
 export async function createPet(
@@ -144,16 +145,34 @@ export async function createPet(
     description?: string;
   }
 ): Promise<PetProfile> {
+  const payload: Record<string, unknown> = {
+    name: data.name.trim(),
+    type: data.type,
+  };
+  if (data.breed && data.breed.trim()) payload.breed = data.breed.trim();
+  if (data.gender) payload.gender = data.gender;
+  if (data.color && data.color.trim()) payload.color = data.color.trim();
+  if (data.age !== undefined && data.age !== null && !isNaN(Number(data.age))) {
+    payload.age = Math.max(0, Math.floor(Number(data.age)));
+  }
+  if (data.distinctiveFeatures && data.distinctiveFeatures.trim()) {
+    payload.distinctiveFeatures = data.distinctiveFeatures.trim();
+  }
+  if (data.description && data.description.trim()) {
+    payload.description = data.description.trim();
+  }
+
   // Backend ส่ง { success, data: { pet: {...} } } → ต้องแกะ .pet อีกชั้นหลัง apiFetch unwrap .data
   const { pet } = await authFetch<{ pet: PetProfile }>('/pets', {
     method: 'POST',
-    body: data as Record<string, unknown>,
+    body: payload,
   });
   return pet;
 }
 
 /**
  * แก้ไขข้อมูลสัตว์เลี้ยง (PATCH /pets/:id)
+ * กรองเฉพาะฟิลด์ที่ Backend UpdatePetDto อนุญาต
  * @param id — รหัสสัตว์เลี้ยง
  * @param data — ข้อมูลที่ต้องการแก้ไข
  */
@@ -161,13 +180,30 @@ export async function updatePet(
   id: string,
   data: Record<string, unknown>
 ): Promise<PetProfile> {
+  const payload: Record<string, unknown> = {};
+  if (typeof data.name === 'string' && data.name.trim()) payload.name = data.name.trim();
+  if (typeof data.type === 'string' && data.type.trim()) payload.type = data.type.trim();
+  if (typeof data.breed === 'string') payload.breed = data.breed.trim() || undefined;
+  if (typeof data.gender === 'string') payload.gender = data.gender;
+  if (typeof data.color === 'string') payload.color = data.color.trim() || undefined;
+  if (data.age !== undefined && data.age !== null && !isNaN(Number(data.age))) {
+    payload.age = Math.max(0, Math.floor(Number(data.age)));
+  }
+  if (typeof data.distinctiveFeatures === 'string') {
+    payload.distinctiveFeatures = data.distinctiveFeatures.trim() || undefined;
+  }
+  if (typeof data.description === 'string') {
+    payload.description = data.description.trim() || undefined;
+  }
+
   // Backend ส่ง { success, data: { pet: {...} } } → ต้องแกะ .pet อีกชั้นหลัง apiFetch unwrap .data
   const { pet } = await authFetch<{ pet: PetProfile }>(`/pets/${id}`, {
     method: 'PATCH',
-    body: data,
+    body: payload,
   });
   return pet;
 }
+
 
 /**
  * ลบสัตว์เลี้ยง (DELETE /pets/:id)

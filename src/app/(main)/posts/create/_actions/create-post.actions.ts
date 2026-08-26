@@ -1,5 +1,6 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { createPost, CreatePostPayload } from '@/services/post.service';
 import { analyzeImage } from '@/services/ai.service';
 
@@ -9,6 +10,10 @@ import { analyzeImage } from '@/services/ai.service';
 export async function createPostAction(payload: CreatePostPayload) {
   try {
     const post = await createPost(payload);
+    revalidatePath('/posts');
+    revalidatePath('/dashboard');
+    revalidatePath('/profile');
+    revalidatePath('/');
     return { success: true, data: post };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'ไม่สามารถสร้างประกาศได้';
