@@ -94,6 +94,7 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
                 }
                 alt={`${user.firstName} ${user.lastName}`}
                 fill
+                sizes="36px"
                 className="object-cover"
               />
             </div>
@@ -180,6 +181,7 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
                   }
                   alt={`${user.firstName} ${user.lastName}`}
                   fill
+                  sizes="72px"
                   className="object-cover"
                 />
               </div>
@@ -289,6 +291,7 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
                 }
                 alt={`${user.firstName} ${user.lastName}`}
                 fill
+                sizes={isExpanded ? '80px' : '48px'}
                 className="object-cover"
                 priority
               />

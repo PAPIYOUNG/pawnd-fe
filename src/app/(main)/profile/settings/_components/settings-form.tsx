@@ -52,17 +52,13 @@ export function SettingsForm({
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(
     initialTwoFactorEnabled,
   );
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  // สถานะกำลังบันทึกแยกตาม toggle เพื่อ disable เฉพาะตัวที่กำลังยิง API อยู่
+  const [isSavingNotification, setIsSavingNotification] = useState(false);
+  const [isSavingTwoFactor, setIsSavingTwoFactor] = useState(false);
   const [settingsFeedback, setSettingsFeedback] = useState<{
     type: 'success' | 'error';
     message: string;
   } | null>(null);
-  const [notificationEnabled, setNotificationEnabled] = useState(initialNotificationEnabled);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(initialTwoFactorEnabled);
-  // สถานะกำลังบันทึกแยกตาม toggle เพื่อ disable เฉพาะตัวที่กำลังยิง API อยู่
-  const [isSavingNotification, setIsSavingNotification] = useState(false);
-  const [isSavingTwoFactor, setIsSavingTwoFactor] = useState(false);
-  const [settingsFeedback, setSettingsFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // State สำหรับเปลี่ยนรหัสผ่าน
   const [oldPassword, setOldPassword] = useState('');
@@ -83,7 +79,6 @@ export function SettingsForm({
     type: 'success' | 'error';
     message: string;
   } | null>(null);
-  const [passwordFeedback, setPasswordFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // สลับ toggle การแจ้งเตือน แล้วยิง Server Action ทันที (Optimistic Update)
   const handleToggleNotification = async (checked: boolean) => {
@@ -109,20 +104,9 @@ export function SettingsForm({
 
     const res = await saveSettingsAction({ twoFactorEnabled: checked });
 
-    setIsSavingSettings(false);
-    if (res.success) {
-      setSettingsFeedback({
-        type: 'success',
-        message: 'บันทึกการตั้งค่าระบบเรียบร้อยแล้ว',
-      });
-      setTimeout(() => setSettingsFeedback(null), 4000);
-    } else {
-      setSettingsFeedback({
-        type: 'error',
-        message: res.error || 'เกิดข้อผิดพลาดในการบันทึก',
-      });
     setIsSavingTwoFactor(false);
     if (!res.success) {
+      // ถ้าบันทึกไม่สำเร็จ ให้ย้อนค่ากลับไปเป็นค่าเดิมก่อนหน้า เพื่อไม่ให้ UI ค้างสถานะที่ไม่ตรงกับ Backend
       setTwoFactorEnabled(!checked);
       setSettingsFeedback({ type: 'error', message: res.error || 'เกิดข้อผิดพลาดในการบันทึก' });
     }
@@ -241,20 +225,6 @@ export function SettingsForm({
             disabled={isSavingTwoFactor}
             aria-label="เปิด-ปิดการยืนยันตัวตนสองชั้น"
           />
-        </div>
-
-        <div className="flex justify-end pt-2">
-          <Button
-            type="button"
-            onClick={handleSaveSettings}
-            disabled={isSavingSettings}
-            className="gap-2 rounded-2xl bg-primary px-6 font-semibold text-primary-foreground shadow-md hover:bg-primary/90"
-          >
-            {isSavingSettings && <Loader2 className="size-4 animate-spin" />}
-            <span>
-              {isSavingSettings ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
-            </span>
-          </Button>
         </div>
       </div>
 
@@ -412,7 +382,6 @@ export function SettingsForm({
           </div>
         </form>
       )}
-    </div>
     </>
   );
 }

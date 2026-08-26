@@ -161,17 +161,9 @@ export async function updateUserProfile(data: {
   firstName?: string;
   lastName?: string;
   phone?: string;
+  lineId?: string;
   address?: string;
 }): Promise<UpdateProfileResponse> {
-export async function updateUserProfile(
-  data: {
-    firstName?: string;
-    lastName?: string;
-    phone?: string;
-    lineId?: string;
-    address?: string;
-  }
-): Promise<UpdateProfileResponse> {
   return authFetch<UpdateProfileResponse>('/users/me', {
     method: 'PATCH',
     body: data as Record<string, unknown>,

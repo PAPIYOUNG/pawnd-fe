@@ -20,11 +20,6 @@ export default async function SettingsPage() {
   const user = await getCurrentUser();
 
   return (
-    <SettingsForm
-      initialNotificationEnabled={user.notificationEnabled ?? true}
-      initialTwoFactorEnabled={user.twoFactorEnabled ?? true}
-      hasPassword={user.hasPassword}
-    />
     <div className="flex max-w-2xl flex-col gap-8">
       {/* ส่วนหัวหน้าตั้งค่า */}
       <div>
@@ -37,8 +32,9 @@ export default async function SettingsPage() {
       </div>
 
       <SettingsForm
-        initialNotificationEnabled={user.notificationEnabled}
-        initialTwoFactorEnabled={user.twoFactorEnabled}
+        initialNotificationEnabled={user.notificationEnabled ?? true}
+        initialTwoFactorEnabled={user.twoFactorEnabled ?? true}
+        hasPassword={user.hasPassword}
       />
     </div>
   );
