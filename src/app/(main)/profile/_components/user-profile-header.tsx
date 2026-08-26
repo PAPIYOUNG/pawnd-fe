@@ -1,26 +1,58 @@
 'use client';
 
 import Image from 'next/image';
-import { CheckCircle2, AlertCircle, Edit3 } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Clock, Ban, Edit3 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { UserProfile } from '@/types/user';
+import { UserProfile, UserStatus } from '@/types/user';
 
 interface UserProfileHeaderProps {
   user: UserProfile;
 }
 
+/** ป้ายสถานะบัญชี แยกสี/ข้อความตาม user.status จริงจาก Backend (GET /users/me) */
+const ACCOUNT_STATUS_BADGE: Record<
+  UserStatus,
+  { label: string; icon: typeof CheckCircle2; className: string }
+> = {
+  ACTIVE: {
+    label: 'ยืนยันตัวตนแล้ว',
+    icon: CheckCircle2,
+    className: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+  },
+  PENDING_EMAIL_VERIFICATION: {
+    label: 'ยังไม่ยืนยันตัวตน',
+    icon: AlertCircle,
+    className: 'bg-destructive/15 text-destructive',
+  },
+  SUSPENDED: {
+    label: 'ถูกระงับการใช้งานชั่วคราว กำลังตรวจสอบ',
+    icon: Clock,
+    className: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
+  },
+  BLACKLISTED: {
+    label: 'ถูกระงับการใช้งานถาวร',
+    icon: Ban,
+    className: 'bg-neutral-900/10 text-neutral-900 dark:bg-neutral-100/15 dark:text-neutral-100',
+  },
+  DELETED: {
+    label: 'บัญชีถูกลบ',
+    icon: Ban,
+    className: 'bg-muted text-muted-foreground',
+  },
+};
+
 /**
  * UserProfileHeader Component (Client Component)
  * - การ์ดข้อมูลโปรไฟล์ผู้ใช้งานด้านบนสุด (User Profile Header Card)
  * - ออกแบบ Responsive ให้พอดีและสวยงามทั้งบนมือถือและคอมพิวเตอร์
- * - แสดงรูป Avatar, ชื่อ-นามสกุล และป้ายสถานะยืนยันตัวตน (เขียว = ยืนยันแล้ว, แดง = ยังไม่ยืนยัน)
- *   เช็คจาก user.verificationStatus จริงจาก Backend
+ * - แสดงรูป Avatar, ชื่อ-นามสกุล และป้ายสถานะบัญชี เช็คจาก user.status จริงจาก Backend
+ *   (ACTIVE=เขียว, PENDING_EMAIL_VERIFICATION=แดง, SUSPENDED=ม่วง, BLACKLISTED=ดำ)
  * - ปุ่มแก้ไขโปรไฟล์
  */
 export function UserProfileHeader({ user }: UserProfileHeaderProps) {
-  // เช็คสถานะยืนยันตัวตนจริงจาก Backend แทนการ hardcode
-  const isVerified = user.verificationStatus === 'VERIFIED';
+  const statusBadge = ACCOUNT_STATUS_BADGE[user.status];
+  const StatusIcon = statusBadge.icon;
 
   return (
     <div className="flex flex-col gap-5 rounded-3xl border border-border/80 bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-7 dark:border-border/60">
@@ -47,17 +79,12 @@ export function UserProfileHeader({ user }: UserProfileHeaderProps) {
             <h2 className="text-lg font-bold tracking-tight text-foreground sm:text-2xl">
               คุณ{user.firstName} {user.lastName}
             </h2>
-            {isVerified ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="size-3" />
-                ยืนยันตัวตนแล้ว
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-bold text-destructive">
-                <AlertCircle className="size-3" />
-                ยังไม่ยืนยันตัวตน
-              </span>
-            )}
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${statusBadge.className}`}
+            >
+              <StatusIcon className="size-3" />
+              {statusBadge.label}
+            </span>
           </div>
         </div>
       </div>
