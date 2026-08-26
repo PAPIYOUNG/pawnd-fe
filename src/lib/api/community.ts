@@ -1,10 +1,20 @@
 import { apiRequest } from './client';
+
 import type {
   CommunityComment,
+  CommunityLikeResult,
   CommunityPost,
   CommunityPostPage,
   CommunityPostType,
+  CreatableCommunityPostType,
 } from '@/types/type-community';
+
+interface CommunityPostInput {
+  type: CreatableCommunityPostType;
+  title: string;
+  content: string;
+  relatedPetPostId?: string;
+}
 
 export function listCommunityPosts(
   type: CommunityPostType | 'ALL',
@@ -25,15 +35,10 @@ export function listCommunityPosts(
 }
 
 export function createCommunityPost(
-  input: {
-    type: CommunityPostType;
-    title: string;
-    content: string;
-    relatedPetPostId?: string;
-  },
+  input: CommunityPostInput,
   accessToken: string,
 ) {
-  return apiRequest<CommunityPost>('/community/posts', {
+  return apiRequest<{ id: string }>('/community/posts', {
     method: 'POST',
     accessToken,
     body: JSON.stringify(input),
@@ -47,7 +52,9 @@ export function uploadCommunityImages(
 ) {
   const body = new FormData();
 
-  files.forEach((file) => body.append('images', file));
+  files.forEach((file) => {
+    body.append('images', file);
+  });
 
   return apiRequest<{ images: CommunityPost['images'] }>(
     `/community/posts/${postId}/images`,
@@ -72,21 +79,31 @@ export function addCommunityComment(
 }
 
 export function likeCommunityPost(postId: string, accessToken: string) {
-  return apiRequest<{ liked: true; likeCount: number }>(
-    `/community/posts/${postId}/like`,
-    {
-      method: 'PUT',
-      accessToken,
-    },
-  );
+  return apiRequest<CommunityLikeResult>(`/community/posts/${postId}/like`, {
+    method: 'PUT',
+    accessToken,
+  });
 }
 
 export function unlikeCommunityPost(postId: string, accessToken: string) {
-  return apiRequest<{ liked: false; likeCount: number }>(
-    `/community/posts/${postId}/like`,
-    {
-      method: 'DELETE',
-      accessToken,
-    },
-  );
+  return apiRequest<CommunityLikeResult>(`/community/posts/${postId}/like`, {
+    method: 'DELETE',
+    accessToken,
+  });
+}
+
+export function reportCommunityPost(
+  postId: string,
+  reason: string,
+  accessToken: string,
+) {
+  return apiRequest<{ id: string }>('/reports', {
+    method: 'POST',
+    accessToken,
+    body: JSON.stringify({
+      reportType: 'POST',
+      communityPostId: postId,
+      reason,
+    }),
+  });
 }

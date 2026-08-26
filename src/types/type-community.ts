@@ -1,5 +1,16 @@
+export type CreatableCommunityPostType = Extract<
+  CommunityPostType,
+  'STORY' | 'QUESTION' | 'RECOMMENDATION'
+>;
+
 export type CommunityPostType =
   'LOST_PET' | 'FOUND_PET' | 'OTHERS' | 'STORY' | 'QUESTION' | 'RECOMMENDATION';
+
+export interface CommunityLikeResult {
+  postId: string;
+  liked: boolean;
+  likeCount: number;
+}
 
 export interface CommunityUser {
   id: string;

@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 
 import { listCommunityPosts } from '@/lib/api/community';
 import type { CommunityPost, CommunityPostType } from '@/types/type-community';
 
-import { CommunityPostCard } from './Commu-Postcard';
 import { CommunityFeedSkeleton } from './community-feed-skeleton';
+import { CommunityPostCard } from './community-post-card';
+import { CommunityPostForm } from './community-post-form';
 
 type FeedFilter = CommunityPostType | 'ALL';
 
@@ -18,20 +19,41 @@ const tabs: Array<{ value: FeedFilter; label: string }> = [
   { value: 'RECOMMENDATION', label: 'แนะนำ' },
 ];
 
-export function CommunityFeed() {
+interface CommunityFeedProps {
+  accessToken?: string;
+}
+
+export function CommunityFeed({ accessToken }: CommunityFeedProps) {
   const [filter, setFilter] = useState<FeedFilter>('ALL');
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
+  const [formOpen, setFormOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  function changeFilter(nextFilter: FeedFilter) {
+    if (nextFilter === filter) {
+      return;
+    }
+
+    setLoading(true);
+    setError(undefined);
+    setFilter(nextFilter);
+  }
+
+  function reloadPosts() {
+    setLoading(true);
+    setError(undefined);
+    setReloadKey((value) => value + 1);
+  }
 
   useEffect(() => {
     const controller = new AbortController();
 
-    setLoading(true);
-    setError(undefined);
-
     void listCommunityPosts(filter, controller.signal)
-      .then((result) => setPosts(result.data))
+      .then((result) => {
+        setPosts(result.data);
+      })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) {
           setError(
@@ -46,7 +68,7 @@ export function CommunityFeed() {
       });
 
     return () => controller.abort();
-  }, [filter]);
+  }, [filter, reloadKey]);
 
   return (
     <main className="bg-muted/40 px-4 py-10 sm:px-6 lg:py-14">
@@ -56,17 +78,28 @@ export function CommunityFeed() {
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
               ชุมชนคนรักสัตว์
             </h1>
+
             <p className="mt-1 text-sm text-muted-foreground sm:text-base">
               พูดคุย แลกเปลี่ยนความรู้ และเรื่องราวประทับใจของคนรักสัตว์เลี้ยง
             </p>
           </div>
 
-          <Link
-            href="/login?returnTo=/community"
-            className="inline-flex h-10 items-center justify-center self-start rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/15 transition hover:bg-primary/85"
-          >
-            ✍️ สร้างโพสต์ใหม่
-          </Link>
+          {accessToken ? (
+            <button
+              type="button"
+              onClick={() => setFormOpen(true)}
+              className="inline-flex h-10 items-center justify-center self-start rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/15 transition hover:bg-primary/85"
+            >
+              ✍️ สร้างโพสต์ใหม่
+            </button>
+          ) : (
+            <Link
+              href="/login?returnTo=/community"
+              className="inline-flex h-10 items-center justify-center self-start rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/15 transition hover:bg-primary/85"
+            >
+              ✍️ สร้างโพสต์ใหม่
+            </Link>
+          )}
         </div>
 
         <div
@@ -80,7 +113,7 @@ export function CommunityFeed() {
               type="button"
               role="tab"
               aria-selected={filter === tab.value}
-              onClick={() => setFilter(tab.value)}
+              onClick={() => changeFilter(tab.value)}
               className={
                 filter === tab.value
                   ? 'rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground'
@@ -96,9 +129,17 @@ export function CommunityFeed() {
           {loading && <CommunityFeedSkeleton />}
 
           {!loading && error && (
-            <p className="rounded-2xl bg-card p-6 text-center text-destructive">
-              {error}
-            </p>
+            <div role="alert" className="rounded-2xl bg-card p-6 text-center">
+              <p className="text-sm text-destructive">{error}</p>
+
+              <button
+                type="button"
+                onClick={reloadPosts}
+                className="mt-3 text-sm font-semibold text-primary hover:underline"
+              >
+                ลองใหม่
+              </button>
+            </div>
           )}
 
           {!loading && !error && posts.length === 0 && (
@@ -110,10 +151,21 @@ export function CommunityFeed() {
           {!loading &&
             !error &&
             posts.map((post) => (
-              <CommunityPostCard key={post.id} post={post} />
+              <CommunityPostCard
+                key={post.id}
+                post={post}
+                accessToken={accessToken}
+              />
             ))}
         </div>
       </section>
+
+      <CommunityPostForm
+        open={formOpen}
+        accessToken={accessToken}
+        onClose={() => setFormOpen(false)}
+        onCreated={reloadPosts}
+      />
     </main>
   );
 }

@@ -1,4 +1,4 @@
-import { CommunityFeed } from '@/components/community/Commu-Feed';
+import { CommunityFeed } from '@/components/community/community-feed';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {

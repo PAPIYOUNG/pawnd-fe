@@ -4,6 +4,8 @@ import Image from 'next/image';
 import { Heart, Link2, MessageCircle } from 'lucide-react';
 
 import type { CommunityPost, CommunityPostType } from '@/types/type-community';
+import { useState } from 'react';
+import { likeCommunityPost, unlikeCommunityPost } from '@/lib/api/community';
 
 const typeLabels: Record<
   CommunityPostType,
@@ -20,7 +22,45 @@ const typeLabels: Record<
   OTHERS: { label: 'ทั่วไป', className: 'bg-muted text-muted-foreground' },
 };
 
-export function CommunityPostCard({ post }: { post: CommunityPost }) {
+interface CommunityPostCardProps {
+  post: CommunityPost;
+  accessToken?: string;
+}
+
+export function CommunityPostCard({
+  post,
+  accessToken,
+}: CommunityPostCardProps) {
+  const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(post._count.likes);
+  const [likePending, setLikePending] = useState(false);
+  const [actionError, setActionError] = useState<string>();
+
+  async function toggleLike() {
+    if (!accessToken) {
+      window.location.assign('/login?returnTo=/community');
+      return;
+    }
+
+    setLikePending(true);
+    setActionError(undefined);
+
+    try {
+      const result = liked
+        ? await unlikeCommunityPost(post.id, accessToken)
+        : await likeCommunityPost(post.id, accessToken);
+
+      setLiked(result.liked);
+      setLikeCount(result.likeCount);
+    } catch (cause: unknown) {
+      setActionError(
+        cause instanceof Error ? cause.message : 'ไม่สามารถอัปเดตการถูกใจได้',
+      );
+    } finally {
+      setLikePending(false);
+    }
+  }
+
   const badge = typeLabels[post.type];
 
   async function sharePost() {
@@ -99,10 +139,12 @@ export function CommunityPostCard({ post }: { post: CommunityPost }) {
       <div className="mt-4 flex items-center gap-6 border-t pt-4 text-sm text-muted-foreground">
         <button
           type="button"
+          disabled={likePending}
+          onClick={() => void toggleLike()}
           className="flex items-center gap-2 hover:text-primary"
         >
           <Heart className="size-4" />
-          {post._count.likes}
+          {likeCount} ถูกใจ
         </button>
 
         <button
@@ -122,6 +164,12 @@ export function CommunityPostCard({ post }: { post: CommunityPost }) {
           แชร์
         </button>
       </div>
+
+      {actionError && (
+        <p role="alert" className="mt-3 text-sm text-destructive">
+          {actionError}
+        </p>
+      )}
 
       {post.comments[0] && (
         <div className="mt-4 rounded-xl bg-muted/70 px-4 py-3 text-sm">
