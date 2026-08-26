@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Sparkles, Wand2, ChevronLeft, QrCode } from 'lucide-react';
+import { Wand2, ChevronLeft, QrCode } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { getPetById } from '@/services/pet.service';

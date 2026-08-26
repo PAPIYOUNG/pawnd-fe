@@ -35,6 +35,13 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // ซิงค์ state pets เมื่อ initialPets จาก Server Component มีการเปลี่ยนแปลงตามคำแนะนำของ React
+  const [prevInitialPets, setPrevInitialPets] = useState(initialPets);
+  if (initialPets !== prevInitialPets) {
+    setPrevInitialPets(initialPets);
+    setPets(initialPets);
+  }
+
   // แสดงผล Feedback เป็นเวลา 4 วินาทีแล้วเคลียร์
   const triggerFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
@@ -65,15 +72,24 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
         // แก้ไขสัตว์เลี้ยงเดิมผ่าน Server Action
         const res = await updatePetAction(selectedPetForEdit.id, data);
         if (res.success && res.data) {
+          const updatedPet = { ...res.data };
+
           // ถ้ามีไฟล์รูปภาพใหม่ ให้อัปโหลดต่อไปยัง Cloudinary
           if (data.files && data.files.length > 0) {
             const formData = new FormData();
             data.files.forEach((f) => formData.append('images', f));
-            await uploadPetImagesAction(selectedPetForEdit.id, formData);
+            const uploadRes = await uploadPetImagesAction(selectedPetForEdit.id, formData);
+            if (uploadRes.success && uploadRes.data) {
+              const uploadData = uploadRes.data as { images?: PetImage[] };
+              if (uploadData.images && uploadData.images.length > 0) {
+                updatedPet.profileImageUrl = uploadData.images[0].imageUrl;
+                updatedPet.images = uploadData.images;
+              }
+            }
           }
 
           setPets((prev) =>
-            prev.map((p) => (p.id === selectedPetForEdit.id ? res.data! : p))
+            prev.map((p) => (p.id === selectedPetForEdit.id ? updatedPet : p))
           );
           router.refresh();
           triggerFeedback('success', `อัปเดตข้อมูลของ "${data.name}" เรียบร้อยแล้ว`);
@@ -84,7 +100,7 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
         // 1. เพิ่มสัตว์เลี้ยงใหม่ผ่าน Server Action
         const res = await createPetAction(data);
         if (res.success && res.data) {
-          const finalPet = res.data;
+          const finalPet = { ...res.data };
 
           // 2. ถ้ามีไฟล์รูปภาพที่ผู้ใช้เลือก ให้อัปโหลดไปยัง Cloudinary อัตโนมัติทันที
           if (data.files && data.files.length > 0) {
@@ -92,8 +108,14 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
             const formData = new FormData();
             data.files.forEach((f) => formData.append('images', f));
             const uploadRes = await uploadPetImagesAction(res.data.id, formData);
-            if (uploadRes.success) {
-              console.log('[PetShowcase] Images uploaded successfully');
+            if (uploadRes.success && uploadRes.data) {
+              console.log('[PetShowcase] Images uploaded successfully:', uploadRes.data);
+              const uploadData = uploadRes.data as { images?: PetImage[] };
+              if (uploadData.images && uploadData.images.length > 0) {
+                // อัปเดตรูปภาพจริงจาก Cloudinary ให้ finalPet ทันที ไม่ปล่อยให้ตกเป็นรูป mockup
+                finalPet.profileImageUrl = uploadData.images[0].imageUrl;
+                finalPet.images = uploadData.images;
+              }
             } else {
               console.warn('[PetShowcase] Image upload failed:', uploadRes.error);
               triggerFeedback('error', `บันทึกข้อมูล "${data.name}" สำเร็จ แต่อัปโหลดรูปภาพไม่สำเร็จ: ${uploadRes.error}`);
@@ -104,6 +126,7 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
             }
           }
 
+          // แสดงการ์ดสัตว์เลี้ยงพร้อมรูปภาพจริงบนหน้าจอทันที
           setPets((prev) => [finalPet, ...prev]);
           router.refresh();
           triggerFeedback('success', `เพิ่ม "${data.name}" เข้าสู่โปรไฟล์เรียบร้อยแล้ว`);
@@ -115,34 +138,39 @@ export function PetShowcaseList({ initialPets }: PetShowcaseListProps) {
     } catch {
       triggerFeedback('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์');
     } finally {
-
       setIsLoading(false);
     }
   };
 
-  // จัดการลบสัตว์เลี้ยงผ่าน Backend จริง
+  // จัดการลบสัตว์เลี้ยงผ่าน Backend จริงแบบ Optimistic Update ไม่ทำให้หน้าจอค้าง
   const handleDeletePet = async (petId: string) => {
     const petToDelete = pets.find((p) => p.id === petId);
     const petName = petToDelete?.name || 'สัตว์เลี้ยง';
 
-    if (confirm(`คุณต้องการลบข้อมูลของ "${petName}" ใช่หรือไม่?`)) {
-      setIsLoading(true);
-      setFeedback(null);
+    if (!confirm(`คุณต้องการลบข้อมูลของ "${petName}" ใช่หรือไม่?`)) {
+      return;
+    }
 
-      try {
-        const res = await deletePetAction(petId);
-        if (res.success) {
-          setPets((prev) => prev.filter((p) => p.id !== petId));
-          router.refresh();
-          triggerFeedback('success', `ลบข้อมูลของ "${petName}" เรียบร้อยแล้ว`);
-        } else {
-          triggerFeedback('error', res.error || 'ไม่สามารถลบสัตว์เลี้ยงได้');
-        }
-      } catch {
-        triggerFeedback('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์');
-      } finally {
-        setIsLoading(false);
+    setFeedback(null);
+
+    // 1. Optimistic Update: นำการ์ดออกจากหน้าจอทันที ไม่ต้องรอนาน
+    const previousPets = [...pets];
+    setPets((prev) => prev.filter((p) => p.id !== petId));
+
+    try {
+      const res = await deletePetAction(petId);
+      if (res.success) {
+        triggerFeedback('success', `ลบข้อมูลของ "${petName}" เรียบร้อยแล้ว`);
+        router.refresh();
+      } else {
+        // หากลบล้มเหลว ให้คืนค่าเดิมกลับมาที่หน้าจอ
+        setPets(previousPets);
+        triggerFeedback('error', res.error || 'ไม่สามารถลบสัตว์เลี้ยงได้');
       }
+    } catch {
+      // คืนค่าเดิมกรณีเกิดข้อผิดพลาดในการเชื่อมต่อ
+      setPets(previousPets);
+      triggerFeedback('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์');
     }
   };
 
