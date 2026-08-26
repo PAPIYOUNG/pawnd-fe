@@ -29,7 +29,7 @@ interface ProfileSidebarProps {
  */
 const PROFILE_NAV_ITEMS = [
   {
-    href: '/profile/dashboard',
+    href: '/dashboard',
     label: 'แดชบอร์ด',
     icon: LayoutDashboard,
   },
@@ -123,7 +123,9 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
           {PROFILE_NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive =
-              item.href === '/profile'
+              item.href === '/dashboard'
+                ? pathname === '/dashboard' || pathname === '/profile/dashboard'
+                : item.href === '/profile'
                 ? pathname === '/profile'
                 : pathname.startsWith(item.href);
 
@@ -313,7 +315,9 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
           {PROFILE_NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive =
-              item.href === '/profile'
+              item.href === '/dashboard'
+                ? pathname === '/dashboard' || pathname === '/profile/dashboard'
+                : item.href === '/profile'
                 ? pathname === '/profile'
                 : pathname.startsWith(item.href);
 
