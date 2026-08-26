@@ -30,7 +30,9 @@ export function SettingsForm({
 }: SettingsFormProps) {
   const [notificationEnabled, setNotificationEnabled] = useState(initialNotificationEnabled);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(initialTwoFactorEnabled);
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  // สถานะกำลังบันทึกแยกตาม toggle เพื่อ disable เฉพาะตัวที่กำลังยิง API อยู่
+  const [isSavingNotification, setIsSavingNotification] = useState(false);
+  const [isSavingTwoFactor, setIsSavingTwoFactor] = useState(false);
   const [settingsFeedback, setSettingsFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // State สำหรับเปลี่ยนรหัสผ่าน
@@ -40,24 +42,33 @@ export function SettingsForm({
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordFeedback, setPasswordFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // บันทึกการตั้งค่าการแจ้งเตือนและ 2FA (เรียก Server Action -> PATCH /users/me/settings)
-  const handleSaveSettings = async () => {
-    setIsSavingSettings(true);
+  // สลับ toggle การแจ้งเตือน แล้วยิง Server Action ทันที (Optimistic Update)
+  const handleToggleNotification = async (checked: boolean) => {
+    setNotificationEnabled(checked);
+    setIsSavingNotification(true);
     setSettingsFeedback(null);
 
-    const res = await saveSettingsAction({
-      notificationEnabled,
-      twoFactorEnabled,
-    });
+    const res = await saveSettingsAction({ notificationEnabled: checked });
 
-    setIsSavingSettings(false);
-    if (res.success) {
-      setSettingsFeedback({ type: 'success', message: 'บันทึกการตั้งค่าระบบเรียบร้อยแล้ว' });
-      setTimeout(() => setSettingsFeedback(null), 4000);
-    } else {
-      // ถ้าบันทึกไม่สำเร็จ ให้ย้อนค่า toggle กลับไปเป็นค่าเดิมก่อนหน้า เพื่อไม่ให้ UI ค้างสถานะที่ไม่ตรงกับ Backend
-      setNotificationEnabled(initialNotificationEnabled);
-      setTwoFactorEnabled(initialTwoFactorEnabled);
+    setIsSavingNotification(false);
+    if (!res.success) {
+      // ถ้าบันทึกไม่สำเร็จ ให้ย้อนค่ากลับไปเป็นค่าเดิมก่อนหน้า เพื่อไม่ให้ UI ค้างสถานะที่ไม่ตรงกับ Backend
+      setNotificationEnabled(!checked);
+      setSettingsFeedback({ type: 'error', message: res.error || 'เกิดข้อผิดพลาดในการบันทึก' });
+    }
+  };
+
+  // สลับ toggle 2FA แล้วยิง Server Action ทันที (Optimistic Update)
+  const handleToggleTwoFactor = async (checked: boolean) => {
+    setTwoFactorEnabled(checked);
+    setIsSavingTwoFactor(true);
+    setSettingsFeedback(null);
+
+    const res = await saveSettingsAction({ twoFactorEnabled: checked });
+
+    setIsSavingTwoFactor(false);
+    if (!res.success) {
+      setTwoFactorEnabled(!checked);
       setSettingsFeedback({ type: 'error', message: res.error || 'เกิดข้อผิดพลาดในการบันทึก' });
     }
   };
@@ -126,7 +137,8 @@ export function SettingsForm({
           </div>
           <Switch
             checked={notificationEnabled}
-            onCheckedChange={setNotificationEnabled}
+            onCheckedChange={handleToggleNotification}
+            disabled={isSavingNotification}
             aria-label="เปิด-ปิดการแจ้งเตือนในระบบ"
           />
         </div>
@@ -148,22 +160,10 @@ export function SettingsForm({
           </div>
           <Switch
             checked={twoFactorEnabled}
-            onCheckedChange={setTwoFactorEnabled}
+            onCheckedChange={handleToggleTwoFactor}
+            disabled={isSavingTwoFactor}
             aria-label="เปิด-ปิดการยืนยันตัวตนสองชั้น"
           />
-        </div>
-
-        {/* ปุ่มบันทึกการตั้งค่าการแจ้งเตือน & 2FA */}
-        <div className="flex justify-end pt-2">
-          <Button
-            type="button"
-            onClick={handleSaveSettings}
-            disabled={isSavingSettings}
-            className="gap-2 rounded-2xl bg-primary px-6 font-semibold text-primary-foreground shadow-md hover:bg-primary/90"
-          >
-            {isSavingSettings && <Loader2 className="size-4 animate-spin" />}
-            <span>{isSavingSettings ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}</span>
-          </Button>
         </div>
       </div>
 
