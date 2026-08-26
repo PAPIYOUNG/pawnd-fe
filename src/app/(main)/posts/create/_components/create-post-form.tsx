@@ -38,11 +38,13 @@ import { Label } from '@/components/ui/label';
 import { useCurrentLocation } from '@/app/(main)/map/_components/use-current-location';
 import { cn } from '@/lib/utils';
 import type { CurrentLocation } from '@/types/map';
+import type { PetProfile } from '@/types/pet';
 import type { PetGender, PetType, PostType } from '@/types/post';
 import { AiAnalysisResult } from '@/services/ai.service';
 import {
   createPostAction,
   analyzeImageAction,
+  getPetProfileAction,
   uploadPostImagesAction,
 } from '../_actions/create-post.actions';
 import {
@@ -67,6 +69,10 @@ const ALLOWED_POST_IMAGE_TYPES = new Set([
   'image/png',
   'image/webp',
 ]);
+
+interface CreatePostFormProps {
+  initialPets: PetProfile[];
+}
 
 type ToastVariant = 'success' | 'error' | 'info';
 
@@ -172,6 +178,16 @@ function getLocalDateTimeValue(date = new Date()): string {
   return localDate.toISOString().slice(0, 16);
 }
 
+/** เลือกรูปหลักของ Pet Profile จากข้อมูลย่อหรือรายละเอียดเต็มที่ Backend ส่งกลับ */
+function getPetProfileImageUrl(pet: PetProfile): string | null {
+  return (
+    pet.profileImageUrl ||
+    pet.images?.find((image) => image.isProfile)?.imageUrl ||
+    pet.images?.[0]?.imageUrl ||
+    null
+  );
+}
+
 /**
  * CreatePostForm Component (Client Component)
  * - ฟอร์มสร้างประกาศ Lost & Found แบบ 3 ขั้นตอน:
@@ -180,7 +196,7 @@ function getLocalDateTimeValue(date = new Date()): string {
  *   Step 2: ตรวจสอบและดูตัวอย่างประกาศ (Live Preview) ก่อนยืนยันเผยแพร่
  * - รองรับระบบ AI วิเคราะห์ภาพถ่ายและช่วยเขียนคำบรรยาย
  */
-export function CreatePostForm() {
+export function CreatePostForm({ initialPets }: CreatePostFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageUrlsRef = useRef<string[]>([]);
@@ -189,6 +205,13 @@ export function CreatePostForm() {
 
   // State ขั้นตอน: 0 = เลือกประเภท, 1 = กรอกข้อมูล, 2 = ตรวจสอบ & ดูตัวอย่าง
   const [currentStep, setCurrentStep] = useState<0 | 1 | 2>(0);
+  // LOST มีขั้นตอนคั่นกลางเพื่อเลือกว่าจะใช้ข้อมูลจาก Pet Profile หรือกรอกเอง
+  const [isPetSourceStep, setIsPetSourceStep] = useState(false);
+  const [petSource, setPetSource] = useState<'PROFILE' | 'MANUAL' | null>(null);
+  const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
+  const [isLoadingPetProfile, setIsLoadingPetProfile] = useState(false);
+  // รูปจาก Pet Profile แสดงเป็นรูปหลักของประกาศ แต่ไม่ใช่ไฟล์ใหม่ที่ต้องอัปโหลดซ้ำ
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
 
   // State ประเภทประกาศที่เลือก ซึ่งจะถูกส่งเป็น PostType ไปยัง Backend ตอนเผยแพร่
   const [postType, setPostType] = useState<PostType | null>(null);
@@ -269,6 +292,74 @@ export function CreatePostForm() {
       shouldDirty: true,
       shouldValidate: true,
     });
+  };
+
+  /** เติมข้อมูลสัตว์จาก Pet Profile ลงในช่องที่โพสต์รองรับ โดยยังแก้ไขต่อได้ */
+  const applyPetProfile = (pet: PetProfile) => {
+    const nextPetName = pet.name;
+    const nextPetType = pet.type;
+    const nextBreed = pet.breed ?? '';
+    const nextGender = pet.gender ?? 'UNKNOWN';
+    const nextColor = pet.color ?? '';
+    const nextDistinctiveFeatures = pet.distinctiveFeatures ?? '';
+    const nextProfileImageUrl = getPetProfileImageUrl(pet);
+
+    setPetName(nextPetName);
+    setPetType(nextPetType);
+    setBreed(nextBreed);
+    setGender(nextGender);
+    setColor(nextColor);
+    setDistinctiveFeatures(nextDistinctiveFeatures);
+    if (nextProfileImageUrl) setProfileImageUrl(nextProfileImageUrl);
+
+    syncFormValue('petName', nextPetName);
+    syncFormValue('petType', nextPetType);
+    syncFormValue('breed', nextBreed);
+    syncFormValue('gender', nextGender);
+    syncFormValue('color', nextColor);
+    syncFormValue('distinctiveFeatures', nextDistinctiveFeatures);
+  };
+
+  /** ล้างข้อมูลสัตว์ที่เคยเติมจากโปรไฟล์เมื่อผู้ใช้เลือกกรอกข้อมูลเอง */
+  const clearPetDetails = () => {
+    setSelectedPetId(null);
+    setPetName('');
+    setPetType('CAT');
+    setBreed('');
+    setGender('UNKNOWN');
+    setColor('');
+    setDistinctiveFeatures('');
+    setProfileImageUrl(null);
+
+    syncFormValue('petName', '');
+    syncFormValue('petType', 'CAT');
+    syncFormValue('breed', '');
+    syncFormValue('gender', 'UNKNOWN');
+    syncFormValue('color', '');
+    syncFormValue('distinctiveFeatures', '');
+  };
+
+  /** เลือกสัตว์จากรายการ แล้วโหลดรายละเอียดเต็มเพื่อเติมข้อมูลที่มีในโปรไฟล์ */
+  const handlePetProfileSelect = async (pet: PetProfile) => {
+    setPetSource('PROFILE');
+    setSelectedPetId(pet.id);
+    applyPetProfile(pet);
+    setIsLoadingPetProfile(true);
+
+    try {
+      const result = await getPetProfileAction(pet.id);
+      if (result.success) {
+        applyPetProfile(result.data);
+      } else {
+        notify(`${result.error} สามารถกรอกข้อมูลที่ขาดในขั้นตอนถัดไปได้`);
+      }
+    } catch {
+      notify(
+        'โหลดข้อมูล Pet Profile ไม่สำเร็จ กรุณาตรวจสอบข้อมูลในขั้นตอนถัดไป',
+      );
+    } finally {
+      setIsLoadingPetProfile(false);
+    }
   };
 
   /** เก็บพิกัดที่เลือกและเติมที่อยู่เต็มจากจุดที่ผู้ใช้คลิกบนแผนที่ */
@@ -397,7 +488,7 @@ export function CreatePostForm() {
     setLocationSearchError(null);
   };
 
-  // State รูปภาพที่อัปโหลด (สูงสุด 3 รูปตามกฎ Backend) — เก็บเป็น Preview URL สำหรับแสดงผล
+  // State รูปภาพที่ผู้ใช้เลือกอัปโหลด (สูงสุด 3 รูปตามกฎ Backend) — เก็บเป็น Preview URL สำหรับแสดงผล
   const [images, setImages] = useState<string[]>([]);
 
   // State ไฟล์ต้นฉบับของรูปภาพ (คู่กับ images ตาม index) ใช้แปลงเป็น Base64 ส่งให้ AI วิเคราะห์
@@ -462,7 +553,8 @@ export function CreatePostForm() {
     e.target.value = '';
     if (files.length === 0) return;
 
-    const remainingSlots = MAX_POST_IMAGES - images.length;
+    const currentImageCount = images.length + (profileImageUrl ? 1 : 0);
+    const remainingSlots = MAX_POST_IMAGES - currentImageCount;
     if (remainingSlots <= 0) {
       notify('อัปโหลดรูปภาพได้สูงสุด 3 รูป');
       return;
@@ -511,6 +603,11 @@ export function CreatePostForm() {
     setImageFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
     // รูปแรกอาจเปลี่ยนไปเป็นรูปอื่น → ล้าง cache ผลวิเคราะห์เก่าทิ้ง
     setAiAnalysisCache(null);
+  };
+
+  /** นำรูปหลักจาก Pet Profile ออกจากประกาศ โดยยังคงข้อมูลข้อความที่เติมไว้ */
+  const handleRemoveProfileImage = () => {
+    setProfileImageUrl(null);
   };
 
   // เรียก AI วิเคราะห์รูปภาพ (POST /analyze-image) จากรูปแรกที่อัปโหลด
@@ -625,7 +722,7 @@ export function CreatePostForm() {
         return;
       }
 
-      if (imageFiles.length === 0) {
+      if (imageFiles.length === 0 && !profileImageUrl) {
         notify('กรุณาอัปโหลดรูปภาพอย่างน้อย 1 รูปก่อนตรวจสอบประกาศ');
         return;
       }
@@ -671,7 +768,7 @@ export function CreatePostForm() {
 
       const selectedFiles = imageFiles;
 
-      if (selectedFiles.length === 0) {
+      if (selectedFiles.length === 0 && !profileImageUrl) {
         notify('กรุณาอัปโหลดรูปภาพอย่างน้อย 1 รูปก่อนเผยแพร่ประกาศ');
         return;
       }
@@ -698,6 +795,7 @@ export function CreatePostForm() {
           ? parseInt(values.rewardAmount.replace(/,/g, ''), 10)
           : undefined;
         const res = await createPostAction({
+          petId: selectedPetId ?? undefined,
           type: postType,
           petName: values.petName,
           petType: values.petType,
@@ -725,17 +823,21 @@ export function CreatePostForm() {
         setPendingUploadPostId(postId);
       }
 
-      const uploadRes = await uploadImages(postId);
-      if (!uploadRes.success) {
-        notify(
-          `สร้างประกาศแล้ว แต่อัปโหลดรูปภาพไม่สำเร็จ: ${uploadRes.error ?? 'กรุณาลองใหม่อีกครั้ง'}`,
-        );
-        return;
+      if (selectedFiles.length > 0) {
+        const uploadRes = await uploadImages(postId);
+        if (!uploadRes.success) {
+          notify(
+            `สร้างประกาศแล้ว แต่อัปโหลดรูปภาพไม่สำเร็จ: ${uploadRes.error ?? 'กรุณาลองใหม่อีกครั้ง'}`,
+          );
+          return;
+        }
       }
 
       setPendingUploadPostId(null);
       notify(
-        'เผยแพร่ประกาศและอัปโหลดรูปภาพสำเร็จ! ระบบกำลังเริ่มค้นหาด้วย AI Smart Matching',
+        selectedFiles.length > 0
+          ? 'เผยแพร่ประกาศและอัปโหลดรูปภาพสำเร็จ! ระบบกำลังเริ่มค้นหาด้วย AI Smart Matching'
+          : 'เผยแพร่ประกาศสำเร็จ! ระบบกำลังเริ่มค้นหาด้วย AI Smart Matching',
         4000,
         'success',
       );
@@ -781,24 +883,30 @@ export function CreatePostForm() {
   return (
     <div className="flex flex-col gap-6 sm:gap-8">
       {/* 1. ส่วนหัวของหน้าประกาศ */}
-      <div className={cn(currentStep === 0 && 'text-center')}>
+      <div
+        className={cn(currentStep === 0 && !isPetSourceStep && 'text-center')}
+      >
         <h1 className="text-2xl font-bold tracking-tight text-emerald-800 dark:text-emerald-400 sm:text-3xl lg:text-4xl">
-          {currentStep === 0
-            ? 'เลือกประเภทประกาศที่ตรงกับสถานการณ์ของคุณ'
-            : currentStep === 1
-              ? postType === 'FOUND'
-                ? 'แจ้งพบสัตว์'
-                : 'แจ้งสัตว์เลี้ยงหาย'
-              : 'ตรวจสอบและยืนยันประกาศ'}
+          {isPetSourceStep
+            ? 'เลือกแหล่งข้อมูลสัตว์เลี้ยง'
+            : currentStep === 0
+              ? 'เลือกประเภทประกาศที่ตรงกับสถานการณ์ของคุณ'
+              : currentStep === 1
+                ? postType === 'FOUND'
+                  ? 'แจ้งพบสัตว์'
+                  : 'แจ้งสัตว์เลี้ยงหาย'
+                : 'ตรวจสอบและยืนยันประกาศ'}
         </h1>
         <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-          {currentStep === 0
-            ? 'เลือกประเภทประกาศเพื่อเริ่มกรอกข้อมูล'
-            : currentStep === 1
-              ? postType === 'FOUND'
-                ? 'กรอกข้อมูลสัตว์ที่พบ เพื่อช่วยตามหาเจ้าของผ่านระบบและชุมชน'
-                : 'กรอกข้อมูลสัตว์เลี้ยงของคุณเพื่อสร้างประกาศตามหาในระบบ แผนที่ และแชร์ไปยังชุมชน'
-              : 'ตรวจสอบความถูกต้องของข้อมูลและตัวอย่างประกาศก่อนเผยแพร่สู่ระบบ'}
+          {isPetSourceStep
+            ? 'สัตว์ที่หายอยู่ใน Pet Profile ของคุณหรือไม่?'
+            : currentStep === 0
+              ? 'เลือกประเภทประกาศเพื่อเริ่มกรอกข้อมูล'
+              : currentStep === 1
+                ? postType === 'FOUND'
+                  ? 'กรอกข้อมูลสัตว์ที่พบ เพื่อช่วยตามหาเจ้าของผ่านระบบและชุมชน'
+                  : 'กรอกข้อมูลสัตว์เลี้ยงของคุณเพื่อสร้างประกาศตามหาในระบบ แผนที่ และแชร์ไปยังชุมชน'
+                : 'ตรวจสอบความถูกต้องของข้อมูลและตัวอย่างประกาศก่อนเผยแพร่สู่ระบบ'}
         </p>
       </div>
 
@@ -828,7 +936,7 @@ export function CreatePostForm() {
       )}
 
       {/* 2. ตัวระบุความคืบหน้าของฟอร์มหลังเลือกประเภทประกาศแล้ว */}
-      {currentStep !== 0 && (
+      {currentStep !== 0 && !isPetSourceStep && (
         <div className="flex items-center justify-center rounded-3xl border border-border/80 bg-card p-4 shadow-2xs sm:p-5">
           <div className="flex items-center justify-center gap-3 sm:gap-6 max-w-lg w-full">
             {/* Step 1 */}
@@ -903,8 +1011,289 @@ export function CreatePostForm() {
         </div>
       )}
 
-      {/* 3. STEP 0: เลือกประเภทประกาศก่อนเริ่มกรอกข้อมูล */}
-      {currentStep === 0 && (
+      {/* 3. STEP LOST: เลือกว่าจะใช้ข้อมูลจาก Pet Profile หรือกรอกเอง */}
+      {isPetSourceStep && (
+        <section className="mx-auto w-full max-w-3xl animate-in fade-in duration-200">
+          <div className="rounded-3xl border border-border/80 bg-card p-5 shadow-sm sm:p-8">
+            <div className="mb-6 flex flex-col gap-2">
+              <span className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
+                ขั้นตอนข้อมูลสัตว์เลี้ยง
+              </span>
+              <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+                สัตว์ที่หายอยู่ใน Pet Profile ของคุณหรือไม่?
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                เลือกใช้ข้อมูลที่บันทึกไว้เพื่อกรอกแบบฟอร์มบางส่วนให้โดยอัตโนมัติ
+                หรือกรอกข้อมูลสัตว์ตัวอื่นด้วยตัวเอง
+              </p>
+            </div>
+
+            <div
+              role="radiogroup"
+              aria-label="แหล่งข้อมูลสัตว์เลี้ยง"
+              className="grid gap-4 md:grid-cols-2"
+            >
+              <button
+                type="button"
+                role="radio"
+                aria-checked={petSource === 'PROFILE'}
+                disabled={isLoadingPetProfile}
+                onClick={() => {
+                  if (petSource !== 'PROFILE') clearPetDetails();
+                  setPetSource('PROFILE');
+                }}
+                className={cn(
+                  'flex min-h-32 items-start gap-4 rounded-3xl border-2 p-5 text-left transition-all sm:p-6',
+                  petSource === 'PROFILE'
+                    ? 'border-primary bg-primary/5 ring-2 ring-primary/15'
+                    : 'border-border bg-background hover:border-primary/50 hover:bg-muted/30',
+                  isLoadingPetProfile && 'cursor-not-allowed opacity-70',
+                )}
+              >
+                <span
+                  className={cn(
+                    'flex size-11 shrink-0 items-center justify-center rounded-2xl',
+                    petSource === 'PROFILE'
+                      ? 'bg-primary/15 text-primary'
+                      : 'bg-muted text-muted-foreground',
+                  )}
+                >
+                  <PawPrint className="size-6" aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-base font-bold text-foreground sm:text-lg">
+                    ใช่ ใช้ข้อมูลจาก Pet Profile
+                  </span>
+                  <span className="mt-1 block text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                    เลือกสัตว์เลี้ยงที่บันทึกไว้ แล้วเติมชื่อ ชนิด สายพันธุ์
+                    และรายละเอียดที่มีให้
+                  </span>
+                </span>
+                <span
+                  className={cn(
+                    'mt-1 flex size-6 shrink-0 items-center justify-center rounded-full border-2',
+                    petSource === 'PROFILE'
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-muted-foreground/40',
+                  )}
+                  aria-hidden="true"
+                >
+                  {petSource === 'PROFILE' && (
+                    <Check className="size-4 stroke-[3]" />
+                  )}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                role="radio"
+                aria-checked={petSource === 'MANUAL'}
+                disabled={isLoadingPetProfile}
+                onClick={() => {
+                  if (petSource !== 'MANUAL') clearPetDetails();
+                  setPetSource('MANUAL');
+                }}
+                className={cn(
+                  'flex min-h-32 items-start gap-4 rounded-3xl border-2 p-5 text-left transition-all sm:p-6',
+                  petSource === 'MANUAL'
+                    ? 'border-primary bg-primary/5 ring-2 ring-primary/15'
+                    : 'border-border bg-background hover:border-primary/50 hover:bg-muted/30',
+                  isLoadingPetProfile && 'cursor-not-allowed opacity-70',
+                )}
+              >
+                <span
+                  className={cn(
+                    'flex size-11 shrink-0 items-center justify-center rounded-2xl',
+                    petSource === 'MANUAL'
+                      ? 'bg-primary/15 text-primary'
+                      : 'bg-muted text-muted-foreground',
+                  )}
+                >
+                  <Plus className="size-6" aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-base font-bold text-foreground sm:text-lg">
+                    ไม่ใช่ กรอกข้อมูลด้วยตัวเอง
+                  </span>
+                  <span className="mt-1 block text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                    ใช้สำหรับสัตว์ที่ไม่ได้บันทึกไว้ใน Pet Profile
+                  </span>
+                </span>
+                <span
+                  className={cn(
+                    'mt-1 flex size-6 shrink-0 items-center justify-center rounded-full border-2',
+                    petSource === 'MANUAL'
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-muted-foreground/40',
+                  )}
+                  aria-hidden="true"
+                >
+                  {petSource === 'MANUAL' && (
+                    <Check className="size-4 stroke-[3]" />
+                  )}
+                </span>
+              </button>
+            </div>
+
+            {petSource === 'PROFILE' && (
+              <div className="mt-6 rounded-3xl border border-border/70 bg-muted/20 p-4 sm:p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground sm:text-base">
+                      เลือกสัตว์เลี้ยงของคุณ
+                    </h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      เลือกการ์ดเพื่อเติมข้อมูลในขั้นตอนถัดไป
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                    {initialPets.length} รายการ
+                  </span>
+                </div>
+
+                {initialPets.length === 0 ? (
+                  <div className="mt-4 rounded-2xl border border-dashed border-border bg-background p-5 text-center">
+                    <PawPrint className="mx-auto size-8 text-muted-foreground/60" />
+                    <p className="mt-2 text-sm font-semibold text-foreground">
+                      ยังไม่มีสัตว์เลี้ยงใน Pet Profile
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      เลือกกรอกข้อมูลด้วยตัวเองเพื่อไปต่อได้ทันที
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        clearPetDetails();
+                        setPetSource('MANUAL');
+                      }}
+                      className="mt-4 h-9 rounded-xl text-xs font-bold"
+                    >
+                      กรอกข้อมูลเอง
+                    </Button>
+                  </div>
+                ) : (
+                  <div
+                    role="radiogroup"
+                    aria-label="สัตว์เลี้ยงใน Pet Profile"
+                    className="mt-4 grid gap-3 sm:grid-cols-2"
+                  >
+                    {initialPets.map((pet) => {
+                      const isSelected = selectedPetId === pet.id;
+
+                      return (
+                        <button
+                          key={pet.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={isSelected}
+                          aria-busy={isSelected && isLoadingPetProfile}
+                          disabled={isLoadingPetProfile}
+                          onClick={() => void handlePetProfileSelect(pet)}
+                          className={cn(
+                            'flex min-h-20 items-center gap-3 rounded-2xl border-2 bg-background p-3 text-left transition-all',
+                            isSelected
+                              ? 'border-primary bg-primary/5 ring-2 ring-primary/10'
+                              : 'border-border hover:border-primary/50 hover:bg-muted/30',
+                            isLoadingPetProfile &&
+                              'cursor-not-allowed opacity-70',
+                          )}
+                        >
+                          <div className="relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-muted text-muted-foreground">
+                            {pet.profileImageUrl ? (
+                              <Image
+                                src={pet.profileImageUrl}
+                                alt={pet.name}
+                                fill
+                                sizes="56px"
+                                unoptimized
+                                className="object-cover"
+                              />
+                            ) : (
+                              <PawPrint className="size-7" aria-hidden="true" />
+                            )}
+                          </div>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-bold text-foreground sm:text-base">
+                              {pet.name}
+                            </span>
+                            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                              {getPetTypeLabel(pet.type)}
+                              {pet.breed ? ` • ${pet.breed}` : ''}
+                            </span>
+                          </span>
+                          <span
+                            className={cn(
+                              'flex size-5 shrink-0 items-center justify-center rounded-full border-2',
+                              isSelected
+                                ? 'border-primary bg-primary text-primary-foreground'
+                                : 'border-muted-foreground/40',
+                            )}
+                            aria-hidden="true"
+                          >
+                            {isSelected && isLoadingPetProfile ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : (
+                              isSelected && (
+                                <Check className="size-3.5 stroke-[3]" />
+                              )
+                            )}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {petSource === 'MANUAL' && (
+              <div className="mt-6 flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-4 text-sm text-foreground">
+                <Info className="mt-0.5 size-5 shrink-0 text-primary" />
+                <p>
+                  ขั้นตอนถัดไปจะเปิดช่องให้กรอกข้อมูลสัตว์เลี้ยงทั้งหมดด้วยตัวเอง
+                </p>
+              </div>
+            )}
+
+            <div className="mt-8 flex flex-col-reverse gap-3 border-t border-border/60 pt-6 sm:flex-row sm:items-center sm:justify-between">
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={isLoadingPetProfile}
+                onClick={() => {
+                  setIsPetSourceStep(false);
+                  setCurrentStep(0);
+                }}
+                className="h-11 rounded-2xl px-4 font-bold text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="mr-2 size-5" />
+                ย้อนกลับ
+              </Button>
+              <Button
+                type="button"
+                disabled={
+                  !petSource ||
+                  (petSource === 'PROFILE' &&
+                    (!selectedPetId || isLoadingPetProfile))
+                }
+                onClick={() => {
+                  setIsPetSourceStep(false);
+                  setCurrentStep(1);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="h-11 rounded-2xl px-6 font-bold"
+              >
+                ถัดไป
+                <ArrowRight className="ml-2 size-5" />
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* 4. STEP 0: เลือกประเภทประกาศก่อนเริ่มกรอกข้อมูล */}
+      {currentStep === 0 && !isPetSourceStep && (
         <section className="mx-auto w-full max-w-2xl animate-in fade-in duration-200">
           <div className="rounded-3xl border border-border/80 bg-card p-5 shadow-sm sm:p-8">
             <div
@@ -921,7 +1310,13 @@ export function CreatePostForm() {
                     type="button"
                     role="radio"
                     aria-checked={isSelected}
-                    onClick={() => setPostType(option.value)}
+                    onClick={() => {
+                      if (option.value === 'FOUND' && postType !== 'FOUND') {
+                        clearPetDetails();
+                        setPetSource(null);
+                      }
+                      setPostType(option.value);
+                    }}
                     className={cn(
                       'flex min-h-28 w-full items-center gap-4 rounded-3xl border-2 px-5 py-5 text-left transition-all sm:px-7',
                       isSelected
@@ -984,7 +1379,13 @@ export function CreatePostForm() {
                   });
                 }
 
-                setCurrentStep(1);
+                if (postType === 'LOST') {
+                  clearPetDetails();
+                  setPetSource(null);
+                  setIsPetSourceStep(true);
+                } else {
+                  setCurrentStep(1);
+                }
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               className="mt-7 h-12 w-full rounded-2xl text-base font-bold"
@@ -999,7 +1400,7 @@ export function CreatePostForm() {
       {/* ========================================================================= */}
       {/* 4. STEP 1: หน้าฟอร์มกรอกข้อมูลสัตว์เลี้ยง (Form View) */}
       {/* ========================================================================= */}
-      {currentStep === 1 && (
+      {currentStep === 1 && !isPetSourceStep && (
         <div className="rounded-3xl border border-border/80 bg-card p-5 shadow-sm sm:p-8 lg:p-10 dark:border-border/60 animate-in fade-in duration-200">
           <div className="mb-6 flex items-center justify-between gap-3 border-b border-border/60 pb-5">
             <div>
@@ -1014,7 +1415,10 @@ export function CreatePostForm() {
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => setCurrentStep(0)}
+              onClick={() => {
+                setIsPetSourceStep(false);
+                setCurrentStep(0);
+              }}
               className="text-xs font-bold text-primary sm:text-sm"
             >
               เปลี่ยนประเภท
@@ -1059,9 +1463,33 @@ export function CreatePostForm() {
 
               {/* รายการ Thumbnails */}
               <div className="flex items-center gap-3 overflow-x-auto py-1">
+                {profileImageUrl && (
+                  <div className="relative size-18 shrink-0 overflow-hidden rounded-2xl border-2 border-primary/50 shadow-xs">
+                    <Image
+                      src={profileImageUrl}
+                      alt={`รูปจาก Pet Profile ของ ${petName}`}
+                      fill
+                      sizes="72px"
+                      unoptimized
+                      className="object-cover"
+                    />
+                    <span className="absolute bottom-0 left-0 right-0 bg-emerald-800/85 px-1 py-0.5 text-center text-[9px] font-bold text-white">
+                      Pet Profile
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleRemoveProfileImage}
+                      className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-destructive text-white shadow-xs transition-transform hover:scale-110"
+                      aria-label="ลบรูปจาก Pet Profile"
+                    >
+                      <X className="size-3 stroke-[3]" />
+                    </button>
+                  </div>
+                )}
+
                 {images.map((imgUrl, idx) => (
                   <div
-                    key={idx}
+                    key={`upload-${idx}`}
                     className="relative size-18 shrink-0 overflow-hidden rounded-2xl border-2 border-border shadow-xs"
                   >
                     <Image
@@ -1083,19 +1511,22 @@ export function CreatePostForm() {
                   </div>
                 ))}
 
-                {Array.from({ length: Math.max(0, 3 - images.length) }).map(
-                  (_, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex size-18 shrink-0 items-center justify-center rounded-2xl border-2 border-dashed border-border/80 bg-muted/30 text-muted-foreground transition-colors hover:border-primary hover:text-primary"
-                      aria-label="เพิ่มรูปภาพเพิ่มเติม"
-                    >
-                      <Plus className="size-6" />
-                    </button>
+                {Array.from({
+                  length: Math.max(
+                    0,
+                    MAX_POST_IMAGES - images.length - (profileImageUrl ? 1 : 0),
                   ),
-                )}
+                }).map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex size-18 shrink-0 items-center justify-center rounded-2xl border-2 border-dashed border-border/80 bg-muted/30 text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                    aria-label="เพิ่มรูปภาพเพิ่มเติม"
+                  >
+                    <Plus className="size-6" />
+                  </button>
+                ))}
               </div>
 
               {/* ปุ่ม AI วิเคราะห์สายพันธุ์และลักษณะสีขน */}
@@ -1561,9 +1992,9 @@ export function CreatePostForm() {
 
               <div className="overflow-hidden rounded-3xl border border-border/80 bg-card shadow-lg">
                 <div className="relative h-60 w-full bg-muted">
-                  {images[0] ? (
+                  {profileImageUrl || images[0] ? (
                     <Image
-                      src={images[0]}
+                      src={profileImageUrl || images[0]}
                       alt={petName}
                       fill
                       sizes="(min-width: 1024px) 40vw, 100vw"
