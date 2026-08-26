@@ -5,7 +5,6 @@ import { getMyPosts } from '@/services/post.service';
 import { ProfileSidebar } from '@/components/layout/ProfileSidebar';
 import { DashboardMetrics } from './_components/dashboard-metrics';
 import { DashboardMyPosts, MyPostDashboardItem } from './_components/dashboard-my-posts';
-import { DashboardAiMatches } from './_components/dashboard-ai-matches';
 
 export const metadata: Metadata = {
   title: 'แดชบอร์ด | PAWND',
@@ -99,15 +98,8 @@ export default async function DashboardMainPage() {
           catCount={catCount}
         />
 
-        {/* แถวที่ 2: ประกาศตามหาของฉัน (7 Cols) และ สรุป AI Matching (5 Cols) */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          <div className="lg:col-span-7">
-            <DashboardMyPosts initialPosts={dashboardPosts} />
-          </div>
-          <div className="lg:col-span-5">
-            <DashboardAiMatches />
-          </div>
-        </div>
+        {/* แถวที่ 2: ประกาศตามหาของฉัน */}
+        <DashboardMyPosts initialPosts={dashboardPosts} />
       </main>
     </div>
   );

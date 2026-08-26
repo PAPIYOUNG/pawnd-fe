@@ -5,7 +5,6 @@ import { getMyPosts } from '@/services/post.service';
 import { ProfileSidebar } from '@/components/layout/ProfileSidebar';
 import { DashboardMetrics } from '../../dashboard/_components/dashboard-metrics';
 import { DashboardMyPosts, MyPostDashboardItem } from '../../dashboard/_components/dashboard-my-posts';
-import { DashboardAiMatches } from '../../dashboard/_components/dashboard-ai-matches';
 
 export const metadata: Metadata = {
   title: 'แดชบอร์ด | PAWND',
@@ -88,14 +87,7 @@ export default async function ProfileDashboardPage() {
           catCount={catCount}
         />
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          <div className="lg:col-span-7">
-            <DashboardMyPosts initialPosts={dashboardPosts} />
-          </div>
-          <div className="lg:col-span-5">
-            <DashboardAiMatches />
-          </div>
-        </div>
+        <DashboardMyPosts initialPosts={dashboardPosts} />
       </main>
     </div>
   );
