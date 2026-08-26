@@ -30,7 +30,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { PetGender, PetType } from '@/types/post';
-import { createPostAction } from '../_actions/create-post.actions';
+import { createPostAction, analyzeImageAction } from '../_actions/create-post.actions';
+
+/**
+ * แปลงไฟล์รูปภาพเป็น Base64 Data URL
+ * ใช้สำหรับส่งรูปภาพที่ยังไม่ได้อัปโหลดขึ้น server ไปให้ AI วิเคราะห์
+ * (เพราะตอนกรอกฟอร์มยังไม่มีประกาศให้ผูกไฟล์ด้วย จึงยังไม่มี URL สาธารณะ)
+ */
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
 
 /**
  * CreatePostForm Component (Client Component)
@@ -46,10 +60,14 @@ export function CreatePostForm() {
   // State ขั้นตอน: 1 = กรอกข้อมูล, 2 = ตรวจสอบ & ดูตัวอย่าง (Preview)
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
 
-  // State รูปภาพที่อัปโหลด (สูงสุด 5 รูป)
+  // State รูปภาพที่อัปโหลด (สูงสุด 5 รูป) — เก็บเป็น Preview URL สำหรับแสดงผล
   const [images, setImages] = useState<string[]>([
     'https://images.unsplash.com/photo-1573865526739-10659fec78a5?q=80&w=600&auto=format&fit=crop',
   ]);
+
+  // State ไฟล์ต้นฉบับของรูปภาพ (คู่กับ images ตาม index) ใช้แปลงเป็น Base64 ส่งให้ AI วิเคราะห์
+  // รูปตัวอย่างเริ่มต้น (mock) ไม่มีไฟล์จริง จึงเป็น null
+  const [imageFiles, setImageFiles] = useState<(File | null)[]>([null]);
 
   // State ข้อมูลสัตว์เลี้ยง
   const [petName, setPetName] = useState('น้องส้มส้ม');
@@ -79,42 +97,89 @@ export function CreatePostForm() {
     if (!files || files.length === 0) return;
 
     const newUrls: string[] = [];
+    const newFiles: File[] = [];
     for (let i = 0; i < files.length; i++) {
       if (images.length + newUrls.length < 3) {
         newUrls.push(URL.createObjectURL(files[i]));
+        newFiles.push(files[i]);
       }
     }
     setImages((prev) => [...prev, ...newUrls].slice(0, 3));
+    setImageFiles((prev) => [...prev, ...newFiles].slice(0, 3));
   };
 
-  // ลบรูปภาพเดี่ยว
+  // ลบรูปภาพเดี่ยว (ลบทั้ง Preview URL และไฟล์ต้นฉบับที่ index เดียวกัน)
   const handleRemoveImage = (indexToRemove: number) => {
     setImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    setImageFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
-  // เรียก AI วิเคราะห์สายพันธุ์และสีขนจากภาพถ่าย
-  const handleAiAnalyzeImage = () => {
+  // เรียก AI วิเคราะห์รูปภาพ (POST /analyze-image) จากรูปแรกที่อัปโหลด
+  // คืนค่า Promise<AiAnalysisResult> เพื่อให้ handler แต่ละตัวนำ field ที่ต้องการไปใช้ต่อได้เอง
+  const runAiImageAnalysis = async () => {
+    const file = imageFiles[0];
+    // ถ้ามีไฟล์จริง (ผู้ใช้เพิ่งอัปโหลด) ต้องแปลงเป็น Base64 ก่อน เพราะยังไม่มีประกาศให้ผูกไฟล์
+    // ถ้าไม่มีไฟล์ (เช่นรูปตัวอย่าง mock) แปลว่า images[0] เป็น URL ที่เข้าถึงได้อยู่แล้ว
+    const imageUrl = file ? await readFileAsDataUrl(file) : images[0];
+    return analyzeImageAction(imageUrl);
+  };
+
+  // เรียก AI วิเคราะห์ประเภท สายพันธุ์ และสีขนจากภาพถ่าย
+  const handleAiAnalyzeImage = async () => {
+    if (images.length === 0) {
+      setShowToast('กรุณาอัปโหลดรูปภาพก่อนเริ่มวิเคราะห์');
+      setTimeout(() => setShowToast(null), 3000);
+      return;
+    }
+
     setIsAnalyzingAi(true);
-    setTimeout(() => {
+    try {
+      const res = await runAiImageAnalysis();
+      if (res.success && res.data) {
+        setPetType(res.data.type);
+        if (res.data.breed) setBreed(res.data.breed);
+        if (res.data.color) setColor(res.data.color);
+        setShowToast('AI วิเคราะห์สายพันธุ์และสีขนเรียบร้อยแล้ว');
+      } else {
+        setShowToast(`วิเคราะห์รูปภาพไม่สำเร็จ: ${res.error ?? 'กรุณาลองใหม่อีกครั้ง'}`);
+      }
+    } catch {
+      setShowToast('เกิดข้อผิดพลาดขณะวิเคราะห์รูปภาพ กรุณาลองใหม่อีกครั้ง');
+    } finally {
       setIsAnalyzingAi(false);
-      setBreed('แมวไทย พันธุ์ศุภลักษณ์ผสมเปอร์เซีย');
-      setColor('สีส้ม ลายสลิด มีแต้มขาวที่อก');
-      setShowToast('AI วิเคราะห์สายพันธุ์และสีขนเรียบร้อยแล้ว');
       setTimeout(() => setShowToast(null), 3000);
-    }, 1200);
+    }
   };
 
-  // เรียก AI ช่วยเขียนคำบรรยายลักษณะเด่น
-  const handleAiGenerateDescription = () => {
-    setIsGeneratingDesc(true);
-    setTimeout(() => {
-      setIsGeneratingDesc(false);
-      setDistinctiveFeatures(
-        `น้อง${petName} มีดวงตาสีอำพันสดใส รูปร่างสมส่วน ขนสั้นนุ่มสีส้มลายสลิด ปลายหางเรียวยาว สวมปลอกคอสีแดง นิสัยขี้อ้อนแต่ระแวงเสียงดัง`
-      );
-      setShowToast('AI สร้างคำบรรยายลักษณะเด่นสำเร็จ');
+  // เรียก AI ช่วยเขียนคำบรรยายลักษณะเด่น (ใช้ field "description" จากผลวิเคราะห์ภาพชุดเดียวกัน)
+  const handleAiGenerateDescription = async () => {
+    if (images.length === 0) {
+      setShowToast('กรุณาอัปโหลดรูปภาพก่อนให้ AI ช่วยเขียนคำบรรยาย');
       setTimeout(() => setShowToast(null), 3000);
-    }, 1000);
+      return;
+    }
+
+    setIsGeneratingDesc(true);
+    try {
+      const res = await runAiImageAnalysis();
+      const generatedText = res.data?.description || res.data?.distinctiveFeatures;
+
+      if (res.success && generatedText) {
+        setDistinctiveFeatures(generatedText);
+        setShowToast('AI สร้างคำบรรยายลักษณะเด่นสำเร็จ');
+      } else {
+        setShowToast(
+          res.success
+            ? 'AI ไม่สามารถสร้างคำบรรยายจากรูปภาพนี้ได้'
+            : `สร้างคำบรรยายไม่สำเร็จ: ${res.error ?? 'กรุณาลองใหม่อีกครั้ง'}`
+        );
+      }
+    } catch {
+      setShowToast('เกิดข้อผิดพลาดขณะสร้างคำบรรยาย กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      setIsGeneratingDesc(false);
+      setTimeout(() => setShowToast(null), 3000);
+    }
   };
 
   // ไปยังขั้นตอนที่ 2 (ตรวจสอบก่อนยืนยัน)
