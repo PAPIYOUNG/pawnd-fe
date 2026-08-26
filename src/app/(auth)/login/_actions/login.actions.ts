@@ -35,7 +35,7 @@ type GoogleLoginActionResult =
   | ErrorActionResult
   | { success: true; needsOtp: true; tempToken: string }
   | { success: true; needsOtp: false }
-  | { success: true; needsVerification: true; message: string };
+  | { success: true; needsVerification: true; email: string; message: string };
 
 function toErrorResult(err: unknown, fallback: string): ErrorActionResult {
   if (err instanceof ApiError) {
@@ -92,6 +92,7 @@ export async function loginWithGoogleAction(
     return {
       success: true,
       needsVerification: true,
+      email: response.email,
       message: response.message,
     };
   }

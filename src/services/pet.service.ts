@@ -1,7 +1,9 @@
 import { unstable_rethrow } from 'next/navigation';
 
-import { PetProfile, PetQrCode } from '@/types/pet';
+import { PetProfile, PetQrCode, PublicPetProfile } from '@/types/pet';
 import { authFetch } from '@/lib/api/auth-fetch';
+import { apiFetch } from '@/lib/api/api-fetch';
+import { ApiError } from '@/lib/api/api-error';
 
 /**
  * Pet Service — จัดการข้อมูลสัตว์เลี้ยงของผู้ใช้
@@ -38,7 +40,7 @@ export const MOCK_PETS: PetProfile[] = [
       petId: 'pet-1',
       qrToken: 'qr_luna_pawnd_2026',
       qrImageUrl: null,
-      publicProfileUrl: 'https://pawnd.co/p/qr_luna_pawnd_2026',
+      publicProfileUrl: 'https://pawnd.co/pet/qr/qr_luna_pawnd_2026',
       isActive: true,
       createdAt: '2026-01-15T08:00:00.000Z',
       updatedAt: '2026-01-15T08:00:00.000Z',
@@ -66,7 +68,7 @@ export const MOCK_PETS: PetProfile[] = [
       petId: 'pet-2',
       qrToken: 'qr_somsom_pawnd_2026',
       qrImageUrl: null,
-      publicProfileUrl: 'https://pawnd.co/p/qr_somsom_pawnd_2026',
+      publicProfileUrl: 'https://pawnd.co/pet/qr/qr_somsom_pawnd_2026',
       isActive: true,
       createdAt: '2026-03-10T12:00:00.000Z',
       updatedAt: '2026-03-10T12:00:00.000Z',
@@ -114,18 +116,46 @@ export async function getPetById(id: string): Promise<PetProfile | null> {
 }
 
 /**
- * สร้าง QR Code สำหรับสัตว์เลี้ยง (POST /pets/:id/qr)
- * สร้าง QR Token เฉพาะสำหรับสัตว์เลี้ยงเพื่อติดปลอกคอหรือป้ายชื่อ
+ * ดึงโปรไฟล์สัตว์เลี้ยงสาธารณะจาก QR Token (GET /pets/public/qr/:qrToken)
+ * เป็น Public endpoint ไม่ต้องแนบ JWT Token — ใช้ apiFetch ธรรมดา ไม่ใช้ authFetch
+ * Backend คืน 404 เมื่อไม่พบ QR Token หรือ QR Code ถูกปิดใช้งานอยู่ (isActive: false)
+ * @returns ข้อมูลโปรไฟล์สัตว์เลี้ยง หรือ null เมื่อไม่พบ/QR ถูกปิดใช้งาน
  */
-export async function generatePetQr(petId: string): Promise<PetQrCode | null> {
+export async function getPublicPetProfile(
+  qrToken: string
+): Promise<PublicPetProfile | null> {
   try {
-    return await authFetch<PetQrCode>(`/pets/${petId}/qr`, {
-      method: 'POST',
+    return await apiFetch<PublicPetProfile>(`/pets/public/qr/${qrToken}`, {
+      cache: 'no-store',
     });
   } catch (err) {
-    unstable_rethrow(err);
-    return null;
+    if (err instanceof ApiError && err.statusCode === 404) {
+      return null;
+    }
+    throw err;
   }
+}
+
+/**
+ * สร้าง QR Code สำหรับสัตว์เลี้ยง (POST /pets/:id/qr)
+ * สร้าง QR Token เฉพาะสำหรับสัตว์เลี้ยงเพื่อติดปลอกคอหรือป้ายชื่อ
+ * เรียกซ้ำได้เพื่อเปิดใช้งาน QR Code อีกครั้งหลังจากถูกปิดใช้งานไปแล้ว
+ * ไม่ catch error เพราะให้ Server Action ชั้นบน (pet.actions.ts) เป็นผู้จัดการข้อความ error ที่จะแสดงผู้ใช้
+ */
+export async function generatePetQrCode(petId: string): Promise<PetQrCode> {
+  return authFetch<PetQrCode>(`/pets/${petId}/qr`, {
+    method: 'POST',
+  });
+}
+
+/**
+ * ปิดใช้งาน QR Code ของสัตว์เลี้ยง (PATCH /pets/:id/qr/deactivate)
+ * ใช้เมื่อป้ายปลอกคอสูญหายหรือไม่ต้องการให้คนสแกนเข้าถึงโปรไฟล์สาธารณะได้อีก
+ */
+export async function deactivatePetQrCode(petId: string): Promise<PetQrCode> {
+  return authFetch<PetQrCode>(`/pets/${petId}/qr/deactivate`, {
+    method: 'PATCH',
+  });
 }
 
 /**

@@ -2,10 +2,10 @@ import { Metadata } from 'next';
 import { getCurrentUser } from '@/services/user.service';
 import { getMyPets } from '@/services/pet.service';
 import { getMyPosts } from '@/services/post.service';
+import { getMyChatRooms } from '@/services/chat.service';
 import { ProfileSidebar } from '@/components/layout/ProfileSidebar';
 import { DashboardMetrics } from '../../dashboard/_components/dashboard-metrics';
 import { DashboardMyPosts, MyPostDashboardItem } from '../../dashboard/_components/dashboard-my-posts';
-import { DashboardAiMatches } from '../../dashboard/_components/dashboard-ai-matches';
 
 export const metadata: Metadata = {
   title: 'แดชบอร์ด | PAWND',
@@ -33,23 +33,24 @@ function formatRelativeTime(dateStr?: string): string {
  * - ดึงข้อมูลสดจาก Backend เพื่อคำนวณสถิติและแสดงผลการ์ดตามหาของฉัน
  */
 export default async function ProfileDashboardPage() {
-  const [user, myPets, myPosts] = await Promise.all([
+  const [user, myPets, myPosts, myChatRooms] = await Promise.all([
     getCurrentUser(),
     getMyPets(),
     getMyPosts(),
+    getMyChatRooms(),
   ]);
 
   const totalPets = myPets.length;
-  const dogCount = myPets.filter((p) => p.type === 'DOG').length;
-  const catCount = myPets.filter((p) => p.type === 'CAT').length;
-  const activePosts = myPosts.filter((p) => p.status === 'ACTIVE').length;
-  const totalReunited = myPosts.filter((p) => p.status === 'REUNITED').length;
+  const activeLostPosts = myPosts.filter((p) => p.status === 'ACTIVE' && p.type === 'LOST').length;
+  const activeFoundPosts = myPosts.filter((p) => p.status === 'ACTIVE' && p.type === 'FOUND').length;
+  const unreadMessages = myChatRooms.reduce((sum, room) => sum + (room.unreadCount || 0), 0);
 
   const dashboardPosts: MyPostDashboardItem[] | undefined =
     myPosts.length > 0
       ? myPosts.map((post) => ({
           id: post.id,
           type: post.type,
+          status: post.status as MyPostDashboardItem['status'],
           petName: post.petName || post.pet?.name || 'สัตว์เลี้ยง',
           petType: post.petType === 'CAT' ? 'แมว' : post.petType === 'DOG' ? 'สุนัข' : 'สัตว์เลี้ยง',
           breed: post.breed || post.pet?.breed || 'ไม่ระบุสายพันธุ์',
@@ -81,21 +82,12 @@ export default async function ProfileDashboardPage() {
 
         <DashboardMetrics
           totalPets={totalPets}
-          activePosts={activePosts || (user.stats?.totalLostPosts ?? 0)}
-          totalReunited={totalReunited || (user.stats?.totalReunited ?? 0)}
-          unreadMessages={0}
-          dogCount={dogCount}
-          catCount={catCount}
+          activeLostPosts={activeLostPosts}
+          activeFoundPosts={activeFoundPosts}
+          unreadMessages={unreadMessages}
         />
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          <div className="lg:col-span-7">
-            <DashboardMyPosts initialPosts={dashboardPosts} />
-          </div>
-          <div className="lg:col-span-5">
-            <DashboardAiMatches />
-          </div>
-        </div>
+        <DashboardMyPosts initialPosts={dashboardPosts} />
       </main>
     </div>
   );

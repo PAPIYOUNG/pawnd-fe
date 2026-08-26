@@ -2,8 +2,14 @@ import { PetProfile } from './pet';
 import { LatestPostItem } from './post';
 
 export type UserRole = 'USER' | 'ADMIN';
-export type UserStatus = 'PENDING_EMAIL_VERIFICATION' | 'ACTIVE' | 'SUSPENDED' | 'BLACKLISTED' | 'DELETED';
-export type VerificationStatus = 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+export type UserStatus =
+  | 'PENDING_EMAIL_VERIFICATION'
+  | 'ACTIVE'
+  | 'SUSPENDED'
+  | 'BLACKLISTED'
+  | 'DELETED';
+export type VerificationStatus =
+  'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
 
 /**
  * ข้อมูลโปรไฟล์ผู้ใช้งาน
@@ -14,6 +20,7 @@ export interface UserProfile {
   firstName: string;
   lastName: string;
   email: string;
+  hasPassword: boolean;
   phone?: string | null;
   address?: string | null;
   lineId?: string | null;

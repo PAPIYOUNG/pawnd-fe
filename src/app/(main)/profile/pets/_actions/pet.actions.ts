@@ -1,8 +1,15 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createPet, updatePet, deletePet, uploadPetImages } from '@/services/pet.service';
-import { CreatePetDto, PetProfile } from '@/types/pet';
+import {
+  createPet,
+  updatePet,
+  deletePet,
+  uploadPetImages,
+  generatePetQrCode,
+  deactivatePetQrCode,
+} from '@/services/pet.service';
+import { CreatePetDto, PetProfile, PetQrCode } from '@/types/pet';
 
 
 /**
@@ -117,6 +124,49 @@ export async function uploadPetImagesAction(
     const message =
       error instanceof Error ? error.message : 'ไม่สามารถอัปโหลดรูปภาพสัตว์เลี้ยงได้';
     console.error('[uploadPetImagesAction] error:', message);
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Server Action: สร้าง (หรือเปิดใช้งานใหม่) QR Code ประจำตัวสัตว์เลี้ยง
+ * - สัตว์เลี้ยงที่เพิ่งสร้างใหม่จะยังไม่มี qrCode จนกว่าผู้ใช้จะกดสร้างเอง
+ * - เรียกซ้ำได้เพื่อเปิดใช้งาน QR Code อีกครั้งหลังถูกปิดใช้งาน
+ *
+ * @param petId - รหัสสัตว์เลี้ยงที่ต้องการสร้าง QR Code
+ */
+export async function generatePetQrAction(
+  petId: string
+): Promise<ActionResponse<PetQrCode>> {
+  try {
+    const qrCode = await generatePetQrCode(petId);
+    revalidatePath('/profile/pets');
+    revalidatePath('/profile');
+    return { success: true, data: qrCode };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'ไม่สามารถสร้าง QR Code ได้';
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Server Action: ปิดใช้งาน QR Code ของสัตว์เลี้ยง
+ * - ใช้เมื่อป้ายปลอกคอสูญหายหรือไม่ต้องการให้คนสแกนเข้าถึงโปรไฟล์สาธารณะได้อีก
+ *
+ * @param petId - รหัสสัตว์เลี้ยงที่ต้องการปิดใช้งาน QR Code
+ */
+export async function deactivatePetQrAction(
+  petId: string
+): Promise<ActionResponse<PetQrCode>> {
+  try {
+    const qrCode = await deactivatePetQrCode(petId);
+    revalidatePath('/profile/pets');
+    revalidatePath('/profile');
+    return { success: true, data: qrCode };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'ไม่สามารถปิดใช้งาน QR Code ได้';
     return { success: false, error: message };
   }
 }

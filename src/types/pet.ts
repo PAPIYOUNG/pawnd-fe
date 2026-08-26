@@ -62,6 +62,37 @@ export interface PetProfile {
 }
 
 /**
+ * ข้อมูลติดต่อเจ้าของสัตว์เลี้ยงที่เปิดเผยได้ในหน้าโปรไฟล์สาธารณะ
+ * ตรงตาม PublicOwnerContactDto ของ Backend
+ */
+export interface PublicOwnerContact {
+  name: string;
+  phone: string | null;
+  lineId: string | null;
+  email: string;
+}
+
+/**
+ * ข้อมูลโปรไฟล์สัตว์เลี้ยงสาธารณะที่แสดงเมื่อสแกน Smart QR Tag
+ * ตรงตาม PublicPetProfileResponseDto ของ Backend (GET /pets/public/qr/:qrToken)
+ * มีข้อมูลจำกัดกว่า PetProfile เพราะเป็น endpoint สาธารณะที่ไม่ต้อง login
+ */
+export interface PublicPetProfile {
+  id: string;
+  name: string;
+  type: PetType;
+  breed: string | null;
+  gender: PetGender | null;
+  color: string | null;
+  age: number | null;
+  distinctiveFeatures: string | null;
+  description: string | null;
+  profileImageUrl: string | null;
+  images: PetImage[];
+  ownerContact: PublicOwnerContact;
+}
+
+/**
  * DTO สำหรับสร้างสัตว์เลี้ยงใหม่ (CreatePetDto)
  * ตรงตาม Backend create-pet.dto.ts
  */
