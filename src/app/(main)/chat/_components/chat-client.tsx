@@ -136,6 +136,7 @@ export function ChatClient({
 }: ChatClientProps) {
   const router = useRouter();
   const socketRef = useRef<Socket | null>(null);
+  const loginRedirectStartedRef = useRef(false);
   const joinedRoomIdsRef = useRef(new Set<string>());
   const selectedRoomIdRef = useRef<string | null>(initialRoomId ?? null);
   const messageLoadRequestRef = useRef(0);
@@ -163,6 +164,13 @@ export function ChatClient({
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   const [roomsError, setRoomsError] = useState<string | null>(null);
   const [messagesError, setMessagesError] = useState<string | null>(null);
+
+  /** ป้องกันหลาย request ที่หมดอายุพร้อมกันเรียก replace ซ้ำจนเกิด history loop */
+  const redirectToLogin = useCallback(() => {
+    if (loginRedirectStartedRef.current) return;
+    loginRedirectStartedRef.current = true;
+    router.replace('/login');
+  }, [router]);
 
   const selectedRoom = useMemo(
     () => rooms.find((room) => room.id === selectedRoomId) ?? null,
@@ -216,11 +224,11 @@ export function ChatClient({
         );
       } catch (error) {
         if (error instanceof ApiError && error.statusCode === 401) {
-          router.replace('/login');
+          redirectToLogin();
         }
       }
     },
-    [router],
+    [redirectToLogin],
   );
 
   /** โหลด inbox ใหม่เพื่อให้ latest message, order และ unread count ตรงกับ Backend */
@@ -243,13 +251,13 @@ export function ChatClient({
       });
     } catch (error) {
       if (error instanceof ApiError && error.statusCode === 401) {
-        router.replace('/login');
+        redirectToLogin();
       }
       setRoomsError(toErrorMessage(error, 'โหลดกล่องข้อความไม่สำเร็จ'));
     } finally {
       setIsRoomsLoading(false);
     }
-  }, [initialRoomId, router]);
+  }, [initialRoomId, redirectToLogin]);
 
   /** โหลดหน้าข้อความล่าสุดและกลับลำดับจาก newest-first เป็น oldest-first สำหรับ UI */
   const loadMessages = useCallback(
@@ -264,7 +272,7 @@ export function ChatClient({
       } catch (error) {
         if (requestId !== messageLoadRequestRef.current) return;
         if (error instanceof ApiError && error.statusCode === 401) {
-          router.replace('/login');
+          redirectToLogin();
         }
         setMessagesError(toErrorMessage(error, 'โหลดข้อความไม่สำเร็จ'));
       } finally {
@@ -273,7 +281,7 @@ export function ChatClient({
         }
       }
     },
-    [router],
+    [redirectToLogin],
   );
 
   /** ดึงข้อความล่าสุดแบบเบื้องหลังเมื่อ Socket.IO ใช้งานไม่ได้ */
@@ -291,10 +299,10 @@ export function ChatClient({
       await markRoomReadIfActive(roomId);
     } catch (error) {
       if (error instanceof ApiError && error.statusCode === 401) {
-        router.replace('/login');
+        redirectToLogin();
       }
     }
-  }, [markRoomReadIfActive, router]);
+  }, [markRoomReadIfActive, redirectToLogin]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadRooms(), 0);
@@ -486,7 +494,7 @@ export function ChatClient({
       });
     } catch (error) {
       if (error instanceof ApiError && error.statusCode === 401) {
-        router.replace('/login');
+        redirectToLogin();
       }
       setMessagesError(toErrorMessage(error, 'โหลดข้อความก่อนหน้าไม่สำเร็จ'));
     } finally {
@@ -552,7 +560,7 @@ export function ChatClient({
       releaseObjectUrl(previewUrl ?? null);
     } catch (error) {
       if (error instanceof ApiError && error.statusCode === 401) {
-        router.replace('/login');
+        redirectToLogin();
       }
       setMessages((current) =>
         current.map((message) =>
