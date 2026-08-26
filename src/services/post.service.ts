@@ -1,6 +1,14 @@
 import { apiFetch } from '@/lib/api/api-fetch';
 import { authFetch } from '@/lib/api/auth-fetch';
-import { LatestPostItem, PostStatus, PostType } from '@/types/post';
+import type {
+  CreatePostPayload,
+  CreatePostResponse,
+  LatestPostItem,
+  PostStatus,
+  PostType,
+} from '@/types/post';
+
+export type { CreatePostPayload } from '@/types/post';
 
 /**
  * Post Service — จัดการประกาศตามหาสัตว์เลี้ยง (Lost & Found Posts)
@@ -98,31 +106,6 @@ export interface SearchPostsParams extends PostQueryParams {
   maxReward?: number;
   eventFrom?: string;
   eventTo?: string;
-}
-
-/** DTO สำหรับสร้างโพสต์ใหม่ (ตรงตาม Backend CreatePostDto) */
-export interface CreatePostPayload {
-  type: PostType;
-  petId?: string;
-  petName?: string;
-  petType: string;
-  breed?: string;
-  gender?: string;
-  color?: string;
-  distinctiveFeatures?: string;
-  description?: string;
-  eventDate: string;
-  latitude: number;
-  longitude: number;
-  province?: string;
-  district?: string;
-  subdistrict?: string;
-  locationDescription?: string;
-  rewardAmount?: number;
-  currentLocation?: string;
-  contactPhone?: string;
-  contactLineId?: string;
-  contactEmail?: string;
 }
 
 /** Mock ข้อมูลรายการโพสต์จำลอง สำหรับ fallback เมื่อ Backend ไม่พร้อม */
@@ -271,8 +254,8 @@ export async function searchPosts(
  */
 export async function createPost(
   payload: CreatePostPayload,
-): Promise<PostDetail> {
-  return authFetch<PostDetail>('/posts', {
+): Promise<CreatePostResponse> {
+  return authFetch<CreatePostResponse>('/posts', {
     method: 'POST',
     body: payload as unknown as Record<string, unknown>,
   });
@@ -304,7 +287,7 @@ export async function deletePost(id: string): Promise<void> {
 
 /**
  * อัปโหลดรูปภาพเพิ่มเติมให้ประกาศ (POST /posts/:id/images)
- * รองรับสูงสุด 10 รูปต่อประกาศ (ตาม Backend FilesInterceptor)
+ * รองรับสูงสุด 3 รูปต่อประกาศ (ตาม business validation ใน Backend)
  * ส่งเป็น FormData (multipart/form-data)
  */
 export async function uploadPostImages(
