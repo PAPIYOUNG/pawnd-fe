@@ -25,7 +25,7 @@ export default function Footer() {
         {/* ส่วนเนื้อหาหลัก: Desktop วาง 4 กลุ่มในแถวเดียวเพื่อลดความสูงและน้ำหนักทางสายตาของ Footer */}
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-x-12 md:gap-y-8 lg:grid-cols-4 lg:items-start lg:gap-8 xl:gap-12">
           {/* กลุ่มแบรนด์: ลดขนาดโลโก้และคำอธิบายให้เป็นข้อมูลรองของหน้า */}
-          <section className="flex flex-col items-center text-center lg:flex-row lg:items-start lg:gap-4 lg:text-left">
+          <section className="flex flex-col items-center text-center lg:self-center lg:flex-row lg:items-center lg:gap-5 lg:text-left">
             <Link
               href="/"
               aria-label="กลับสู่หน้าแรก PAWND"
@@ -36,10 +36,10 @@ export default function Footer() {
                 alt="โลโก้ PAWND"
                 width={1376}
                 height={1143}
-                className="h-auto w-16 object-contain"
+                className="h-auto w-18 object-contain"
               />
             </Link>
-            <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/70 lg:mt-0 lg:max-w-52">
+            <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/70 lg:mt-0 lg:max-w-56">
               ศูนย์กลางช่วยค้นหาสัตว์เลี้ยงหาย
               เพราะทุกชีวิตควรได้กลับบ้านอย่างปลอดภัย
             </p>
