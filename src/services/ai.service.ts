@@ -1,4 +1,6 @@
 import { authFetch } from '@/lib/api/auth-fetch';
+
+import { PetAvatarItem } from '@/types/pet';
 import { PetType, PostType, PostImageItem } from '@/types/post';
 
 /**
@@ -21,7 +23,9 @@ export interface AiAnalysisResult {
  * (สำหรับรูปที่ยังไม่ได้อัปโหลด เนื่องจากยังไม่มีประกาศให้ผูกไฟล์ด้วย)
  * @param imageUrl — URL หรือ Base64 Data URL ของรูปภาพที่ต้องการวิเคราะห์
  */
-export async function analyzeImage(imageUrl: string): Promise<AiAnalysisResult> {
+export async function analyzeImage(
+  imageUrl: string,
+): Promise<AiAnalysisResult> {
   return authFetch<AiAnalysisResult>('/ai/analyze-image', {
     method: 'POST',
     body: { imageUrl },
@@ -40,12 +44,15 @@ export interface GeneratePetAvatarDto {
  * ผลลัพธ์จากการเจนภาพ Avatar สัตว์เลี้ยงจาก Backend
  */
 export interface GeneratePetAvatarResponse {
+  id?: string;
   petId: string;
   sourceImages: { id: string; imageUrl: string }[];
   avatar: {
+    id?: string;
     imageUrl: string;
     model: string;
     style: string;
+    createdAt?: string;
   };
   quota: {
     used: number;
@@ -62,11 +69,23 @@ export interface GeneratePetAvatarResponse {
  * @param dto — { petId: string, imageUrls: string[] }
  */
 export async function generatePetAvatar(
-  dto: GeneratePetAvatarDto
+  dto: GeneratePetAvatarDto,
 ): Promise<GeneratePetAvatarResponse> {
   return authFetch<GeneratePetAvatarResponse>('/ai/generate-pet-avatar', {
     method: 'POST',
     body: dto as unknown as Record<string, unknown>,
+  });
+}
+
+/**
+ * ดึงรายการภาพ AI Avatar ทั้งหมดของผู้ใช้ปัจจุบัน เรียงตามลำดับเวลาล่าสุด (GET /ai/my-avatars)
+ * - เรียกใช้ endpoint สำหรับดึงประวัติรูป Avatar ในอัลบั้มของผู้ใช้
+ * @returns รายการภาพ AI Avatar (PetAvatarItem[])
+ */
+export async function getMyAvatars(): Promise<PetAvatarItem[]> {
+  return authFetch<PetAvatarItem[]>('/ai/my-avatars', {
+    method: 'GET',
+    cache: 'no-store',
   });
 }
 
@@ -112,7 +131,7 @@ export interface SearchByImageParams {
  */
 export async function searchByImage(
   file: File,
-  params: SearchByImageParams = {}
+  params: SearchByImageParams = {},
 ): Promise<AiSearchByImageResult> {
   const formData = new FormData();
   formData.append('image', file);
@@ -127,7 +146,6 @@ export async function searchByImage(
     {
       method: 'POST',
       body: formData as unknown as Record<string, unknown>,
-    }
+    },
   );
 }
-

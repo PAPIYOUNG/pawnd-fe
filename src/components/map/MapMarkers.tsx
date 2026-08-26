@@ -17,7 +17,11 @@ interface MapPostMarkerProps {
   onMarkerReady: (postId: string, marker: L.Marker | null) => void;
   /** ตั้ง guard ก่อน marker click เริ่ม flyTo */
   beginProgrammaticMovement: (publishViewportOnEnd: boolean) => void;
+  /** ส่งพิกัดของ marker ให้หน้าที่เปิดโหมดเลือกตำแหน่ง */
+  onLocationSelect?: LocationSelectHandler;
 }
+
+export type LocationSelectHandler = (location: CurrentLocation) => void;
 
 interface MapMarkersProps {
   /** marker ของประกาศที่ผ่านตัวกรองและพร้อม render */
@@ -32,9 +36,17 @@ interface MapMarkersProps {
   onMarkerReady: (postId: string, marker: L.Marker | null) => void;
   /** guard ของ movement ที่โค้ดเป็นผู้เริ่ม */
   beginProgrammaticMovement: (publishViewportOnEnd: boolean) => void;
+  /** ส่งพิกัดเมื่อผู้ใช้เลือก marker ประกาศ */
+  onLocationSelect?: LocationSelectHandler;
   /** ตำแหน่งผู้ใช้และ icon สีน้ำเงินที่แสดงแยกจากประกาศ */
   currentLocation?: CurrentLocation | null;
   currentLocationIcon: L.DivIcon;
+  /** จุดที่ผู้ใช้เลือกเป็นตำแหน่งประกาศและ icon สีส้ม */
+  selectedLocation?: CurrentLocation | null;
+  selectedLocationIcon: L.DivIcon;
+  /** จุดจากผลค้นหา ใช้เลื่อนแผนที่และซ้อนกับหมุดที่เลือกชั่วคราว */
+  searchLocation?: CurrentLocation | null;
+  searchLocationIcon: L.DivIcon;
 }
 
 /** Marker หนึ่งจุดที่คง click → flyTo และ popup behavior เดิม */
@@ -43,6 +55,7 @@ function MapPostMarker({
   icon,
   onMarkerReady,
   beginProgrammaticMovement,
+  onLocationSelect,
 }: MapPostMarkerProps) {
   const map = useMap();
   const [longitude, latitude] = feature.geometry.coordinates;
@@ -54,6 +67,8 @@ function MapPostMarker({
     [onMarkerReady, postId],
   );
   const handleMarkerClick = useCallback(() => {
+    onLocationSelect?.({ latitude, longitude });
+
     const focusTarget = getMapFocusTarget(
       map,
       latitude,
@@ -66,7 +81,7 @@ function MapPostMarker({
 
     beginProgrammaticMovement(true);
     map.flyTo(focusTarget.center, focusTarget.zoom, { animate: true });
-  }, [beginProgrammaticMovement, latitude, longitude, map]);
+  }, [beginProgrammaticMovement, latitude, longitude, map, onLocationSelect]);
   const eventHandlers = useMemo<L.LeafletEventHandlerFnMap>(
     () => ({ click: handleMarkerClick }),
     [handleMarkerClick],
@@ -77,6 +92,7 @@ function MapPostMarker({
       ref={handleMarkerRef}
       position={[latitude, longitude]}
       icon={icon}
+      bubblingMouseEvents={!onLocationSelect}
       eventHandlers={eventHandlers}
     >
       <MapMarkerPopup feature={feature} />
@@ -92,17 +108,59 @@ export function MapMarkers({
   selectedMarkerIcon,
   onMarkerReady,
   beginProgrammaticMovement,
+  onLocationSelect,
   currentLocation,
   currentLocationIcon,
+  selectedLocation,
+  selectedLocationIcon,
+  searchLocation,
+  searchLocationIcon,
 }: MapMarkersProps) {
   return (
     <>
+      {/* marker จากผลค้นหา ไม่ถือเป็นพิกัดที่เลือกจนกว่าจะคลิกบนแผนที่ */}
+      {searchLocation &&
+        (!selectedLocation ||
+          searchLocation.latitude !== selectedLocation.latitude ||
+          searchLocation.longitude !== selectedLocation.longitude) && (
+          <Marker
+            position={[searchLocation.latitude, searchLocation.longitude]}
+            icon={searchLocationIcon}
+            title="ผลการค้นหาสถานที่"
+            zIndexOffset={900}
+            bubblingMouseEvents={false}
+          >
+            <Popup>จุดจากผลค้นหา</Popup>
+          </Marker>
+        )}
+
+      {/* marker สีส้มของจุดที่ผู้ใช้เลือกเป็นตำแหน่งประกาศ */}
+      {selectedLocation && (
+        <Marker
+          position={[selectedLocation.latitude, selectedLocation.longitude]}
+          icon={selectedLocationIcon}
+          title="ตำแหน่งประกาศที่เลือก"
+          zIndexOffset={1000}
+          bubblingMouseEvents={false}
+        >
+          <Popup>ตำแหน่งประกาศที่เลือก</Popup>
+        </Marker>
+      )}
+
       {/* marker สีน้ำเงินของผู้ใช้ ไม่มีการส่งหรือบันทึกพิกัดนอก React state */}
       {currentLocation && (
         <Marker
           position={[currentLocation.latitude, currentLocation.longitude]}
           icon={currentLocationIcon}
           title="ตำแหน่งปัจจุบันของคุณ"
+          bubblingMouseEvents={false}
+          eventHandlers={
+            onLocationSelect
+              ? {
+                  click: () => onLocationSelect(currentLocation),
+                }
+              : undefined
+          }
         >
           <Popup>ตำแหน่งปัจจุบันของคุณ</Popup>
         </Marker>
@@ -130,6 +188,7 @@ export function MapMarkers({
             icon={isSelected && selectedMarkerIcon ? selectedMarkerIcon : icon}
             onMarkerReady={onMarkerReady}
             beginProgrammaticMovement={beginProgrammaticMovement}
+            onLocationSelect={onLocationSelect}
           />
         );
       })}
