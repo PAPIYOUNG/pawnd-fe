@@ -152,17 +152,49 @@ export async function getCurrentUser(): Promise<UserProfile> {
 
 /**
  * อัปเดตข้อมูลโปรไฟล์ผู้ใช้ (PATCH /users/me)
- * @param data — ข้อมูลที่ต้องการแก้ไข (firstName, lastName, phone, address)
+ * @param data — ข้อมูลที่ต้องการแก้ไข (firstName, lastName, phone, lineId, address)
+ * หมายเหตุ: Backend DTO (UpdateProfileDto) เป็น whitelist validation รับเฉพาะฟิลด์ที่ประกาศไว้เท่านั้น
+ * ห้ามส่ง role, status, createdAt, id — Backend จะ throw 400 'property ... should not exist' ทันที
+ * ส่วนอีเมลใช้ endpoint แยก (requestEmailChange / confirmEmailChange) เพราะต้องยืนยันตัวตนด้วย OTP ก่อน
  */
 export async function updateUserProfile(data: {
   firstName?: string;
   lastName?: string;
   phone?: string;
+  lineId?: string;
   address?: string;
 }): Promise<UpdateProfileResponse> {
   return authFetch<UpdateProfileResponse>('/users/me', {
     method: 'PATCH',
     body: data as Record<string, unknown>,
+  });
+}
+
+/**
+ * ขอเปลี่ยนอีเมล (PATCH /users/me/email)
+ * Backend จะสร้าง OTP และส่งไปยังอีเมลใหม่ (ยังไม่เปลี่ยนอีเมลจริงในฐานข้อมูลจนกว่าจะยืนยัน OTP สำเร็จ)
+ * @param newEmail — อีเมลใหม่ที่ต้องการเปลี่ยนไปใช้
+ */
+export async function requestEmailChange(
+  newEmail: string
+): Promise<{ message: string }> {
+  return authFetch<{ message: string }>('/users/me/email', {
+    method: 'PATCH',
+    body: { email: newEmail },
+  });
+}
+
+/**
+ * ยืนยัน OTP เพื่อยืนยันการเปลี่ยนอีเมล (POST /users/me/email/verify)
+ * เมื่อสำเร็จ Backend จะอัปเดตอีเมลในฐานข้อมูลให้ทันที
+ * @param otp — รหัส OTP 6 หลักที่ได้รับทางอีเมลใหม่
+ */
+export async function confirmEmailChange(
+  otp: string
+): Promise<{ message: string }> {
+  return authFetch<{ message: string }>('/users/me/email/verify', {
+    method: 'POST',
+    body: { otp },
   });
 }
 

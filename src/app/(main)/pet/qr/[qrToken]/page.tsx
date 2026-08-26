@@ -4,15 +4,13 @@ import Link from 'next/link';
 import {
   Phone,
   MessageCircle,
-  MapPin,
-  ShieldCheck,
-  AlertTriangle,
-  Heart,
   ChevronLeft,
+  AlertTriangle,
+  QrCode,
 } from 'lucide-react';
 
-import { MOCK_PETS } from '@/services/pet.service';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { getPublicPetProfile } from '@/services/pet.service';
+import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface PublicPetPageProps {
@@ -32,15 +30,44 @@ export async function generateMetadata({
 /**
  * PublicPetProfilePage (Server Component - RSC)
  * - หน้าโปรไฟล์สาธารณะที่เปิดขึ้นทันทีเมื่อมีผู้สแกน Smart QR Tag บนปลอกคอสัตว์เลี้ยง
- * - แสดงข้อมูลสัตว์เลี้ยง รูปถ่าย และปุ่มติดต่อเจ้าของฉุกเฉิน (โทรออก, LINE, ส่งพิกัด)
+ * - ดึงข้อมูลจริงจาก Backend ผ่าน GET /pets/public/qr/:qrToken (Public endpoint ไม่ต้อง login)
+ * - แสดงข้อมูลสัตว์เลี้ยง รูปถ่าย และปุ่มติดต่อเจ้าของฉุกเฉิน (โทรออก, LINE)
+ * - หาก QR Token ไม่ถูกต้องหรือถูกปิดใช้งาน จะแสดง Empty State แทน
  */
 export default async function PublicPetProfilePage({ params }: PublicPetPageProps) {
   const { qrToken } = await params;
+  const pet = await getPublicPetProfile(qrToken);
 
-  // ค้นหาสัตว์เลี้ยงจาก Mock หรือ Backend ตาม qrToken
-  const pet =
-    MOCK_PETS.find((p) => p.qrCode?.qrToken === qrToken) ||
-    MOCK_PETS[0];
+  // Empty State: ไม่พบสัตว์เลี้ยงจาก QR Token นี้ หรือ QR Code ถูกปิดใช้งานไปแล้ว
+  if (!pet) {
+    return (
+      <div className="mx-auto flex max-w-xl flex-col items-center px-4 py-16 text-center sm:py-24">
+        <div className="flex size-16 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+          <QrCode className="size-8" />
+        </div>
+        <h1 className="mt-6 text-xl font-bold text-foreground">
+          ไม่พบข้อมูลสัตว์เลี้ยง
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Smart QR Tag นี้อาจไม่ถูกต้อง หรือถูกปิดใช้งานโดยเจ้าของแล้ว
+        </p>
+        <Link href="/" className={cn(buttonVariants({ variant: 'default' }), 'mt-6 rounded-2xl')}>
+          กลับหน้าหลัก PAWND
+        </Link>
+      </div>
+    );
+  }
+
+  const typeLabel = pet.type === 'DOG' ? 'สุนัข' : pet.type === 'CAT' ? 'แมว' : 'สัตว์เลี้ยง';
+  const genderLabel =
+    pet.gender === 'MALE' ? 'เพศผู้' : pet.gender === 'FEMALE' ? 'เพศเมีย' : 'ไม่ระบุเพศ';
+  const displayImageUrl =
+    pet.profileImageUrl ||
+    pet.images[0]?.imageUrl ||
+    'https://images.unsplash.com/photo-1543852786-1cf6624b9987?q=80&w=800&auto=format&fit=crop';
+
+  const { ownerContact } = pet;
+  const hasContact = Boolean(ownerContact.phone || ownerContact.lineId);
 
   return (
     <div className="mx-auto max-w-xl px-4 py-8 sm:py-12">
@@ -73,11 +100,7 @@ export default async function PublicPetProfilePage({ params }: PublicPetPageProp
         {/* รูปถ่ายสัตว์เลี้ยง */}
         <div className="relative h-64 w-full overflow-hidden bg-muted sm:h-72">
           <Image
-            src={
-              pet.coverImageUrl ||
-              pet.profileImageUrl ||
-              'https://images.unsplash.com/photo-1543852786-1cf6624b9987?q=80&w=800&auto=format&fit=crop'
-            }
+            src={displayImageUrl}
             alt={pet.name}
             fill
             className="object-cover"
@@ -92,7 +115,8 @@ export default async function PublicPetProfilePage({ params }: PublicPetPageProp
               {pet.name}
             </h1>
             <p className="text-xs text-white/90 sm:text-sm">
-              {pet.type === 'CAT' ? 'แมว' : 'สุนัข'} • {pet.breed}
+              {typeLabel}
+              {pet.breed ? ` • ${pet.breed}` : ''}
             </p>
           </div>
         </div>
@@ -102,22 +126,22 @@ export default async function PublicPetProfilePage({ params }: PublicPetPageProp
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-2xl bg-muted/50 p-3">
               <span className="text-xs text-muted-foreground">เพศ</span>
-              <p className="font-bold text-foreground">
-                {pet.gender === 'FEMALE' ? 'เพศเมีย' : 'เพศผู้'}
-              </p>
+              <p className="font-bold text-foreground">{genderLabel}</p>
             </div>
             <div className="rounded-2xl bg-muted/50 p-3">
               <span className="text-xs text-muted-foreground">สี / ลวดลาย</span>
-              <p className="font-bold text-foreground">{pet.color || 'สีครีม'}</p>
+              <p className="font-bold text-foreground">{pet.color || 'ไม่ระบุ'}</p>
             </div>
             <div className="rounded-2xl bg-muted/50 p-3">
               <span className="text-xs text-muted-foreground">อายุ</span>
-              <p className="font-bold text-foreground">{pet.age || 1} ปี</p>
+              <p className="font-bold text-foreground">
+                {pet.age !== null ? `${pet.age} ปี` : 'ไม่ระบุ'}
+              </p>
             </div>
             <div className="rounded-2xl bg-muted/50 p-3">
-              <span className="text-xs text-muted-foreground">สถานะวัคซีน</span>
-              <p className="font-bold text-emerald-600 dark:text-emerald-400">
-                ฉีดวัคซีนครบถ้วน
+              <span className="text-xs text-muted-foreground">เจ้าของ</span>
+              <p className="line-clamp-1 font-bold text-foreground">
+                {ownerContact.name || 'ไม่ระบุ'}
               </p>
             </div>
           </div>
@@ -137,26 +161,36 @@ export default async function PublicPetProfilePage({ params }: PublicPetPageProp
               ช่องทางติดต่อเจ้าของฉุกเฉิน
             </h3>
 
-            <a
-              href="tel:0812345678"
-              className={cn(
-                buttonVariants({ variant: 'default', size: 'lg' }),
-                'h-12 w-full gap-2 rounded-2xl bg-primary text-base font-bold text-primary-foreground shadow-md hover:bg-primary/90'
-              )}
-            >
-              <Phone className="size-5" />
-              <span>โทรหาเจ้าของทันที (081-234-XXXX)</span>
-            </a>
+            {ownerContact.phone && (
+              <a
+                href={`tel:${ownerContact.phone}`}
+                className={cn(
+                  buttonVariants({ variant: 'default', size: 'lg' }),
+                  'h-12 w-full gap-2 rounded-2xl bg-primary text-base font-bold text-primary-foreground shadow-md hover:bg-primary/90'
+                )}
+              >
+                <Phone className="size-5" />
+                <span>โทรหาเจ้าของทันที ({ownerContact.phone})</span>
+              </a>
+            )}
 
-            <a
-              href="https://line.me"
-              target="_blank"
-              rel="noreferrer"
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#06C755] font-bold text-white shadow-md transition-colors hover:bg-[#05b34c]"
-            >
-              <MessageCircle className="size-5" />
-              <span>แชทผ่าน LINE กับเจ้าของ</span>
-            </a>
+            {ownerContact.lineId && (
+              <a
+                href={`https://line.me/ti/p/~${ownerContact.lineId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#06C755] font-bold text-white shadow-md transition-colors hover:bg-[#05b34c]"
+              >
+                <MessageCircle className="size-5" />
+                <span>แชทผ่าน LINE กับเจ้าของ</span>
+              </a>
+            )}
+
+            {!hasContact && (
+              <p className="text-center text-xs text-muted-foreground">
+                เจ้าของยังไม่ได้เปิดเผยช่องทางติดต่อสาธารณะ
+              </p>
+            )}
           </div>
         </div>
       </div>

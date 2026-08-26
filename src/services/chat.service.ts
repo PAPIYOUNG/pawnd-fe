@@ -1,8 +1,12 @@
+import { unstable_rethrow } from 'next/navigation';
+
 import { ApiError } from '@/lib/api/api-error';
+import { authFetch } from '@/lib/api/auth-fetch';
 import type {
   ChatMessageResponse,
   ChatMessagesResponse,
   ChatReadResponse,
+  ChatRoom,
   ChatRoomResponse,
   ChatRoomsResponse,
 } from '@/types/chat';
@@ -62,6 +66,22 @@ export function createOrGetChatRoom(postId: string): Promise<ChatRoomResponse> {
 
 export function getChatRooms(): Promise<ChatRoomsResponse> {
   return chatFetch<ChatRoomsResponse>('rooms');
+}
+
+/**
+ * ดึงรายการห้องแชท (GET /chat/rooms) สำหรับใช้ฝั่ง Server Component เช่นหน้า Dashboard
+ * ต่างจาก getChatRooms() ด้านบนซึ่งยิงผ่าน /api/chat proxy ที่ใช้ได้เฉพาะฝั่ง Client Component
+ * (relative URL ใช้งานไม่ได้ตอน fetch บน Server) จุดนี้เรียก Backend ตรงผ่าน authFetch แทน
+ * แต่ละห้องมี unreadCount ให้รวมกันเป็นจำนวนข้อความที่ยังไม่อ่านทั้งหมดของผู้ใช้
+ */
+export async function getMyChatRooms(): Promise<ChatRoom[]> {
+  try {
+    const { rooms } = await authFetch<ChatRoomsResponse>('/chat/rooms');
+    return rooms;
+  } catch (err) {
+    unstable_rethrow(err);
+    return [];
+  }
 }
 
 export function getChatRoom(roomId: string): Promise<ChatRoomResponse> {

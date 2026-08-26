@@ -22,7 +22,9 @@ import {
 } from '../_actions/settings.actions';
 
 interface SettingsFormProps {
+  /** ค่าเริ่มต้นการแจ้งเตือน ดึงมาจาก Backend (GET /users/me) ผ่าน Server Component ชั้นบน */
   initialNotificationEnabled: boolean;
+  /** ค่าเริ่มต้นการยืนยันตัวตนสองชั้น ดึงมาจาก Backend (GET /users/me) ผ่าน Server Component ชั้นบน */
   initialTwoFactorEnabled: boolean;
   hasPassword: boolean;
 }
@@ -33,6 +35,11 @@ interface SettingsFormProps {
  * - รับ initialSettings ที่ดึงมาจาก Backend จริงผ่าน Server Component
  * - ลบบัญชี: บัญชีที่มีรหัสผ่านให้กรอกรหัสผ่านยืนยัน ส่วนบัญชี Google/LINE ล้วน (ไม่มีรหัสผ่าน)
  *   ให้พิมพ์อีเมลตัวเองยืนยันแทน
+ * - ฟอร์มตั้งค่าระบบและบัญชีผู้ใช้งาน (การแจ้งเตือน, 2FA, เปลี่ยนรหัสผ่าน)
+ * - รับค่าเริ่มต้นจริงจาก Backend ผ่าน props (แทนการ hardcode) เพื่อให้ Toggle
+ *   แสดงสถานะปัจจุบันของผู้ใช้ถูกต้องตั้งแต่โหลดหน้าครั้งแรก
+ * - เชื่อมต่อ Backend API ผ่าน Server Actions (saveSettingsAction, changePasswordAction)
+ *   ซึ่งเรียก PATCH /users/me/settings และ PATCH /users/me/password ตามลำดับ
  */
 export function SettingsForm({
   initialNotificationEnabled,
@@ -45,7 +52,9 @@ export function SettingsForm({
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(
     initialTwoFactorEnabled,
   );
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  // สถานะกำลังบันทึกแยกตาม toggle เพื่อ disable เฉพาะตัวที่กำลังยิง API อยู่
+  const [isSavingNotification, setIsSavingNotification] = useState(false);
+  const [isSavingTwoFactor, setIsSavingTwoFactor] = useState(false);
   const [settingsFeedback, setSettingsFeedback] = useState<{
     type: 'success' | 'error';
     message: string;
@@ -71,32 +80,39 @@ export function SettingsForm({
     message: string;
   } | null>(null);
 
-  // บันทึกการตั้งค่าการแจ้งเตือนและ 2FA ไปยัง Backend
-  const handleSaveSettings = async () => {
-    setIsSavingSettings(true);
+  // สลับ toggle การแจ้งเตือน แล้วยิง Server Action ทันที (Optimistic Update)
+  const handleToggleNotification = async (checked: boolean) => {
+    setNotificationEnabled(checked);
+    setIsSavingNotification(true);
     setSettingsFeedback(null);
 
-    const res = await saveSettingsAction({
-      notificationEnabled,
-      twoFactorEnabled,
-    });
+    const res = await saveSettingsAction({ notificationEnabled: checked });
 
-    setIsSavingSettings(false);
-    if (res.success) {
-      setSettingsFeedback({
-        type: 'success',
-        message: 'บันทึกการตั้งค่าระบบเรียบร้อยแล้ว',
-      });
-      setTimeout(() => setSettingsFeedback(null), 4000);
-    } else {
-      setSettingsFeedback({
-        type: 'error',
-        message: res.error || 'เกิดข้อผิดพลาดในการบันทึก',
-      });
+    setIsSavingNotification(false);
+    if (!res.success) {
+      // ถ้าบันทึกไม่สำเร็จ ให้ย้อนค่ากลับไปเป็นค่าเดิมก่อนหน้า เพื่อไม่ให้ UI ค้างสถานะที่ไม่ตรงกับ Backend
+      setNotificationEnabled(!checked);
+      setSettingsFeedback({ type: 'error', message: res.error || 'เกิดข้อผิดพลาดในการบันทึก' });
     }
   };
 
-  // บันทึกการเปลี่ยนรหัสผ่านไปยัง Backend
+  // สลับ toggle 2FA แล้วยิง Server Action ทันที (Optimistic Update)
+  const handleToggleTwoFactor = async (checked: boolean) => {
+    setTwoFactorEnabled(checked);
+    setIsSavingTwoFactor(true);
+    setSettingsFeedback(null);
+
+    const res = await saveSettingsAction({ twoFactorEnabled: checked });
+
+    setIsSavingTwoFactor(false);
+    if (!res.success) {
+      // ถ้าบันทึกไม่สำเร็จ ให้ย้อนค่ากลับไปเป็นค่าเดิมก่อนหน้า เพื่อไม่ให้ UI ค้างสถานะที่ไม่ตรงกับ Backend
+      setTwoFactorEnabled(!checked);
+      setSettingsFeedback({ type: 'error', message: res.error || 'เกิดข้อผิดพลาดในการบันทึก' });
+    }
+  };
+
+  // บันทึกการเปลี่ยนรหัสผ่าน
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsChangingPassword(true);
@@ -110,19 +126,13 @@ export function SettingsForm({
 
     setIsChangingPassword(false);
     if (res.success) {
-      setPasswordFeedback({
-        type: 'success',
-        message: res.message || 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว',
-      });
+      setPasswordFeedback({ type: 'success', message: res.message || 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว' });
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setTimeout(() => setPasswordFeedback(null), 4000);
     } else {
-      setPasswordFeedback({
-        type: 'error',
-        message: res.error || 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน',
-      });
+      setPasswordFeedback({ type: 'error', message: res.error || 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน' });
     }
   };
 
@@ -149,20 +159,10 @@ export function SettingsForm({
   };
 
   return (
-    <div className="flex max-w-2xl flex-col gap-8">
-      {/* ส่วนหัวหน้าตั้งค่า */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-          ตั้งค่าระบบ
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground sm:text-base">
-          จัดการความเป็นส่วนตัว การแจ้งเตือน และความปลอดภัยของบัญชีผู้ใช้งาน
-        </p>
-      </div>
-
+    <>
       {settingsFeedback && (
         <div
-          className={`flex items-center gap-2 rounded-2xl p-4 text-sm font-semibold animate-in fade-in duration-200 ${
+          className={`flex items-center gap-2 rounded-2xl p-4 text-sm font-semibold ${
             settingsFeedback.type === 'success'
               ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
               : 'bg-destructive/15 text-destructive'
@@ -199,7 +199,8 @@ export function SettingsForm({
           </div>
           <Switch
             checked={notificationEnabled}
-            onCheckedChange={setNotificationEnabled}
+            onCheckedChange={handleToggleNotification}
+            disabled={isSavingNotification}
             aria-label="เปิด-ปิดการแจ้งเตือนในระบบ"
           />
         </div>
@@ -220,31 +221,15 @@ export function SettingsForm({
           </div>
           <Switch
             checked={twoFactorEnabled}
-            onCheckedChange={setTwoFactorEnabled}
+            onCheckedChange={handleToggleTwoFactor}
+            disabled={isSavingTwoFactor}
             aria-label="เปิด-ปิดการยืนยันตัวตนสองชั้น"
           />
-        </div>
-
-        <div className="flex justify-end pt-2">
-          <Button
-            type="button"
-            onClick={handleSaveSettings}
-            disabled={isSavingSettings}
-            className="gap-2 rounded-2xl bg-primary px-6 font-semibold text-primary-foreground shadow-md hover:bg-primary/90"
-          >
-            {isSavingSettings && <Loader2 className="size-4 animate-spin" />}
-            <span>
-              {isSavingSettings ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
-            </span>
-          </Button>
         </div>
       </div>
 
       {/* 2. การเปลี่ยนรหัสผ่าน */}
-      <form
-        onSubmit={handleChangePassword}
-        className="flex flex-col gap-4 rounded-3xl border border-border/80 bg-card p-6 shadow-sm dark:border-border/60"
-      >
+      <form onSubmit={handleChangePassword} className="flex flex-col gap-4 rounded-3xl border border-border/80 bg-card p-6 shadow-sm dark:border-border/60">
         <div className="flex items-center gap-2.5">
           <Lock className="size-5 text-primary" />
           <h3 className="text-lg font-bold text-foreground">เปลี่ยนรหัสผ่าน</h3>
@@ -252,7 +237,7 @@ export function SettingsForm({
 
         {passwordFeedback && (
           <div
-            className={`flex items-center gap-2 rounded-2xl p-3.5 text-xs font-semibold animate-in fade-in duration-200 ${
+            className={`flex items-center gap-2 rounded-2xl p-3.5 text-xs font-semibold ${
               passwordFeedback.type === 'success'
                 ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
                 : 'bg-destructive/15 text-destructive'
@@ -397,6 +382,6 @@ export function SettingsForm({
           </div>
         </form>
       )}
-    </div>
+    </>
   );
 }
