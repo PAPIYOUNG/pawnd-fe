@@ -1,11 +1,10 @@
 import { Metadata } from 'next';
-import { Edit3 } from 'lucide-react';
 import { getCurrentUser } from '@/services/user.service';
 import { getMyPets } from '@/services/pet.service';
-import { Button } from '@/components/ui/button';
 import { UserProfileHeader } from './_components/user-profile-header';
 import { UserProfileDetailsGrid } from './_components/user-profile-details-grid';
 import { UserMyPetsGrid } from './_components/user-my-pets-grid';
+import { EditProfileModal } from './_components/edit-profile-modal';
 
 export const metadata: Metadata = {
   title: 'โปรไฟล์ของฉัน | PAWND',
@@ -35,16 +34,9 @@ export default async function ProfileOverviewPage() {
 
         <UserProfileDetailsGrid user={user} />
 
-        {/* ปุ่มแก้ไขโปรไฟล์ อยู่ด้านล่างสุดของกรอบ */}
+        {/* ปุ่มแก้ไขโปรไฟล์ อยู่ด้านล่างสุดของกรอบ (พร้อม Modal ฟอร์มแก้ไข) */}
         <div className="flex justify-end border-t border-border/60 pt-5">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 min-h-10 w-full rounded-2xl border-border px-5 text-xs font-semibold shadow-2xs sm:w-auto sm:text-sm hover:bg-muted"
-          >
-            <Edit3 className="size-3.5 mr-1.5" />
-            <span>แก้ไขโปรไฟล์</span>
-          </Button>
+          <EditProfileModal user={user} />
         </div>
       </div>
 

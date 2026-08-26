@@ -4,12 +4,12 @@ interface UserProfileDetailsGridProps {
   user: UserProfile;
 }
 
-const ROLE_LABEL: Record<UserProfile['role'], string> = {
+export const ROLE_LABEL: Record<UserProfile['role'], string> = {
   USER: 'ผู้ใช้งานทั่วไป',
   ADMIN: 'ผู้ดูแลระบบ',
 };
 
-const STATUS_LABEL: Record<UserProfile['status'], string> = {
+export const STATUS_LABEL: Record<UserProfile['status'], string> = {
   PENDING_EMAIL_VERIFICATION: 'รอยืนยันอีเมล',
   ACTIVE: 'ใช้งานได้ปกติ',
   SUSPENDED: 'ถูกระงับการใช้งาน',
