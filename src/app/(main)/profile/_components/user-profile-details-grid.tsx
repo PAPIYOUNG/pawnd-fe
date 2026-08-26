@@ -38,7 +38,6 @@ export function UserProfileDetailsGrid({ user }: UserProfileDetailsGridProps) {
     { title: 'เบอร์โทรศัพท์', value: user.phone || 'ไม่ระบุ' },
     { title: 'LINE ID', value: user.lineId || 'ไม่ระบุ' },
     { title: 'ที่อยู่', value: user.address || 'ไม่ระบุ' },
-    { title: 'ลิงก์รูปโปรไฟล์', value: user.avatarUrl || 'ไม่ระบุ' },
     { title: 'บทบาท', value: ROLE_LABEL[user.role] },
     { title: 'สถานะบัญชี', value: STATUS_LABEL[user.status] },
     { title: 'วันที่สมัครสมาชิก', value: createdAtFull },
