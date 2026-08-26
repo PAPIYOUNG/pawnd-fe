@@ -36,6 +36,7 @@ export function UserProfileHeader({ user }: UserProfileHeaderProps) {
             }
             alt={`${user.firstName} ${user.lastName}`}
             fill
+            sizes="(min-width: 640px) 88px, 64px"
             className="object-cover"
             priority
           />

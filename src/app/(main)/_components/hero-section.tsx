@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Plus, Search } from 'lucide-react';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -86,6 +87,16 @@ export function HeroSection() {
       {/* 2. การ์ดกระจกฝ้าโปร่งแสงจัดกึ่งกลาง (Centered Translucent Frosted Glass Card) */}
       <div className="relative z-10 mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col items-center gap-6 rounded-3xl border border-white/60 bg-white/55 p-8 text-center shadow-xl backdrop-blur-md transition-colors duration-300 sm:p-10 lg:p-12 dark:border-white/10 dark:bg-[#0E281C]/65 dark:shadow-2xl">
+          {/* แอนิเมชัน Lottie 'No Search Results' ด้านบนหัวข้อหลักตามที่ระบุในตำแหน่งวงกลมสีแดง */}
+          <div className="size-32 sm:size-40 -mb-4 flex items-center justify-center pointer-events-none select-none">
+            <DotLottieReact
+              src="/animations/no-search-results.json"
+              loop
+              autoplay
+              className="size-full object-contain"
+            />
+          </div>
+
           {/* หัวข้อหลักประจำหน้าเว็บ */}
           <h1 className="text-3xl font-extrabold tracking-tight text-[#164E36] drop-shadow-xs sm:text-4xl lg:text-5xl lg:leading-[1.25] dark:text-[#6EE7B7]">
             ช่วยสัตว์เลี้ยงกลับบ้านอย่างปลอดภัย

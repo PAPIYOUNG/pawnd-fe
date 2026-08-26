@@ -7,6 +7,7 @@ import { CalendarDays, MapPin, PawPrint, UserRound } from 'lucide-react';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 
+import type { PostStatus } from '@/types/post';
 import { ContactChatButton } from './_components/contact-chat-button';
 
 interface PostDetailPageProps {
@@ -31,7 +32,9 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
     throw error;
   }
 
-  const primaryImage = post.images[0]?.imageUrl;
+  if (!post) notFound();
+
+  const primaryImage = post.images?.[0]?.imageUrl;
   const location = [post.subdistrict, post.district, post.province]
     .filter(Boolean)
     .join(', ');
@@ -125,7 +128,9 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
                 <div>
                   <p className="font-semibold">วันที่เกิดเหตุ</p>
                   <p className="text-muted-foreground">
-                    {dateFormatter.format(new Date(post.eventDate))}
+                    {post.eventDate
+                      ? dateFormatter.format(new Date(post.eventDate))
+                      : 'ไม่ระบุวันที่'}
                   </p>
                 </div>
               </div>
@@ -134,7 +139,9 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
                 <div>
                   <p className="font-semibold">ผู้ลงประกาศ</p>
                   <p className="text-muted-foreground">
-                    {post.user.firstName} {post.user.lastName}
+                    {post.user
+                      ? `${post.user.firstName} ${post.user.lastName}`
+                      : 'ไม่ระบุชื่อผู้ลงประกาศ'}
                   </p>
                 </div>
               </div>
@@ -153,7 +160,7 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
               </div>
               <ContactChatButton
                 postId={post.id}
-                postStatus={post.status}
+                postStatus={post.status as PostStatus}
                 ownerId={post.userId}
                 currentUserId={session?.user?.id ?? null}
               />

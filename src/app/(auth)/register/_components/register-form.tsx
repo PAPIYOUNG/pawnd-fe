@@ -1,139 +1,87 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
-import { CheckCircle2, Eye, EyeOff } from 'lucide-react';
-import Link from 'next/link';
 import { useState, useTransition } from 'react';
-import {
-  Controller,
-  useForm,
-  type UseFormRegisterReturn,
-} from 'react-hook-form';
+import Link from 'next/link';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-
-import { GoogleIcon, LineIcon } from '@/components/auth/BrandIcons';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Eye, EyeOff } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
+import { GoogleIcon, LineIcon } from '@/components/auth/BrandIcons';
+import { OtpBoxes } from '@/components/auth/OtpBoxes';
+import { useResendCooldown } from '@/hooks/use-resend-cooldown';
+import { cn } from '@/lib/utils';
+import { registerAction } from '../_actions/register.actions';
 import {
-  registerAction,
-  resendVerificationAction,
   verifyEmailAction,
-} from '../_actions/register.actions';
+  resendVerificationAction,
+} from '@/lib/action/verify-email.actions';
+import { useRouter } from 'next/navigation';
 
 const registerSchema = z
   .object({
-    firstName: z.string().trim().min(1, 'กรุณากรอกชื่อ'),
-    lastName: z.string().trim().min(1, 'กรุณากรอกนามสกุล'),
-    email: z.string().trim().email('รูปแบบอีเมลไม่ถูกต้อง'),
-    password: z.string().min(8, 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร'),
+    firstName: z.string().min(1, 'กรุณากรอกชื่อจริง'),
+    lastName: z.string().min(1, 'กรุณากรอกนามสกุล'),
+    email: z.string().min(1, 'กรุณากรอกอีเมล').email('รูปแบบอีเมลไม่ถูกต้อง'),
+    password: z.string().min(8, 'รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร'),
     confirmPassword: z.string().min(1, 'กรุณายืนยันรหัสผ่าน'),
-    terms: z.boolean().refine((value) => value, 'กรุณายอมรับข้อกำหนด'),
+    terms: z.boolean().refine((val) => val === true, {
+      message: 'กรุณายอมรับข้อกำหนดในการให้บริการ',
+    }),
   })
-  .refine((values) => values.password === values.confirmPassword, {
+  .refine((data) => data.password === data.confirmPassword, {
     message: 'รหัสผ่านยืนยันไม่ตรงกัน',
     path: ['confirmPassword'],
   });
 
 type RegisterValues = z.infer<typeof registerSchema>;
-type RegisterStep = 'form' | 'verify' | 'success';
-const OTP_LENGTH = 6;
 
-/** Input รหัสผ่านพร้อมปุ่มแสดง/ซ่อน และเชื่อม React Hook Form */
-function PasswordField({
-  id,
-  label,
-  error,
-  registration,
-}: {
-  id: 'password' | 'confirmPassword';
-  label: string;
-  error?: string;
-  registration: UseFormRegisterReturn;
-}) {
+function PasswordInput({
+  className,
+  ref,
+  ...props
+}: React.ComponentProps<'input'>) {
   const [visible, setVisible] = useState(false);
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <div className="relative">
-        <Input
-          id={id}
-          type={visible ? 'text' : 'password'}
-          placeholder="อย่างน้อย 8 ตัวอักษร"
-          className="pr-10"
-          aria-invalid={Boolean(error)}
-          {...registration}
-        />
-        <button
-          type="button"
-          onClick={() => setVisible((current) => !current)}
-          aria-label={visible ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
-          className="absolute top-1/2 right-1 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
-        >
-          {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-        </button>
-      </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
+    <div className="relative">
+      <Input
+        ref={ref}
+        type={visible ? 'text' : 'password'}
+        className={cn('pr-10', className)}
+        {...props}
+      />
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+        className="absolute top-1/2 right-1 flex size-6 -translate-y-1/2 items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground"
+      >
+        {visible ? (
+          <EyeOff className="size-3.5" />
+        ) : (
+          <Eye className="size-3.5" />
+        )}
+      </button>
     </div>
   );
 }
 
-/** ช่อง OTP แยก 6 หลัก พร้อมเลื่อน focus อัตโนมัติ */
-function OtpBoxes({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const digits = value.split('');
-
-  return (
-    <div className="flex items-center justify-between gap-2">
-      {Array.from({ length: OTP_LENGTH }).map((_, index) => (
-        <input
-          key={index}
-          inputMode="numeric"
-          aria-label={`รหัส OTP หลักที่ ${index + 1}`}
-          maxLength={1}
-          value={digits[index] ?? ''}
-          onChange={(event) => {
-            const digit = event.target.value.replace(/\D/g, '').slice(-1);
-            const next = [...digits];
-            next[index] = digit;
-            onChange(next.join('').slice(0, OTP_LENGTH));
-            if (
-              digit &&
-              event.target.nextElementSibling instanceof HTMLInputElement
-            ) {
-              event.target.nextElementSibling.focus();
-            }
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Backspace' && !digits[index]) {
-              const previous = event.currentTarget.previousElementSibling;
-              if (previous instanceof HTMLInputElement) previous.focus();
-            }
-          }}
-          className="h-12 min-w-0 flex-1 rounded-2xl border border-border bg-input/50 text-center text-lg font-semibold outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-        />
-      ))}
-    </div>
-  );
-}
-
-/** Register flow: สมัครบัญชี → ยืนยันอีเมล → ไป Login */
 export function RegisterForm() {
-  const [step, setStep] = useState<RegisterStep>('form');
+  const router = useRouter();
+  const [step, setStep] = useState<'register' | 'otp'>('register');
   const [registeredEmail, setRegisteredEmail] = useState('');
   const [otp, setOtp] = useState('');
-  const [formError, setFormError] = useState<string | null>(null);
   const [otpError, setOtpError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isResending, startResendTransition] = useTransition();
+  // ตัวนับถอยหลังก่อนอนุญาตให้กดขอ OTP ใหม่อีกครั้ง
+  const resendCooldown = useResendCooldown(60);
 
   const {
     register,
@@ -152,7 +100,6 @@ export function RegisterForm() {
     },
   });
 
-  /** ส่งเฉพาะ field ที่ RegisterDto รองรับ ห้ามส่ง confirmPassword/terms */
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
     const result = await registerAction({
@@ -161,109 +108,88 @@ export function RegisterForm() {
       email: values.email,
       password: values.password,
     });
+
     if (!result.success) {
       setFormError(result.message);
       return;
     }
+
     setRegisteredEmail(values.email);
-    setStep('verify');
+    setStep('otp');
+    resendCooldown.start();
   });
 
-  /** ยืนยัน OTP และเปลี่ยนบัญชีจาก PENDING เป็น ACTIVE */
-  function handleVerify() {
+  const handleVerifyOtp = () => {
     setOtpError(null);
-    setNotice(null);
-    if (otp.length !== OTP_LENGTH) {
+    if (otp.length !== 6) {
       setOtpError('กรุณากรอกรหัส OTP ให้ครบ 6 หลัก');
       return;
     }
     startTransition(async () => {
-      const result = await verifyEmailAction(registeredEmail, otp);
+      const result = await verifyEmailAction({ email: registeredEmail, otp });
       if (!result.success) {
         setOtpError(result.message);
-        return;
       }
-      setStep('success');
     });
-  }
+  };
 
-  /** ขอ OTP ใหม่และแจ้งว่ารหัสเดิมถูกยกเลิกแล้ว */
-  function handleResend() {
+  const handleResendOtp = () => {
+    setResendMessage(null);
     setOtpError(null);
-    setNotice(null);
-    startTransition(async () => {
-      const result = await resendVerificationAction(registeredEmail);
+    startResendTransition(async () => {
+      const result = await resendVerificationAction({
+        email: registeredEmail,
+      });
       if (!result.success) {
         setOtpError(result.message);
         return;
       }
-      setOtp('');
-      setNotice('ส่งรหัสใหม่แล้ว รหัสเดิมไม่สามารถใช้งานได้');
+      setResendMessage('ส่งรหัสยืนยันใหม่แล้ว กรุณาตรวจสอบอีเมลของคุณ');
+      resendCooldown.start();
     });
-  }
+  };
 
-  if (step === 'success') {
-    return (
-      <div className="flex flex-col items-center gap-5 text-center">
-        <CheckCircle2 className="size-16 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold">ยืนยันอีเมลสำเร็จ</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            บัญชีของคุณพร้อมใช้งานแล้ว เข้าสู่ระบบเพื่อเริ่มทดสอบแชทได้เลย
-          </p>
-        </div>
-        <Link
-          href="/login"
-          className={buttonVariants({ size: 'lg', className: 'w-full' })}
-        >
-          ไปหน้าเข้าสู่ระบบ
-        </Link>
-      </div>
-    );
-  }
-
-  if (step === 'verify') {
+  if (step === 'otp') {
     return (
       <div className="flex w-full flex-col gap-5">
         <div>
-          <h1 className="text-2xl font-bold">ยืนยันอีเมล</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            ยืนยันอีเมลของคุณ
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            กรอกรหัส 6 หลักที่ส่งสำหรับ {registeredEmail}
+            เราได้ส่งรหัส OTP ไปยัง {registeredEmail} กรุณากรอกรหัส 6
+            หลักเพื่อยืนยันบัญชี
           </p>
         </div>
+
         <OtpBoxes value={otp} onChange={setOtp} />
-        {otpError && (
-          <p className="text-sm text-destructive" role="alert">
-            {otpError}
-          </p>
+
+        {otpError && <p className="text-sm text-destructive">{otpError}</p>}
+        {resendMessage && (
+          <p className="text-sm text-primary">{resendMessage}</p>
         )}
-        {notice && (
-          <p className="text-sm text-primary" role="status">
-            {notice}
-          </p>
-        )}
+
         <Button
           type="button"
           size="lg"
+          className="w-full"
           disabled={isPending}
-          onClick={handleVerify}
+          onClick={handleVerifyOtp}
         >
           {isPending ? 'กำลังยืนยัน...' : 'ยืนยันอีเมล'}
         </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={isPending}
-          onClick={handleResend}
-        >
-          ส่งรหัสใหม่
-        </Button>
+
         <button
           type="button"
-          className="text-sm text-muted-foreground hover:text-foreground"
-          onClick={() => setStep('form')}
+          onClick={handleResendOtp}
+          disabled={isResending || resendCooldown.isActive}
+          className="text-center text-sm text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
         >
-          ← กลับไปแก้ข้อมูลสมัครสมาชิก
+          {isResending
+            ? 'กำลังส่ง...'
+            : resendCooldown.isActive
+              ? `ส่งรหัสยืนยันอีกครั้งใน ${resendCooldown.remaining} วินาที`
+              : 'ส่งรหัสยืนยันอีกครั้ง'}
         </button>
       </div>
     );
@@ -279,10 +205,7 @@ export function RegisterForm() {
       </div>
 
       {formError && (
-        <p
-          className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive"
-          role="alert"
-        >
+        <p className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {formError}
         </p>
       )}
@@ -292,7 +215,8 @@ export function RegisterForm() {
           <Label htmlFor="firstName">ชื่อ</Label>
           <Input
             id="firstName"
-            aria-invalid={Boolean(errors.firstName)}
+            placeholder="กรอกชื่อจริง"
+            aria-invalid={!!errors.firstName}
             {...register('firstName')}
           />
           {errors.firstName && (
@@ -305,7 +229,8 @@ export function RegisterForm() {
           <Label htmlFor="lastName">นามสกุล</Label>
           <Input
             id="lastName"
-            aria-invalid={Boolean(errors.lastName)}
+            placeholder="กรอกนามสกุล"
+            aria-invalid={!!errors.lastName}
             {...register('lastName')}
           />
           {errors.lastName && (
@@ -322,7 +247,7 @@ export function RegisterForm() {
           id="email"
           type="email"
           placeholder="example@email.com"
-          aria-invalid={Boolean(errors.email)}
+          aria-invalid={!!errors.email}
           {...register('email')}
         />
         {errors.email && (
@@ -330,39 +255,56 @@ export function RegisterForm() {
         )}
       </div>
 
-      <PasswordField
-        id="password"
-        label="รหัสผ่าน"
-        error={errors.password?.message}
-        registration={register('password')}
-      />
-      <PasswordField
-        id="confirmPassword"
-        label="ยืนยันรหัสผ่าน"
-        error={errors.confirmPassword?.message}
-        registration={register('confirmPassword')}
-      />
-
-      <Label htmlFor="terms" className="items-start gap-2 font-normal">
-        <Controller
-          name="terms"
-          control={control}
-          render={({ field }) => (
-            <Checkbox
-              id="terms"
-              checked={field.value}
-              onCheckedChange={(checked) => field.onChange(checked === true)}
-              className="mt-0.5"
-            />
-          )}
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="password">รหัสผ่าน</Label>
+        <PasswordInput
+          id="password"
+          placeholder="อย่างน้อย 8 ตัวอักษร"
+          aria-invalid={!!errors.password}
+          {...register('password')}
         />
-        <span className="text-sm text-muted-foreground">
-          ฉันยอมรับ ข้อกำหนดในการให้บริการ และนโยบายความเป็นส่วนตัว
-        </span>
-      </Label>
-      {errors.terms && (
-        <p className="text-xs text-destructive">{errors.terms.message}</p>
-      )}
+        {errors.password && (
+          <p className="text-xs text-destructive">{errors.password.message}</p>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="confirmPassword">ยืนยันรหัสผ่าน</Label>
+        <PasswordInput
+          id="confirmPassword"
+          placeholder="กรอกรหัสผ่านอีกครั้ง"
+          aria-invalid={!!errors.confirmPassword}
+          {...register('confirmPassword')}
+        />
+        {errors.confirmPassword && (
+          <p className="text-xs text-destructive">
+            {errors.confirmPassword.message}
+          </p>
+        )}
+      </div>
+
+      <Controller
+        control={control}
+        name="terms"
+        render={({ field }) => (
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="terms" className="items-start gap-2 font-normal">
+              <Checkbox
+                id="terms"
+                checked={field.value}
+                onCheckedChange={field.onChange}
+                className="mt-0.5"
+              />
+              <span className="text-sm text-muted-foreground">
+                ฉันยอมรับ ข้อกำหนดในการให้บริการ และนโยบายความเป็นส่วนตัว
+              </span>
+            </Label>
+            {errors.terms && (
+              <p className="text-xs text-destructive">{errors.terms.message}</p>
+            )}
+          </div>
+        )}
+      />
 
       <Button
         type="submit"
@@ -370,7 +312,7 @@ export function RegisterForm() {
         className="w-full"
         disabled={isSubmitting}
       >
-        {isSubmitting ? 'กำลังสร้างบัญชี...' : 'สร้างบัญชี'}
+        {isSubmitting ? 'กำลังสมัครสมาชิก...' : 'สร้างบัญชี'}
       </Button>
 
       <div className="flex items-center gap-3">
@@ -378,23 +320,28 @@ export function RegisterForm() {
         <span className="text-xs text-muted-foreground">หรือ</span>
         <span className="h-px flex-1 bg-border" />
       </div>
+
       <Button
         type="button"
         variant="outline"
         size="lg"
         className="w-full"
-        disabled
+        onClick={() => router.push('/login')}
       >
-        <GoogleIcon className="size-4" /> สมัครใช้งานด้วย Google
+        <GoogleIcon className="size-4" />
+        สมัครใช้งานด้วย Google
       </Button>
+
       <Button
         type="button"
         size="lg"
         className="w-full bg-[#06C755] text-white hover:bg-[#05b34c]"
-        disabled
+        onClick={() => router.push('/login')}
       >
-        <LineIcon className="size-4" /> สมัครใช้งานด้วย LINE
+        <LineIcon className="size-4" />
+        สมัครใช้งานด้วย LINE
       </Button>
+
       <p className="text-center text-sm text-muted-foreground">
         มีบัญชีอยู่แล้ว?{' '}
         <Link

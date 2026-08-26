@@ -1,33 +1,31 @@
-import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
-
-import { auth } from '@/auth';
-
+import { Metadata } from 'next';
+import { getCurrentUser } from '@/services/user.service';
+import { PostSidebar } from '@/components/layout/PostSidebar';
 import { CreatePostForm } from './_components/create-post-form';
 
 export const metadata: Metadata = {
-  title: 'สร้างประกาศ | PAWND',
-  description: 'สร้างประกาศสัตว์เลี้ยงหายหรือพบสัตว์เลี้ยง',
+  title: 'แจ้งสัตว์เลี้ยงหาย | PAWND',
+  description: 'สร้างประกาศตามหาสัตว์เลี้ยงหายพร้อมระบบ AI Smart Matching',
 };
 
-/** ป้องกันหน้า create ที่ Server เพื่อไม่ให้ผู้ใช้ที่ยังไม่ Login ส่งประกาศ */
+/**
+ * CreatePostPage (Server Component - RSC)
+ * - หน้าสร้างประกาศแจ้งสัตว์เลี้ยงหาย (Report Lost Pet Page) ตรงตาม UI ต้นแบบในภาพ
+ * - ฝั่งซ้าย: PostSidebar เมนูนำทางพอร์ทัลพร้อมแบนเนอร์ระบบ AI Matching
+ * - ฝั่งขวา: CreatePostForm ฟอร์มกรอกข้อมูลสัตว์เลี้ยงพร้อม AI Assistant
+ */
 export default async function CreatePostPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/login');
+  const user = await getCurrentUser();
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
-      <div className="mb-7">
-        <p className="text-sm font-medium text-primary">สร้างประกาศจริง</p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight">
-          แจ้งสัตว์เลี้ยงหายหรือพบเห็น
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          ประกาศนี้จะบันทึกลงระบบและใช้เป็นจุดเริ่มต้นสำหรับทดสอบแชท
-        </p>
-      </div>
+    <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-7xl flex-col md:flex-row">
+      {/* 1. Sidebar ด้านซ้าย */}
+      <PostSidebar user={user} />
 
-      <CreatePostForm />
-    </main>
+      {/* 2. เนื้อหาหลักสร้างประกาศด้านขวา */}
+      <main className="flex-1 overflow-x-hidden p-4 sm:p-6 lg:p-10">
+        <CreatePostForm />
+      </main>
+    </div>
   );
 }

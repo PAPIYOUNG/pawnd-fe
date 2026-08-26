@@ -1,45 +1,32 @@
 'use server';
 
-import { auth } from '@/auth';
-import { ApiError } from '@/lib/api/api-error';
-import type { ErrorActionResult } from '@/lib/action/action.type';
-import { createPostRequest } from '@/services/post.service';
-import type { CreatePostPayload } from '@/types/post';
-
-type CreatePostActionResult =
-  ErrorActionResult | { success: true; postId: string };
+import { createPost, CreatePostPayload } from '@/services/post.service';
+import { analyzeImage } from '@/services/ai.service';
 
 /**
- * สร้าง PetPost ผ่าน Backend จริง โดยอ่าน sender identity จาก NextAuth session
- * และไม่รับ userId จาก Client เพื่อป้องกันการสวมสิทธิ์เจ้าของประกาศ
+ * Server Action สำหรับสร้างประกาศตามหาสัตว์เลี้ยงใหม่
  */
-export async function createPostAction(
-  payload: CreatePostPayload,
-): Promise<CreatePostActionResult> {
-  const session = await auth();
-  if (!session?.accessToken) {
-    return {
-      success: false,
-      message: 'กรุณาเข้าสู่ระบบก่อนสร้างประกาศ',
-      code: '401',
-    };
-  }
-
+export async function createPostAction(payload: CreatePostPayload) {
   try {
-    const response = await createPostRequest(payload, session.accessToken);
-    return { success: true, postId: response.post.id };
+    const post = await createPost(payload);
+    return { success: true, data: post };
   } catch (error) {
-    if (error instanceof ApiError) {
-      return {
-        success: false,
-        message: error.message,
-        code: String(error.statusCode),
-      };
-    }
-    return {
-      success: false,
-      message: 'สร้างประกาศไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
-      code: 'UNKNOWN',
-    };
+    const message = error instanceof Error ? error.message : 'ไม่สามารถสร้างประกาศได้';
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Server Action สำหรับเรียก AI วิเคราะห์รูปภาพสัตว์เลี้ยง (ประเภท, สายพันธุ์, สีขน, ลักษณะเด่น, คำบรรยาย)
+ * ใช้ทั้งสำหรับปุ่ม "AI วิเคราะห์สายพันธุ์และลักษณะสีขน" และ "AI ช่วยเขียนคำบรรยาย"
+ * @param imageUrl — URL หรือ Base64 Data URL ของรูปภาพสัตว์เลี้ยงที่จะวิเคราะห์
+ */
+export async function analyzeImageAction(imageUrl: string) {
+  try {
+    const result = await analyzeImage(imageUrl);
+    return { success: true, data: result };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'ไม่สามารถวิเคราะห์รูปภาพได้';
+    return { success: false, error: message };
   }
 }

@@ -14,11 +14,20 @@ export interface LatestPostItem {
   petType: PetType;
   breed?: string;
   gender?: PetGender;
+  color?: string;
   ageDescription?: string;
+  distinctiveFeatures?: string;
+  description?: string;
   province: string;
+  district?: string;
+  subdistrict?: string;
   locationDetail?: string;
+  rewardAmount?: number | null;
+  contactPhone?: string;
+  contactLineId?: string;
   timeAgo: string;
   coverImageUrl: string;
+  images?: PostImageItem[];
   createdAt: string;
 }
 
@@ -36,6 +45,13 @@ export interface PostImage {
   imageUrl: string;
   sortOrder: number;
   createdAt: string;
+}
+
+/** รูปภาพแบบย่อที่ใช้ในการ์ดประกาศและ service ของทีม */
+export interface PostImageItem {
+  id: string;
+  imageUrl: string;
+  sortOrder: number;
 }
 
 /** PetPost response ที่ใช้ร่วมกันระหว่างหน้ารายการและหน้ารายละเอียด */
@@ -105,6 +121,26 @@ export interface CreatePostPayload {
   contactPhone?: string;
   contactLineId?: string;
   contactEmail?: string;
+}
+
+/** DTO แบบฟอร์มสร้างประกาศที่ยังใช้ในส่วน UI รุ่นเดิมของทีม */
+export interface CreatePostDto {
+  type: PostType;
+  petName: string;
+  petType: PetType;
+  breed: string;
+  gender: PetGender;
+  color: string;
+  distinctiveFeatures: string;
+  description?: string;
+  locationDescription: string;
+  eventDate: string;
+  rewardAmount?: number | null;
+  contactPhone: string;
+  contactLineId?: string;
+  contactEmail?: string;
+  imageUrls?: string[];
+  isDraft?: boolean;
 }
 
 export interface CreatePostResponse {

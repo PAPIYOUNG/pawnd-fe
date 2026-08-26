@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { Metadata } from 'next';
 import Image from 'next/image';
 
@@ -31,7 +32,9 @@ export default function LoginPage() {
 
         <div className="flex flex-1 items-center justify-center px-6 pb-12">
           <div className="w-full max-w-sm">
-            <LoginForm />
+            <Suspense fallback={null}>
+              <LoginForm />
+            </Suspense>
           </div>
         </div>
       </div>

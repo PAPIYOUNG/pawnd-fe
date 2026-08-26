@@ -1,26 +1,32 @@
-import { apiFetch } from '@/lib/api/api-fetch';
 import type {
-  ApiEnvelope,
   MapPostFeatureCollection,
   MapPostsQuery,
   NearbyMapPostsQuery,
 } from '@/types/map';
 
-/** แกะ payload ที่อาจถูกครอบด้วย TransformInterceptor ของ Backend */
-function unwrapMapResponse(
-  response: MapPostFeatureCollection | ApiEnvelope<MapPostFeatureCollection>,
-): MapPostFeatureCollection {
-  if ('data' in response) {
-    return response.data;
+/**
+ * เรียก Route Handler ของฝั่ง Next.js เอง (/api/map/...) แทนการยิงตรงไป Backend จาก browser
+ * เนื่องจาก Backend ยังไม่เปิด CORS ให้ origin ของ frontend การ fetch ตรงจาก client
+ * จะโดนเบราว์เซอร์บล็อก (net::ERR_FAILED) — ให้ Next.js server เป็นคนยิงต่อให้แทน
+ */
+async function fetchMapProxy(
+  path: string,
+  searchParams: URLSearchParams,
+  signal?: AbortSignal,
+): Promise<MapPostFeatureCollection> {
+  const response = await fetch(`${path}?${searchParams.toString()}`, {
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to load map posts: ${response.status}`);
   }
 
-  return response;
+  return (await response.json()) as MapPostFeatureCollection;
 }
 
 /**
- * ดึง marker ประกาศ ACTIVE ตามขอบเขต viewport จาก GET /map/posts
- * รองรับทั้ง response ที่ผ่าน TransformInterceptor และ payload ตรง
- * เพื่อให้ client ยังทำงานได้เมื่อเรียกผ่าน proxy หรือ mock API ในเครื่อง
+ * ดึง marker ประกาศ ACTIVE ตามขอบเขต viewport จาก GET /api/map/posts (proxy)
  */
 export async function getMapPosts(
   query: MapPostsQuery,
@@ -45,11 +51,7 @@ export async function getMapPosts(
     searchParams.set('limit', String(query.limit));
   }
 
-  const response = await apiFetch<
-    MapPostFeatureCollection | ApiEnvelope<MapPostFeatureCollection>
-  >(`/map/posts?${searchParams.toString()}`, { signal });
-
-  return unwrapMapResponse(response);
+  return fetchMapProxy('/api/map/posts', searchParams, signal);
 }
 
 /**
@@ -78,9 +80,5 @@ export async function getNearbyMapPosts(
     searchParams.set('limit', String(query.limit));
   }
 
-  const response = await apiFetch<
-    MapPostFeatureCollection | ApiEnvelope<MapPostFeatureCollection>
-  >(`/map/posts/nearby?${searchParams.toString()}`, { signal });
-
-  return unwrapMapResponse(response);
+  return fetchMapProxy('/api/map/posts/nearby', searchParams, signal);
 }
