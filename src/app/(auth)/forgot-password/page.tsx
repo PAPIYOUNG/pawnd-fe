@@ -1,22 +1,18 @@
-import { Suspense } from 'react';
 import { Metadata } from 'next';
 import Image from 'next/image';
 
 import { AuthAside } from '@/components/auth/AuthAside';
 
-import { LoginForm } from './_components/login-form';
+import { ForgotPasswordForm } from './_components/forgot-password-form';
 
 export const metadata: Metadata = {
-  title: 'Login',
+  title: 'Forgot Password',
 };
 
-export default function LoginPage() {
+export default function ForgotPasswordPage() {
   return (
     <div className="flex min-h-screen w-full">
-      <AuthAside
-        title="ยินดีต้อนรับกลับมา"
-        description="เข้าสู่ระบบเพื่อติดตามสถานะประกาศ รับการแจ้งเตือนการจับคู่ และช่วยเหลือสัตว์เลี้ยงให้กลับบ้านได้เร็วที่สุด"
-      />
+      <AuthAside />
 
       <div className="flex w-full flex-1 flex-col">
         <div className="flex items-center gap-2 px-8 py-6">
@@ -32,9 +28,7 @@ export default function LoginPage() {
 
         <div className="flex flex-1 items-center justify-center px-6 pb-12">
           <div className="w-full max-w-sm">
-            <Suspense fallback={null}>
-              <LoginForm />
-            </Suspense>
+            <ForgotPasswordForm />
           </div>
         </div>
       </div>

@@ -1,22 +1,24 @@
-import { Suspense } from 'react';
 import { Metadata } from 'next';
 import Image from 'next/image';
 
 import { AuthAside } from '@/components/auth/AuthAside';
 
-import { LoginForm } from './_components/login-form';
+import { ResetPasswordForm } from './_components/reset-password-form';
 
 export const metadata: Metadata = {
-  title: 'Login',
+  title: 'Reset Password',
 };
 
-export default function LoginPage() {
+export default async function ResetPasswordPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ token?: string }>;
+}) {
+  const { token } = await searchParams;
+
   return (
     <div className="flex min-h-screen w-full">
-      <AuthAside
-        title="ยินดีต้อนรับกลับมา"
-        description="เข้าสู่ระบบเพื่อติดตามสถานะประกาศ รับการแจ้งเตือนการจับคู่ และช่วยเหลือสัตว์เลี้ยงให้กลับบ้านได้เร็วที่สุด"
-      />
+      <AuthAside />
 
       <div className="flex w-full flex-1 flex-col">
         <div className="flex items-center gap-2 px-8 py-6">
@@ -32,9 +34,13 @@ export default function LoginPage() {
 
         <div className="flex flex-1 items-center justify-center px-6 pb-12">
           <div className="w-full max-w-sm">
-            <Suspense fallback={null}>
-              <LoginForm />
-            </Suspense>
+            {token ? (
+              <ResetPasswordForm token={token} />
+            ) : (
+              <p className="text-center text-sm text-destructive">
+                ลิงก์ไม่ถูกต้องหรือหมดอายุ กรุณาขอลิงก์ใหม่อีกครั้ง
+              </p>
+            )}
           </div>
         </div>
       </div>
