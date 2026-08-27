@@ -132,7 +132,7 @@ export function DashboardMyPosts({ initialPosts = DEFAULT_MY_POSTS }: { initialP
 
       {/* กริดการ์ดประกาศ (2 คอลัมน์) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {posts.map((post) => {
+        {posts.map((post, index) => {
           const isLost = post.type === 'LOST';
           const isReunited = post.status === 'REUNITED';
           const isClosed = post.status === 'CLOSED';
@@ -177,6 +177,7 @@ export function DashboardMyPosts({ initialPosts = DEFAULT_MY_POSTS }: { initialP
                   src={post.imageUrl}
                   alt={post.petName}
                   fill
+                  priority={index === 0}
                   sizes="(max-width: 640px) 100vw, 400px"
                   className="object-cover transition-transform duration-300 group-hover:scale-105"
                 />
