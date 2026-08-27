@@ -3,12 +3,14 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ApiError } from '@/lib/api/api-error';
 import { getPostById } from '@/services/post.service';
+import { getPostEvents } from '@/services/post-event.service';
 import { CalendarDays, MapPin, PawPrint, UserRound } from 'lucide-react';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 
 import type { PostStatus } from '@/types/post';
 import { ContactChatButton } from './_components/contact-chat-button';
+import { PostEventsCard } from './_components/post-events-card';
 
 interface PostDetailPageProps {
   params: Promise<{ id: string }>;
@@ -34,6 +36,10 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
 
   if (!post) notFound();
 
+  // ดึง Timeline ของประกาศหลังยืนยันว่า post นี้มีอยู่จริง
+  const events = await getPostEvents(id);
+
+  const primaryImage = post.images?.[0]?.imageUrl;
   const primaryImage =
     post.images?.[0]?.imageUrl || post.pet?.profileImageUrl || undefined;
   const location = [post.subdistrict, post.district, post.province]
@@ -166,6 +172,8 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
                 currentUserId={session?.user?.id ?? null}
               />
             </CardContent>
+            {/* กล่อง Timeline จาก GET /posts/:id/events */}
+            <PostEventsCard events={events} />
           </Card>
         </aside>
       </div>
