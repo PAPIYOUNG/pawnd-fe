@@ -9,6 +9,8 @@ export default function PostDetailLoading() {
         <Skeleton className="h-10 w-3/4 rounded-xl" />
         <Skeleton className="h-28 rounded-3xl" />
         <Skeleton className="h-12 rounded-2xl" />
+        {/* พื้นที่สำรองของการ์ดความคืบหน้าระหว่างรอ GET /posts/:id/events */}
+        <Skeleton className="h-36 rounded-lg" />
       </div>
     </div>
   );
