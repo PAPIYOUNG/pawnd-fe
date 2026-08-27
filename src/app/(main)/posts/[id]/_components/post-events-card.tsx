@@ -1,108 +1,239 @@
 import {
-  CheckCircle2,
+  AlertCircle,
+  BadgeCheck,
   Clock,
-  FileText,
-  Heart,
+  CircleX,
+  FilePlus,
+  HeartHandshake,
   Sparkles,
-  XCircle,
   type LucideIcon,
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 import type { PostEvent, PostEventType } from '@/types/posts-event';
 
 interface PostEventsCardProps {
   events: PostEvent[];
+  /** ข้อความที่แสดงเมื่อเรียก API Timeline ไม่สำเร็จ */
+  errorMessage?: string | null;
+  /** โหมดเต็มสำหรับหน้า progress หรือโหมดย่อสำหรับ sidebar ของ post detail */
+  compact?: boolean;
 }
 
-/** ข้อความและไอคอนที่แสดงสำหรับแต่ละ event type */
+/** ข้อมูลการนำเสนอของแต่ละ event type ตาม enum ที่ Backend กำหนด */
 const EVENT_CONTENT: Record<
   PostEventType,
   {
     title: string;
     fallbackDescription: string;
     Icon: LucideIcon;
+    iconClassName: string;
   }
 > = {
   POST_CREATED: {
     title: 'สร้างประกาศแล้ว',
     fallbackDescription: 'ระบบบันทึกประกาศเข้าสู่ PAWND เรียบร้อยแล้ว',
-    Icon: FileText,
+    Icon: FilePlus,
+    iconClassName: 'border-primary/20 bg-primary/10 text-primary',
   },
   AI_MATCHES_FOUND: {
     title: 'AI พบเคสที่อาจตรงกัน',
-    fallbackDescription: 'ระบบกำลังวิเคราะห์ประกาศที่มีลักษณะใกล้เคียง',
+    fallbackDescription: 'ระบบพบประกาศที่มีลักษณะใกล้เคียงจากการวิเคราะห์ AI',
     Icon: Sparkles,
+    iconClassName:
+      'border-secondary-foreground/10 bg-secondary text-secondary-foreground',
   },
   AI_MATCH_CONFIRMED: {
     title: 'ยืนยันผลการจับคู่ AI',
     fallbackDescription: 'มีการยืนยันผลการจับคู่ของประกาศนี้',
-    Icon: CheckCircle2,
+    Icon: BadgeCheck,
+    iconClassName: 'border-primary/20 bg-primary/10 text-primary',
   },
   REUNITED: {
     title: 'สัตว์เลี้ยงกลับบ้านแล้ว',
     fallbackDescription:
       'เจ้าของประกาศยืนยันว่าสัตว์เลี้ยงกลับบ้านอย่างปลอดภัย',
-    Icon: Heart,
+    Icon: HeartHandshake,
+    iconClassName: 'border-primary bg-primary text-primary-foreground',
   },
   POST_CLOSED: {
     title: 'ปิดประกาศแล้ว',
     fallbackDescription: 'ประกาศนี้ถูกปิดการติดตามแล้ว',
-    Icon: XCircle,
+    Icon: CircleX,
+    iconClassName: 'border-destructive/20 bg-destructive/10 text-destructive',
   },
+};
+
+/** เนื้อหาสำรองเพื่อป้องกันหน้าแตก หาก Backend เพิ่ม event type ใหม่ในอนาคต */
+const UNKNOWN_EVENT_CONTENT = {
+  title: 'มีความคืบหน้าใหม่',
+  fallbackDescription: 'ระบบบันทึกเหตุการณ์ใหม่ของประกาศนี้แล้ว',
+  Icon: Clock,
+  iconClassName: 'border-border bg-muted text-primary',
 };
 
 /** ใช้รูปแบบวันที่ภาษาไทยในรายการ Timeline */
 const eventDateFormatter = new Intl.DateTimeFormat('th-TH', {
   dateStyle: 'medium',
   timeStyle: 'short',
+  // Backend เก็บเวลาเป็น UTC จึงแสดงผลเป็นเวลาประเทศไทยที่ชั้น UI
+  timeZone: 'Asia/Bangkok',
 });
 
 /**
- * PostEventsCard (Server Component)
- * - แสดง Timeline แบบย่อของประกาศใน sidebar ด้านขวา
- * - ใช้ข้อมูลจริงจาก GET /posts/:id/events
- * - แสดงสามเหตุการณ์ล่าสุดเพื่อให้พอดีกับพื้นที่มุมขวาล่าง
+ * เรียง event จากเก่าไปใหม่ให้สอดคล้องกับลำดับที่ Backend ส่งกลับ
+ * และคงลำดับเดิมไว้สำหรับข้อมูลที่มีวันที่ไม่ถูกต้อง
  */
-export function PostEventsCard({ events }: PostEventsCardProps) {
-  // Backend เรียง event จากเก่าไปใหม่ จึงนำสามรายการท้ายสุดมาเรียงใหม่
-  const recentEvents = [...events].slice(-3).reverse();
+function sortEvents(events: PostEvent[]): PostEvent[] {
+  return events
+    .map((event, index) => ({ event, index }))
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.event.createdAt);
+      const rightTime = Date.parse(right.event.createdAt);
+      const leftIsValid = Number.isFinite(leftTime);
+      const rightIsValid = Number.isFinite(rightTime);
+
+      if (leftIsValid && rightIsValid && leftTime !== rightTime) {
+        return leftTime - rightTime;
+      }
+
+      if (leftIsValid !== rightIsValid) {
+        return leftIsValid ? -1 : 1;
+      }
+
+      return left.index - right.index;
+    })
+    .map(({ event }) => event);
+}
+
+/** แปลงวันที่ ISO จาก Backend เป็นวันที่ภาษาไทย โดยไม่ให้วันที่เสียทำให้หน้า render ล้ม */
+function formatEventDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? 'ไม่ระบุเวลา'
+    : eventDateFormatter.format(date);
+}
+
+/**
+ * PostEventsCard (Server Component)
+ * - แสดง Post Event Timeline ใน sidebar ของ post detail หรือหน้า progress แบบเต็ม
+ * - ใช้ข้อมูลจริงจาก GET /posts/:id/events
+ * - รองรับ loading ผ่าน route boundary และรองรับ error/empty state ของ API
+ */
+export function PostEventsCard({
+  events,
+  errorMessage,
+  compact = true,
+}: PostEventsCardProps) {
+  // Backend เรียง event จากเก่าไปใหม่อยู่แล้ว แต่เรียงซ้ำเพื่อป้องกัน caller อื่นส่งลำดับมาไม่ตรงกัน
+  const orderedEvents = sortEvents(events);
 
   return (
-    <Card className="flex flex-col rounded-lg border-border/80 bg-card">
+    <Card
+      className={cn(
+        'flex flex-col border-border/80 bg-card',
+        compact ? 'rounded-lg' : 'rounded-3xl',
+      )}
+    >
       {/* หัวข้อของกล่อง Timeline */}
-      <CardHeader className="flex flex-row items-center justify-between gap-3 p-4 pb-3">
+      <CardHeader
+        className={cn(
+          'flex flex-row items-center justify-between gap-3',
+          compact ? 'p-4 pb-3' : 'p-5 pb-4',
+        )}
+      >
         <div>
-          <CardTitle className="text-base">ความคืบหน้าประกาศ</CardTitle>
+          <CardTitle className={compact ? 'text-base' : 'text-xl'}>
+            ความคืบหน้าประกาศ
+          </CardTitle>
           <p className="mt-1 text-xs text-muted-foreground">
             เหตุการณ์ล่าสุดจากระบบ PAWND
           </p>
         </div>
 
-        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+        <span
+          className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary"
+          aria-label={`มี ${events.length} เหตุการณ์`}
+        >
           {events.length} เหตุการณ์
         </span>
       </CardHeader>
 
-      {/* รายการ Event ล่าสุด */}
-      <CardContent className="p-4 pt-0">
-        {recentEvents.length > 0 ? (
-          <ol className="space-y-3">
-            {recentEvents.map((event) => {
-              const content = EVENT_CONTENT[event.eventType];
+      {/* เนื้อหา Timeline: แสดง error ก่อนข้อมูล, จากนั้นจึงเลือก empty หรือรายการ event */}
+      <CardContent className={cn(compact ? 'p-4 pt-0' : 'p-5 pt-0')}>
+        {errorMessage ? (
+          <div
+            role="alert"
+            className="flex items-start gap-3 rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
+          >
+            <AlertCircle
+              className="mt-0.5 size-5 shrink-0"
+              aria-hidden="true"
+            />
+            <p>{errorMessage}</p>
+          </div>
+        ) : orderedEvents.length > 0 ? (
+          <ol
+            aria-label="ลำดับความคืบหน้าประกาศ"
+            className={cn(
+              'space-y-0',
+              compact && 'max-h-96 overflow-y-auto pr-1',
+            )}
+          >
+            {orderedEvents.map((event, index) => {
+              // ใช้ fallback เพื่อให้ event type ใหม่จาก Backend ยังแสดงผลได้อย่างปลอดภัย
+              const content =
+                EVENT_CONTENT[event.eventType] ?? UNKNOWN_EVENT_CONTENT;
               const Icon = content.Icon;
+              const isLatest = index === orderedEvents.length - 1;
 
               return (
-                <li key={event.id} className="flex gap-3">
+                <li
+                  key={event.id}
+                  className={cn(
+                    'relative flex gap-3 pb-5 last:pb-0',
+                    !compact && 'gap-4',
+                  )}
+                >
+                  {/* เส้นเชื่อมแสดงลำดับเหตุการณ์จากเก่าไปใหม่ */}
+                  {!isLatest && (
+                    <span
+                      className={cn(
+                        'absolute top-9 bottom-0 left-[1.125rem] w-px bg-border',
+                        !compact && 'left-[1.375rem] top-11',
+                      )}
+                      aria-hidden="true"
+                    />
+                  )}
+
                   {/* ไอคอนของ Event */}
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                    <Icon className="size-4" aria-hidden="true" />
+                  <div
+                    className={cn(
+                      'relative z-10 flex shrink-0 items-center justify-center border shadow-xs',
+                      compact ? 'size-9 rounded-xl' : 'size-11 rounded-2xl',
+                      content.iconClassName,
+                      isLatest && 'ring-2 ring-primary/20',
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        compact ? 'size-4' : 'size-5',
+                        'stroke-[2.25]',
+                      )}
+                      aria-hidden="true"
+                    />
                   </div>
 
                   {/* เนื้อหา Event */}
-                  <div className="min-w-0 flex-1 border-b border-border/60 pb-3 last:border-b-0 last:pb-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex flex-col gap-0.5">
-                      <h3 className="text-sm font-semibold text-foreground">
+                      <h3
+                        className={cn(
+                          'font-semibold text-foreground',
+                          compact ? 'text-sm' : 'text-base',
+                        )}
+                      >
                         {content.title}
                       </h3>
 
@@ -110,11 +241,16 @@ export function PostEventsCard({ events }: PostEventsCardProps) {
                         dateTime={event.createdAt}
                         className="text-xs text-muted-foreground"
                       >
-                        {eventDateFormatter.format(new Date(event.createdAt))}
+                        {formatEventDate(event.createdAt)}
                       </time>
                     </div>
 
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    <p
+                      className={cn(
+                        'mt-1 leading-5 text-muted-foreground',
+                        compact ? 'text-xs' : 'text-sm',
+                      )}
+                    >
                       {event.description ?? content.fallbackDescription}
                     </p>
                   </div>
@@ -124,7 +260,10 @@ export function PostEventsCard({ events }: PostEventsCardProps) {
           </ol>
         ) : (
           /* Empty State เมื่อยังไม่มีเหตุการณ์ */
-          <div className="flex items-center gap-3 rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">
+          <div
+            role="status"
+            className="flex items-center gap-3 rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground"
+          >
             <Clock
               className="size-5 shrink-0 text-primary"
               aria-hidden="true"
