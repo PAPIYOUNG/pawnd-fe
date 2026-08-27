@@ -70,6 +70,28 @@ export function createCurrentLocationIcon(): L.DivIcon {
   });
 }
 
+/** สร้าง marker สีส้มสำหรับจุดที่ผู้ใช้เลือกเป็นตำแหน่งประกาศ */
+export function createSelectedLocationIcon(): L.DivIcon {
+  return L.divIcon({
+    className: '',
+    html: '<span style="display:flex;width:34px;height:34px;align-items:center;justify-content:center;border-radius:9999px;background:#f97316;border:4px solid var(--background);box-shadow:0 0 0 5px rgb(249 115 22 / 22%),0 3px 8px color-mix(in oklch,var(--foreground) 24%,transparent);"><span style="display:block;width:8px;height:8px;border-radius:9999px;background:white;"></span></span>',
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    popupAnchor: [0, -17],
+  });
+}
+
+/** สร้าง marker สีม่วงสำหรับผลค้นหาที่ใช้เลื่อนแผนที่ก่อนคลิกเลือกจุดจริง */
+export function createSearchLocationIcon(): L.DivIcon {
+  return L.divIcon({
+    className: '',
+    html: '<span style="display:flex;width:32px;height:32px;align-items:center;justify-content:center;border-radius:9999px;background:#7c3aed;border:4px solid var(--background);box-shadow:0 0 0 5px rgb(124 58 237 / 20%),0 3px 8px color-mix(in oklch,var(--foreground) 24%,transparent);"><span style="display:block;width:8px;height:8px;border-radius:9999px;background:white;"></span></span>',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -16],
+  });
+}
+
 /** อ่านขอบเขตและจุดกึ่งกลางปัจจุบันจาก Leaflet เป็น query ที่ Backend รองรับ */
 export function readViewportState(map: L.Map): MapViewportState {
   const bounds = map.getBounds();

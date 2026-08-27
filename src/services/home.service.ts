@@ -35,11 +35,14 @@ interface ApiLatestPost {
   type?: 'LOST' | 'FOUND';
   petName?: string;
   petType?: 'DOG' | 'CAT' | 'BIRD' | 'HAMSTER' | 'EXOTIC' | 'OTHER';
-  breed?: string;
+  breed?: string | null;
+  gender?: string | null;
+  color?: string | null;
   province?: string;
   coverImageUrl?: string | null;
   createdAt?: string;
 }
+
 
 /** ข้อมูลโพสต์ที่กลับบ้านแล้วตามที่ Backend ส่งกลับมาจริง */
 interface ApiReunitedPost {
@@ -246,6 +249,48 @@ export async function getHomeStats(): Promise<SummaryStats> {
 }
 
 /**
+ * แปลงค่าวันที่ ISO string เป็นข้อความ Relative Time ภาษาไทย
+ */
+function formatRelativeTimeThai(dateString?: string): string {
+  if (!dateString) return 'เมื่อไม่นานมานี้';
+  const now = Date.now();
+  const date = new Date(dateString).getTime();
+  const diffMinutes = Math.floor((now - date) / (1000 * 60));
+
+  if (diffMinutes < 1) return 'เมื่อสักครู่';
+  if (diffMinutes < 60) return `${diffMinutes} นาทีที่แล้ว`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} ชั่วโมงที่แล้ว`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return 'เมื่อวานนี้';
+  if (diffDays < 7) return `${diffDays} วันที่แล้ว`;
+  return new Date(dateString).toLocaleDateString('th-TH', {
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
+/**
+ * แปลงรหัสชนิดสัตว์เลี้ยงเป็นภาษาไทย
+ */
+function getPetTypeThai(type?: string): string {
+  switch (type) {
+    case 'DOG':
+      return 'สุนัข';
+    case 'CAT':
+      return 'แมว';
+    case 'BIRD':
+      return 'นก';
+    case 'HAMSTER':
+      return 'หนูแฮมสเตอร์';
+    case 'EXOTIC':
+      return 'สัตว์เลี้ยงพิเศษ';
+    default:
+      return 'สัตว์เลี้ยง';
+  }
+}
+
+/**
  * ดึงข้อมูลประกาศตามหาและพบสัตว์ล่าสุด (GET /home/latest)
  * Backend ส่ง { success, data: { posts: [...] } } → apiFetch unwrap ได้ { posts: [...] }
  * จากนั้น map ข้อมูลจาก Backend DTO เป็น LatestPostItem ที่ UI ใช้
@@ -260,27 +305,32 @@ export async function getLatestPosts(limit = 8): Promise<LatestPostItem[]> {
     );
 
     if (!response.posts || response.posts.length === 0) {
-      return MOCK_LATEST_POSTS;
+      return [];
     }
 
-    // Map ข้อมูลจาก Backend DTO → LatestPostItem ที่ Frontend UI ใช้
-    return response.posts.map((p: ApiLatestPost, idx: number) => ({
-      id: p.id,
-      type: p.type || (idx % 2 === 0 ? 'LOST' : 'FOUND'),
-      petName: p.petName || 'สัตว์เลี้ยง',
-      petType: p.petType || 'DOG',
-      breed: p.breed || 'ไม่ระบุสายพันธุ์',
-      ageDescription: p.breed || 'ไม่ระบุข้อมูลเพิ่มเติม',
-      province: p.province || 'กรุงเทพฯ',
-      locationDetail: p.province ? `${p.province}` : 'กรุงเทพฯ',
-      timeAgo: 'เมื่อไม่นานมานี้',
-      coverImageUrl:
-        p.coverImageUrl ||
-        MOCK_LATEST_POSTS[idx % MOCK_LATEST_POSTS.length].coverImageUrl,
-      createdAt: p.createdAt || new Date().toISOString(),
-    }));
+    // Map ข้อมูลจริงจาก Backend DTO → LatestPostItem ที่ Frontend UI ใช้
+    return response.posts.map((p: ApiLatestPost, idx: number) => {
+      const typeStr = getPetTypeThai(p.petType);
+      const breedOrType = p.breed ? `${typeStr} • ${p.breed}` : typeStr;
+
+      return {
+        id: p.id,
+        type: p.type || (idx % 2 === 0 ? 'LOST' : 'FOUND'),
+        petName: p.petName || 'สัตว์เลี้ยง',
+        petType: p.petType || 'OTHER',
+        breed: p.breed || typeStr,
+        ageDescription: breedOrType,
+        province: p.province || 'ไม่ระบุจังหวัด',
+        locationDetail: p.province ? `${p.province}` : 'ไม่ระบุจังหวัด',
+        timeAgo: formatRelativeTimeThai(p.createdAt),
+        coverImageUrl:
+          p.coverImageUrl ||
+          'https://images.unsplash.com/photo-1543466835-00a7907e9de1?q=80&w=800&auto=format&fit=crop',
+        createdAt: p.createdAt || new Date().toISOString(),
+      };
+    });
   } catch {
-    return MOCK_LATEST_POSTS;
+    return [];
   }
 }
 
