@@ -177,6 +177,7 @@ export function DashboardMyPosts({ initialPosts = DEFAULT_MY_POSTS }: { initialP
                   src={post.imageUrl}
                   alt={post.petName}
                   fill
+                  sizes="(max-width: 640px) 100vw, 400px"
                   className="object-cover transition-transform duration-300 group-hover:scale-105"
                 />
 
