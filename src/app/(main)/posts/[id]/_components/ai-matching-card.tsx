@@ -5,11 +5,14 @@ import Image from 'next/image';
 import Link from 'next/link';
 import {
   AlertCircle,
+  ChevronDown,
+  ChevronUp,
   Loader2,
   MapPin,
   PawPrint,
   Pin,
   PinOff,
+  RotateCcw,
   Sparkles,
   X,
 } from 'lucide-react';
@@ -75,15 +78,18 @@ export function AiMatchingCard({
   // ข้อความ Error State เมื่อสั่งจับคู่ไม่สำเร็จ
   const [error, setError] = useState<string | null>(null);
   const [isMatching, startMatchTransition] = useTransition();
+  // เปิด/ปิดการแสดงรายการที่เคยกด Dismiss ไว้ (ซ่อนโดยค่าเริ่มต้นเพื่อไม่ให้รกหน้าจอ)
+  const [showDismissed, setShowDismissed] = useState(false);
 
   const isInactive = postStatus !== 'ACTIVE';
 
   // ตัดรายการที่ถูก Dismiss ออก แล้วแยกกลุ่มที่ Pin ไว้กับกลุ่มปกติ เพื่อแสดงเป็นสองส่วนคั่นด้วยเส้นแบ่ง
-  const { pinnedMatches, otherMatches } = useMemo(() => {
+  const { pinnedMatches, otherMatches, dismissedMatches } = useMemo(() => {
     const visible = matches.filter((match) => !match.isDismissed);
     return {
       pinnedMatches: visible.filter((match) => match.isPinned),
       otherMatches: visible.filter((match) => !match.isPinned),
+      dismissedMatches: matches.filter((match) => match.isDismissed),
     };
   }, [matches]);
   const visibleCount = pinnedMatches.length + otherMatches.length;
@@ -192,17 +198,21 @@ export function AiMatchingCard({
           <p className="text-xs font-medium text-primary">{summary}</p>
         )}
 
-        {/* Empty State: ยังไม่เคยสั่งจับคู่ หรือสั่งแล้วแต่ไม่พบคู่ที่ตรงกัน */}
+        {/* Empty State: ยังไม่เคยสั่งจับคู่ หรือสั่งแล้วแต่ไม่พบคู่ที่ตรงกัน (ไม่นับรายการที่เคย Dismiss ไว้) */}
         {visibleCount === 0 ? (
           <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border bg-background/60 px-4 py-8 text-center">
             <PawPrint className="size-8 text-muted-foreground" />
             <p className="text-sm font-semibold text-foreground">
-              ยังไม่มีผลการจับคู่จาก AI สำหรับประกาศนี้
+              {dismissedMatches.length > 0
+                ? 'ไม่มีผลการจับคู่ที่แสดงอยู่ตอนนี้'
+                : 'ยังไม่มีผลการจับคู่จาก AI สำหรับประกาศนี้'}
             </p>
             <p className="text-xs text-muted-foreground">
-              {isOwner
-                ? 'กดปุ่ม "ค้นหาคู่ด้วย AI" ด้านบนเพื่อเริ่มค้นหา'
-                : 'เจ้าของประกาศยังไม่ได้สั่งให้ AI ค้นหาคู่ที่ตรงกัน'}
+              {dismissedMatches.length > 0
+                ? `พบคู่ที่ตรงกัน ${dismissedMatches.length} รายการ แต่ถูกซ่อนไว้เพราะเคยกด "ไม่ใช่ตัวที่ตามหา" ก่อนหน้านี้`
+                : isOwner
+                  ? 'กดปุ่ม "ค้นหาคู่ด้วย AI" ด้านบนเพื่อเริ่มค้นหา'
+                  : 'เจ้าของประกาศยังไม่ได้สั่งให้ AI ค้นหาคู่ที่ตรงกัน'}
             </p>
           </div>
         ) : (
@@ -251,6 +261,37 @@ export function AiMatchingCard({
             )}
           </div>
         )}
+
+        {/* รายการที่เคย Dismiss ไว้ — เฉพาะเจ้าของประกาศเท่านั้นที่กู้คืนได้ */}
+        {isOwner && dismissedMatches.length > 0 && (
+          <div className="flex flex-col gap-2.5 border-t border-dashed border-border pt-3">
+            <button
+              type="button"
+              onClick={() => setShowDismissed((prev) => !prev)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+            >
+              {showDismissed ? (
+                <ChevronUp className="size-3.5" />
+              ) : (
+                <ChevronDown className="size-3.5" />
+              )}
+              รายการที่ซ่อนไว้ ({dismissedMatches.length})
+            </button>
+
+            {showDismissed &&
+              dismissedMatches.map((match) => (
+                <AiMatchRow
+                  key={match.matchId}
+                  match={match}
+                  canManage={isOwner}
+                  isPending={pendingMatchId === match.matchId}
+                  isDismissedView
+                  onPin={() => handleToggle(match.matchId, 'pin')}
+                  onDismiss={() => handleToggle(match.matchId, 'dismiss')}
+                />
+              ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -260,6 +301,7 @@ function AiMatchRow({
   match,
   canManage,
   isPending,
+  isDismissedView = false,
   onPin,
   onDismiss,
 }: {
@@ -267,6 +309,8 @@ function AiMatchRow({
   /** true เฉพาะเจ้าของประกาศ — ควบคุมการแสดงปุ่ม Pin/Dismiss */
   canManage: boolean;
   isPending: boolean;
+  /** true เมื่อแสดงในส่วน "รายการที่ซ่อนไว้" — เปลี่ยนปุ่ม Pin/Dismiss เป็นปุ่มกู้คืนอย่างเดียว */
+  isDismissedView?: boolean;
   onPin: () => void;
   onDismiss: () => void;
 }) {
@@ -279,7 +323,11 @@ function AiMatchRow({
   const finalPercent = Math.round(match.scores.finalScore * 100);
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-border/80 bg-card p-3 sm:flex-row sm:items-center">
+    <div
+      className={`flex flex-col gap-3 rounded-2xl border border-border/80 bg-card p-3 sm:flex-row sm:items-center ${
+        isDismissedView ? 'opacity-60' : ''
+      }`}
+    >
       {/* รูปปกของประกาศที่ AI จับคู่มาให้ */}
       <Link
         href={`/posts/${post.id}`}
@@ -342,38 +390,57 @@ function AiMatchRow({
 
         {/* ปุ่ม Pin / Dismiss — เฉพาะเจ้าของประกาศเท่านั้น ผู้ใช้อื่นเห็นได้แค่รายการแบบ Read-only */}
         {canManage ? (
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant={isPinned ? 'default' : 'outline'}
-              size="icon-sm"
-              className="rounded-full"
-              disabled={isPending}
-              aria-label={isPinned ? 'ยกเลิกปักหมุด' : 'ปักหมุดรายการนี้'}
-              onClick={onPin}
-            >
-              {isPinned ? (
-                <PinOff className="size-3.5" />
-              ) : (
-                <Pin className="size-3.5" />
-              )}
-            </Button>
+          isDismissedView ? (
+            // รายการที่ซ่อนไว้ (Dismissed) แสดงปุ่มกู้คืนอย่างเดียว แทนปุ่ม Pin/Dismiss
             <Button
               type="button"
               variant="outline"
-              size="icon-sm"
-              className="rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+              size="sm"
+              className="gap-1.5 rounded-full text-xs"
               disabled={isPending}
-              aria-label="ไม่ใช่ตัวที่ตามหา ซ่อนรายการนี้"
               onClick={onDismiss}
             >
               {isPending ? (
                 <Loader2 className="size-3.5 animate-spin" />
               ) : (
-                <X className="size-3.5" />
+                <RotateCcw className="size-3.5" />
               )}
+              กู้คืน
             </Button>
-          </div>
+          ) : (
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant={isPinned ? 'default' : 'outline'}
+                size="icon-sm"
+                className="rounded-full"
+                disabled={isPending}
+                aria-label={isPinned ? 'ยกเลิกปักหมุด' : 'ปักหมุดรายการนี้'}
+                onClick={onPin}
+              >
+                {isPinned ? (
+                  <PinOff className="size-3.5" />
+                ) : (
+                  <Pin className="size-3.5" />
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                className="rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                disabled={isPending}
+                aria-label="ไม่ใช่ตัวที่ตามหา ซ่อนรายการนี้"
+                onClick={onDismiss}
+              >
+                {isPending ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <X className="size-3.5" />
+                )}
+              </Button>
+            </div>
+          )
         ) : (
           isPinned && (
             <span className="flex items-center gap-1 text-[11px] font-semibold text-primary">
