@@ -40,3 +40,8 @@ export interface NotificationQueryParams {
   page?: number;
   limit?: number;
 }
+
+/** Payload ของ event 'notification_count_update' จาก Socket.IO (namespace /notifications) */
+export interface NotificationCountUpdatePayload {
+  unreadCount: number;
+}

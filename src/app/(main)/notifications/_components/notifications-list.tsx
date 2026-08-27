@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
+import { io } from 'socket.io-client';
 import {
   Bell,
   Sparkles,
@@ -30,6 +31,10 @@ interface NotificationsListProps {
   initialNotifications: NotificationItem[];
   /** จำนวนที่ยังไม่อ่านเริ่มต้น ใช้ตัดสินใจว่าจะโชว์ปุ่ม "อ่านทั้งหมดแล้ว" ไหม */
   initialUnreadCount: number;
+  /** JWT access token จาก NextAuth session ใช้ยืนยันตัวตนตอนต่อ Socket.IO */
+  accessToken: string;
+  /** URL ของ Backend สำหรับต่อ Socket.IO (จาก process.env.API_URL ฝั่ง Server) */
+  socketUrl: string;
 }
 
 /** เลือกไอคอนตามประเภทการแจ้งเตือน */
@@ -78,15 +83,44 @@ function formatTimeAgo(dateStr: string): string {
  * - แสดงรายการการแจ้งเตือนจริงจาก Backend พร้อม mark-as-read / mark-all-as-read / ลบ ที่ใช้งานได้จริง
  * - รับ initialNotifications/initialUnreadCount จาก Server Component ชั้นบน แล้วเก็บ state ในเครื่อง
  *   เพื่อทำ Optimistic Update ตอนผู้ใช้กดอ่าน/ลบ โดยไม่ต้องรอ revalidate ทั้งหน้า
+ * - ต่อ Socket.IO (namespace /notifications, auth ผ่าน query.token ตาม Backend contract)
+ *   เพื่อรับการแจ้งเตือนใหม่และจำนวนที่ยังไม่อ่านแบบ real-time โดยไม่ต้อง refresh หน้า
  */
 export function NotificationsList({
   initialNotifications,
   initialUnreadCount,
+  accessToken,
+  socketUrl,
 }: NotificationsListProps) {
   const [notifications, setNotifications] = useState(initialNotifications);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const [isMarkingAll, startMarkAllTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  // ต่อ Socket.IO เพื่อรับแจ้งเตือนใหม่และจำนวนที่ยังไม่อ่านแบบ real-time
+  // Backend gateway อ่าน token จาก handshake.query.token (คนละแบบกับ Chat ที่ใช้ auth.token)
+  useEffect(() => {
+    if (!accessToken) return;
+
+    const namespaceUrl = `${socketUrl.replace(/\/$/, '')}/notifications`;
+    const socket = io(namespaceUrl, { query: { token: accessToken } });
+
+    const handleNewNotification = (notification: NotificationItem) => {
+      setNotifications((prev) => [notification, ...prev]);
+    };
+    const handleCountUpdate = (payload: { unreadCount: number }) => {
+      setUnreadCount(payload.unreadCount);
+    };
+
+    socket.on('new_notification', handleNewNotification);
+    socket.on('notification_count_update', handleCountUpdate);
+
+    return () => {
+      socket.off('new_notification', handleNewNotification);
+      socket.off('notification_count_update', handleCountUpdate);
+      socket.disconnect();
+    };
+  }, [accessToken, socketUrl]);
 
   // กดการ์ดแจ้งเตือนที่ยังไม่อ่าน -> อัปเดต UI ทันที (optimistic) แล้วค่อยยิง Server Action ตามหลัง
   // ไม่ await เพื่อไม่ให้การนำทางไปหน้าอื่นต้องรอ API ตอบกลับ
