@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Newspaper, Edit2 } from 'lucide-react';
 
 export interface MyPostDashboardItem {
@@ -25,7 +26,8 @@ export interface MyPostDashboardItem {
  * - การ์ดรายการประกาศตามหาของฉันในหน้า Dashboard ตรงตามดีไซน์ UI
  * - แสดงสถานะ LOST / FOUND
  * - รายละเอียด: ชื่อ, ชนิด, สายพันธุ์, อายุ, พิกัดสถานที่ และเวลาอัปเดต
- * - แถบล่าง: ป้ายรางวัล และปุ่ม Action (ดูใบปลิว/Flyer, แก้ไข, ลบผ่าน Backend จริง)
+ * - กดที่ตัวการ์ด (ยกเว้นปุ่ม Action) จะพาไปหน้ารายละเอียดประกาศ `/posts/[id]`
+ * - แถบล่าง: ป้ายรางวัล และปุ่ม Action (ดูใบปลิว/Flyer, แก้ไข)
  */
 export function DashboardMyPosts({
   initialPosts = [],
@@ -33,6 +35,7 @@ export function DashboardMyPosts({
   initialPosts?: MyPostDashboardItem[];
 }) {
   const [posts] = useState<MyPostDashboardItem[]>(initialPosts);
+  const router = useRouter();
 
   return (
     <div className="flex flex-col gap-4">
@@ -77,7 +80,16 @@ export function DashboardMyPosts({
             return (
               <div
                 key={post.id}
-                className={`group relative flex flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xs transition-all hover:shadow-md ${
+                role="link"
+                tabIndex={0}
+                onClick={() => router.push(`/posts/${post.id}`)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    router.push(`/posts/${post.id}`);
+                  }
+                }}
+                className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xs transition-all hover:shadow-md ${
                   isClosed ? 'grayscale' : ''
                 }`}
               >
@@ -142,8 +154,11 @@ export function DashboardMyPosts({
                     </span>
                   </div>
 
-                  {/* แถบล่างสุด: เงินรางวัล & ปุ่ม Action ไอคอน */}
-                  <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
+                  {/* แถบล่างสุด: เงินรางวัล & ปุ่ม Action ไอคอน - หยุด event ไม่ให้ทะลุไปกดเปิดการ์ดซ้ำ */}
+                  <div
+                    className="mt-4 flex items-center justify-between border-t border-border/60 pt-3"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {/* เงินรางวัล */}
                     <div>
                       {post.rewardAmount ? (
