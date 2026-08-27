@@ -60,3 +60,12 @@ export async function markAsRead(
 export async function markAllAsRead(): Promise<{ message: string }> {
   return authFetch('/notifications/read-all', { method: 'PATCH' });
 }
+
+/**
+ * ลบการแจ้งเตือนถาวร (DELETE /notifications/:id)
+ */
+export async function deleteNotification(
+  id: string,
+): Promise<{ message: string }> {
+  return authFetch(`/notifications/${id}`, { method: 'DELETE' });
+}

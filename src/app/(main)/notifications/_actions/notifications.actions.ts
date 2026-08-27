@@ -2,7 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { markAsRead, markAllAsRead } from '@/services/notification.service';
+import {
+  markAsRead,
+  markAllAsRead,
+  deleteNotification,
+} from '@/services/notification.service';
 
 /**
  * Server Action สำหรับทำเครื่องหมายว่าอ่านแล้วสำหรับการแจ้งเตือนรายการเดียว
@@ -36,6 +40,22 @@ export async function markAllAsReadAction() {
       error instanceof Error
         ? error.message
         : 'ไม่สามารถทำเครื่องหมายว่าอ่านทั้งหมดแล้วได้';
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Server Action สำหรับลบการแจ้งเตือนถาวร
+ * เรียกจากปุ่มถังขยะที่การ์ดแต่ละใบในหน้า Notifications
+ */
+export async function deleteNotificationAction(id: string) {
+  try {
+    await deleteNotification(id);
+    revalidatePath('/notifications');
+    return { success: true };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'ไม่สามารถลบการแจ้งเตือนได้';
     return { success: false, error: message };
   }
 }

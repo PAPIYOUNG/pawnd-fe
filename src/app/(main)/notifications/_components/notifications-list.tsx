@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Loader2,
   BellOff,
+  Trash2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ import type { NotificationItem, NotificationType } from '@/types/notification';
 import {
   markAsReadAction,
   markAllAsReadAction,
+  deleteNotificationAction,
 } from '../_actions/notifications.actions';
 
 interface NotificationsListProps {
@@ -73,9 +75,9 @@ function formatTimeAgo(dateStr: string): string {
 
 /**
  * NotificationsList Component (Client Component)
- * - แสดงรายการการแจ้งเตือนจริงจาก Backend พร้อม mark-as-read / mark-all-as-read ที่ใช้งานได้จริง
+ * - แสดงรายการการแจ้งเตือนจริงจาก Backend พร้อม mark-as-read / mark-all-as-read / ลบ ที่ใช้งานได้จริง
  * - รับ initialNotifications/initialUnreadCount จาก Server Component ชั้นบน แล้วเก็บ state ในเครื่อง
- *   เพื่อทำ Optimistic Update ตอนผู้ใช้กดอ่าน โดยไม่ต้องรอ revalidate ทั้งหน้า
+ *   เพื่อทำ Optimistic Update ตอนผู้ใช้กดอ่าน/ลบ โดยไม่ต้องรอ revalidate ทั้งหน้า
  */
 export function NotificationsList({
   initialNotifications,
@@ -118,6 +120,25 @@ export function NotificationsList({
     });
   };
 
+  // ลบการแจ้งเตือนออกจากรายการทันที (optimistic) แล้วยิง Server Action ตามหลัง
+  // ถ้าล้มเหลวให้เอารายการที่ลบกลับมาแสดง และคืนค่า unreadCount ถ้ารายการนั้นยังไม่เคยอ่าน
+  const handleDelete = (id: string) => {
+    const previousNotifications = notifications;
+    const wasUnread = notifications.find((n) => n.id === id)?.isRead === false;
+
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    if (wasUnread) setUnreadCount((prev) => Math.max(0, prev - 1));
+    setFeedback(null);
+
+    void deleteNotificationAction(id).then((res) => {
+      if (!res.success) {
+        setNotifications(previousNotifications);
+        if (wasUnread) setUnreadCount((prev) => prev + 1);
+        setFeedback(res.error || 'ไม่สามารถลบการแจ้งเตือนได้');
+      }
+    });
+  };
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-10">
       {/* 1. ส่วนหัวของการแจ้งเตือน */}
@@ -151,7 +172,7 @@ export function NotificationsList({
         )}
       </div>
 
-      {/* ข้อความแจ้ง Error กรณี mark-all-as-read ล้มเหลว */}
+      {/* ข้อความแจ้ง Error กรณี mark-all-as-read / ลบ ล้มเหลว */}
       {feedback && (
         <div className="mt-4 flex items-center gap-2 rounded-2xl bg-destructive/15 p-3.5 text-xs font-semibold text-destructive">
           <AlertCircle className="size-4 shrink-0" />
@@ -208,7 +229,22 @@ export function NotificationsList({
                 </div>
               </div>
 
-              <ChevronRight className="size-4 shrink-0 self-center text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
+              {/* ปุ่มลบ + ลูกศรนำทาง ทางขวาสุด */}
+              <div className="flex shrink-0 items-center gap-1 self-center">
+                <button
+                  type="button"
+                  aria-label="ลบการแจ้งเตือนนี้"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleDelete(item.id);
+                  }}
+                  className="flex size-10 min-h-[40px] min-w-[40px] items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
+              </div>
             </Link>
           ))}
         </div>
