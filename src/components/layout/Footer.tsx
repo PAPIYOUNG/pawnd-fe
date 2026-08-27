@@ -91,41 +91,8 @@ export default function Footer() {
             <h3 className="text-sm font-semibold tracking-wide text-white">
               เลี้ยงชานมผู้พัฒนา
             </h3>
-            <ul className="flex flex-col gap-2.5 text-sm text-white/75">
-              <li>
-                <Link
-                  href="/guide/lost-pet"
-                  className="transition-colors hover:text-white"
-                >
-                  วิธีการแจ้งสัตว์หาย
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/ai-matching"
-                  className="transition-colors hover:text-white"
-                >
-                  ระบบตรวจหาด้วย AI
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/stats"
-                  className="transition-colors hover:text-white"
-                >
-                  สถิติการตามสัตว์หาย
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/contact"
-                  className="transition-colors hover:text-white"
-                >
-                  ติดต่อทีมงาน
-                </Link>
-              </li>
-            </ul>
-            <div className="mt-3 flex items-center gap-4">
+            {/* แสดงเฉพาะ QR สนับสนุนตามเนื้อหาที่ต้องการของ Footer */}
+            <div className="mt-4 flex items-center gap-4">
               <div className="shrink-0 overflow-hidden rounded-xl bg-white p-1.5">
                 <Image
                   src="/images/support-promptpay.png"
