@@ -95,6 +95,7 @@ export default function CommunityPage() {
                     src={post.avatar}
                     alt={post.author}
                     fill
+                    sizes="40px"
                     className="object-cover"
                   />
                 </div>

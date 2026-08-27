@@ -11,13 +11,33 @@ import {
   AlertCircle,
   ImageIcon,
   ArrowRight,
+  Images,
 } from 'lucide-react';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
-
-import { PetProfile } from '@/types/pet';
+import { PetProfile, PetAvatarItem } from '@/types/pet';
 import { Button } from '@/components/ui/button';
 import { generatePetAvatarAction } from '../_actions/avatar.actions';
+import { AvatarAlbumModal } from './avatar-album-modal';
+
+/**
+ * ช่วยแปลง Cloudinary URL ให้อยู่ในรูปแบบที่ส่ง Header บังคับดาวน์โหลดไฟล์ลงเครื่อง (fl_attachment)
+ */
+function getCloudinaryDownloadUrl(url: string, filename?: string): string {
+  if (url.includes('res.cloudinary.com') && url.includes('/upload/')) {
+    if (!url.includes('fl_attachment')) {
+      const baseName = filename
+        ? filename.replace(/\.[^/.]+$/, '').trim()
+        : 'pet-avatar';
+      const sanitized = baseName
+        .replace(/[/\\?%*:|"<>,\s]+/g, '_')
+        .slice(0, 60);
+      const cleanName = encodeURIComponent(sanitized || 'pet-avatar');
+      return url.replace('/upload/', `/upload/fl_attachment:${cleanName}/`);
+    }
+  }
+  return url;
+}
 
 interface AvatarGeneratorCardProps {
   pet: PetProfile;
@@ -26,16 +46,20 @@ interface AvatarGeneratorCardProps {
 /**
  * AvatarGeneratorCard (Client Component)
  * - ส่วนแสดงผลและปุ่มสั่งสร้าง AI Avatar เชื่อมต่อกับ Backend (POST /ai/generate-pet-avatar)
+ * - มีปุ่มเปิดดู "อัลบั้ม Avatar" (Avatar Album & Gallery) ของผู้ใช้
  * - จัดการ 4 สถานะ:
  *   1. Initial: แสดงกรอบเส้นประและปุ่มสร้าง Avatar
  *   2. Loading: แสดงแอนิเมชันกำลังประมวลผล
- *   3. Success: แสดงภาพ Avatar ที่เจนออกมา พร้อมปุ่มดาวน์โหลดและสร้างใหม่
+ *   3. Success: แสดงภาพ Avatar ที่เจนออกมา พร้อมปุ่มดาวน์โหลด, เปิดดูในอัลบั้ม และสร้างใหม่
  *   4. Empty Images Warning: แจ้งเตือนเมื่อสัตว์เลี้ยงยังไม่มีรูปภาพอัปโหลด
  */
 export function AvatarGeneratorCard({ pet }: AvatarGeneratorCardProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [latestAvatar, setLatestAvatar] = useState<PetAvatarItem | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isAlbumOpen, setIsAlbumOpen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [quota, setQuota] = useState<{
     used: number;
     limit: number;
@@ -50,6 +74,58 @@ export function AvatarGeneratorCard({ pet }: AvatarGeneratorCardProps) {
       : [];
 
   const hasImages = petImageUrls.length > 0;
+
+  // ฟังก์ชันดาวน์โหลดภาพลงเครื่องผู้ใช้จริง
+  const handleDownload = async (url: string) => {
+    try {
+      setIsDownloading(true);
+      const cleanPetName = pet.name.replace(/[/\\?%*:|"<>,\s]+/g, '_').trim() || 'pet';
+      const filename = `${cleanPetName}-avatar-${Date.now()}.png`;
+
+      // 1. กรณีเป็น Data URL (Base64)
+      if (url.startsWith('data:')) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+
+      // 2. พยายามดึงเป็น Blob
+      const targetUrl = getCloudinaryDownloadUrl(url, filename);
+      const response = await fetch(targetUrl);
+      if (!response.ok) throw new Error('Fetch failed');
+
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      // 3. Fallback: ใช้ <a> ชี้ไปที่ fl_attachment URL
+      const cleanPetName = pet.name.replace(/[/\\?%*:|"<>,\s]+/g, '_').trim() || 'pet';
+      const filename = `${cleanPetName}-avatar.png`;
+      const fallbackUrl = getCloudinaryDownloadUrl(url, filename);
+
+      const link = document.createElement('a');
+      link.href = fallbackUrl;
+      link.download = filename;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   // ฟังก์ชันเรียกสร้างภาพ Avatar จาก Backend
   const handleGenerate = async () => {
@@ -68,7 +144,26 @@ export function AvatarGeneratorCard({ pet }: AvatarGeneratorCardProps) {
       });
 
       if (res.success && res.data) {
-        setAvatarUrl(res.data.avatar.imageUrl);
+        const generatedImageUrl = res.data.avatar.imageUrl;
+        setAvatarUrl(generatedImageUrl);
+
+        const newAvatarItem: PetAvatarItem = {
+          id: res.data.avatar.id || 'avatar-' + Date.now(),
+          userId: '',
+          petId: pet.id,
+          imageUrl: generatedImageUrl,
+          style: res.data.avatar.style || '3D_VOXEL',
+          createdAt: res.data.avatar.createdAt || new Date().toISOString(),
+          pet: {
+            id: pet.id,
+            name: pet.name,
+            type: pet.type,
+            breed: pet.breed,
+            profileImageUrl: pet.profileImageUrl,
+          },
+        };
+        setLatestAvatar(newAvatarItem);
+
         setQuota({
           used: res.data.quota.used,
           limit: res.data.quota.limit,
@@ -86,9 +181,28 @@ export function AvatarGeneratorCard({ pet }: AvatarGeneratorCardProps) {
 
   return (
     <div className="mt-10 border-t border-border/60 pt-8">
-      <h3 className="text-base font-bold text-foreground mb-6 text-center sm:text-left">
-        Avatar Ai generate
-      </h3>
+      {/* ส่วนหัวของกล่อง Studio พร้อมปุ่มเปิด อัลบั้ม Avatar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <div>
+          <h3 className="text-lg font-bold text-foreground">
+            Avatar AI Studio
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            สร้างภาพอวตาร 3D สัตว์เลี้ยงสุดน่ารักด้วย Generative AI
+          </p>
+        </div>
+
+        {/* ปุ่ม Icon เปิดดูอัลบั้มภาพ Avatar ทั้งหมด (R2: Album Icon Button) */}
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setIsAlbumOpen(true)}
+          className="inline-flex items-center gap-2 self-start sm:self-auto rounded-2xl border-border/80 bg-card px-4 py-2 text-xs font-bold text-foreground shadow-2xs transition-all hover:border-primary/60 hover:bg-primary/5 hover:text-primary"
+        >
+          <Images className="size-4 text-primary" />
+          <span>อัลบั้มภาพ Avatar ของฉัน</span>
+        </Button>
+      </div>
 
       {/* แถบแจ้งเตือน Error ถ้ามี */}
       {error && (
@@ -162,7 +276,6 @@ export function AvatarGeneratorCard({ pet }: AvatarGeneratorCardProps) {
             )
           )}
 
-
           {/* สถานะ 3: แสดงภาพผลลัพธ์ Avatar ที่เจนสำเร็จ (Success State) */}
           {avatarUrl && (
             <div className="flex flex-col items-center text-center w-full max-w-sm rounded-3xl border border-primary/40 bg-card p-6 shadow-md">
@@ -171,6 +284,8 @@ export function AvatarGeneratorCard({ pet }: AvatarGeneratorCardProps) {
                   src={avatarUrl}
                   alt="Generated AI Avatar"
                   fill
+                  sizes="(max-width: 640px) 240px, 256px"
+                  priority
                   className="object-cover"
                   unoptimized={avatarUrl.startsWith('data:')}
                 />
@@ -187,18 +302,32 @@ export function AvatarGeneratorCard({ pet }: AvatarGeneratorCardProps) {
                 </p>
               )}
 
-              {/* ปุ่ม Action: ดาวน์โหลด และ สร้างใหม่ */}
+              {/* ปุ่ม Action: ดาวน์โหลด, เปิดดูในอัลบั้ม, และสร้างใหม่ */}
               <div className="mt-5 flex w-full flex-col gap-2">
-                <a
-                  href={avatarUrl}
-                  download={`${pet.name}-avatar.jpg`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <Button
+                  type="button"
+                  onClick={() => handleDownload(avatarUrl)}
+                  disabled={isDownloading}
                   className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground shadow-xs hover:bg-primary/90 transition-colors"
                 >
-                  <Download className="size-4" />
+                  {isDownloading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Download className="size-4" />
+                  )}
                   <span>ดาวน์โหลดรูปภาพ Avatar</span>
-                </a>
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAlbumOpen(true)}
+                  className="h-10 w-full gap-2 rounded-xl border-border/80 text-xs font-bold text-foreground hover:bg-muted"
+                >
+                  <Images className="size-3.5 text-primary" />
+                  <span>เปิดดูในอัลบั้ม Avatar ทั้งหมด</span>
+                </Button>
 
                 <Button
                   type="button"
@@ -206,7 +335,7 @@ export function AvatarGeneratorCard({ pet }: AvatarGeneratorCardProps) {
                   size="sm"
                   onClick={handleGenerate}
                   disabled={isLoading || (quota !== null && quota.remaining <= 0)}
-                  className="h-10 w-full gap-2 rounded-xl border-border/80 text-xs font-bold text-foreground hover:bg-muted"
+                  className="h-10 w-full gap-2 rounded-xl border-border/80 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted"
                 >
                   {isLoading ? (
                     <Loader2 className="size-3.5 animate-spin" />
@@ -244,6 +373,16 @@ export function AvatarGeneratorCard({ pet }: AvatarGeneratorCardProps) {
           )}
         </div>
       )}
+
+      {/* Modal แกลเลอรีอัลบั้มรูป Avatar (R2 & R3) */}
+      <AvatarAlbumModal
+        isOpen={isAlbumOpen}
+        onClose={() => setIsAlbumOpen(false)}
+        currentPetId={pet.id}
+        currentPetName={pet.name}
+        newlyGeneratedAvatar={latestAvatar}
+      />
     </div>
   );
 }
+

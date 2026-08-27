@@ -19,8 +19,39 @@ interface PetCardProps {
  *   3. ชื่อสัตว์เลี้ยง และข้อมูลสายพันธุ์/อายุ
  *   4. พิกัดสถานที่ที่พบ/หาย และเวลาที่ผ่านมา (Time Ago)
  */
+/**
+ * ตรวจสอบและแปลงข้อความที่อาจเป็น 'Unknown' หรือเครื่องหมาย '?' ให้เป็นค่าเริ่มต้นภาษาไทย
+ */
+function cleanText(val?: string | null, fallback = ''): string {
+  if (!val) return fallback;
+  const trimmed = val.trim();
+  if (
+    trimmed === '' ||
+    trimmed.toLowerCase() === 'unknown' ||
+    /^[\s?？]+$/.test(trimmed)
+  ) {
+    return fallback;
+  }
+  return trimmed;
+}
+
 export function PetCard({ post }: PetCardProps) {
   const isLost = post.type === 'LOST';
+  // กำหนดชื่อที่แสดงผล: ถ้าไม่มีชื่อหรือเป็น Unknown/??? ให้ fallback เป็นภาษาไทยตามประเภทประกาศ
+  const defaultName = isLost ? 'สัตว์เลี้ยง (ไม่ระบุชื่อ)' : 'ไม่ทราบชื่อ';
+  const displayName = cleanText(post.petName, defaultName);
+  const cleanDistrict = cleanText(post.district, '');
+  const cleanProvince = cleanText(post.province, '');
+  let defaultLocation = 'ไม่ระบุสถานที่';
+  if (cleanDistrict && cleanProvince) {
+    defaultLocation = `${cleanDistrict}, ${cleanProvince}`;
+  } else if (cleanProvince) {
+    defaultLocation = cleanProvince;
+  } else if (cleanDistrict) {
+    defaultLocation = cleanDistrict;
+  }
+
+  const displayLocation = cleanText(post.locationDetail, defaultLocation);
 
   return (
     <Link href={`/posts/${post.id}`} className="group block">
@@ -29,7 +60,7 @@ export function PetCard({ post }: PetCardProps) {
         <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
           <Image
             src={post.coverImageUrl}
-            alt={post.petName}
+            alt={displayName}
             fill
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
             className="object-cover transition-transform duration-500 group-hover:scale-105"
@@ -50,7 +81,7 @@ export function PetCard({ post }: PetCardProps) {
           <div>
             {/* ชื่อสัตว์เลี้ยง */}
             <h3 className="line-clamp-1 text-base font-bold text-foreground transition-colors group-hover:text-primary">
-              {post.petName}
+              {displayName}
             </h3>
             {/* สายพันธุ์ หรือคำอธิบายเพิ่มเติม */}
             <p className="line-clamp-1 text-xs text-muted-foreground">
@@ -63,7 +94,7 @@ export function PetCard({ post }: PetCardProps) {
             {/* พิกัดสถานที่ */}
             <div className="flex items-center gap-1.5 line-clamp-1">
               <MapPin className="size-3.5 shrink-0 text-primary" />
-              <span className="truncate">{post.locationDetail || post.province}</span>
+              <span className="truncate">{displayLocation}</span>
             </div>
             {/* เวลาที่ผ่านมา */}
             <div className="flex items-center gap-1.5">

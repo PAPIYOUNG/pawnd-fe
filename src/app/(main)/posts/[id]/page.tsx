@@ -8,9 +8,14 @@ import { CalendarDays, MapPin, PawPrint, UserRound } from 'lucide-react';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 
+import type { PostEvent } from '@/types/posts-event';
 import type { PostStatus } from '@/types/post';
+import type { AiMatchItem } from '@/types/ai-match';
+import { getPostMatches } from '@/services/ai-matching.service';
+import { AiMatchingCard } from './_components/ai-matching-card';
 import { ContactChatButton } from './_components/contact-chat-button';
 import { PostEventsCard } from './_components/post-events-card';
+import { PostStatusActions } from './_components/post-status-actions';
 
 interface PostDetailPageProps {
   params: Promise<{ id: string }>;
@@ -21,28 +26,66 @@ const dateFormatter = new Intl.DateTimeFormat('th-TH', {
   timeStyle: 'short',
 });
 
-/** หน้า public post detail และจุดเริ่มต้นของ In-app Chat */
+/**
+ * หน้า public post detail และจุดเริ่มต้นของ In-app Chat
+ * ดึงข้อมูล Timeline จาก Backend แยกจากข้อมูลประกาศ เพื่อให้ส่วนความคืบหน้า
+ * แสดงสถานะว่างหรือข้อผิดพลาดได้โดยไม่ทำให้รายละเอียดประกาศทั้งหน้าหายไป
+ */
 export default async function PostDetailPage({ params }: PostDetailPageProps) {
   const { id } = await params;
-  const session = await auth();
-
-  let post;
-  try {
-    post = await getPostById(id);
-  } catch (error) {
-    if (error instanceof ApiError && error.statusCode === 404) notFound();
-    throw error;
-  }
+  // เริ่มอ่าน session และ post พร้อมกันเพื่อลดเวลารอของหน้า detail
+  const [session, post] = await Promise.all([auth(), getPostById(id)]);
 
   if (!post) notFound();
 
-  // ดึง Timeline ของประกาศหลังยืนยันว่า post นี้มีอยู่จริง
-  const events = await getPostEvents(id);
+  // แยก error ของ Timeline ออกจาก post detail เพื่อให้ผู้ใช้ยังอ่านข้อมูลประกาศได้
+  let events: PostEvent[] = [];
+  let eventsError: string | null = null;
+  try {
+    events = await getPostEvents(id);
+  } catch (error) {
+    // 404/500 จาก endpoint นี้ไม่ควรเปิดเผยรายละเอียดระบบแก่ผู้ใช้
+    eventsError =
+      error instanceof ApiError && error.statusCode === 404
+        ? 'ไม่พบข้อมูลความคืบหน้าของประกาศนี้'
+        : 'ไม่สามารถโหลดความคืบหน้าของประกาศได้ในขณะนี้';
+  }
 
-  const primaryImage = post.images?.[0]?.imageUrl;
-  const location = [post.subdistrict, post.district, post.province]
+  // เฉพาะเจ้าของประกาศเท่านั้นที่สั่งจับคู่ใหม่/Pin/Dismiss ได้ (ตาม Backend assertOwnedPost)
+  // ส่วนการดูรายการผลจับคู่ (read-only) เป็น public endpoint เห็นได้ทั้งคนที่ login และไม่ได้ login
+  const isOwner = (session?.user?.id ?? null) === post.userId;
+
+  let initialAiMatches: AiMatchItem[] = [];
+  try {
+    const result = await getPostMatches(id);
+    initialAiMatches = result.matches;
+  } catch (error) {
+    // โหลดผลจับคู่เดิมไม่สำเร็จ ไม่ต้องบล็อกทั้งหน้า ให้ Client Component เริ่มจากรายการว่างแทน
+    if (!(error instanceof ApiError)) throw error;
+  }
+
+  const primaryImage =
+    post.images?.[0]?.imageUrl || post.pet?.profileImageUrl || undefined;
+  // ทำความสะอาดชื่อสัตว์เลี้ยงและสถานที่ ป้องกันข้อความ Unknown หรือเครื่องหมาย ?????
+  const isFound = post.type === 'FOUND';
+  const defaultPetName = isFound ? 'ไม่ทราบชื่อ' : 'ไม่ระบุชื่อสัตว์เลี้ยง';
+  const rawPetName = (post.petName || post.pet?.name || '').trim();
+  const displayPetName =
+    rawPetName === '' ||
+    rawPetName.toLowerCase() === 'unknown' ||
+    /^[\s?？]+$/.test(rawPetName)
+      ? defaultPetName
+      : rawPetName;
+
+  const rawLocation = [post.subdistrict, post.district, post.province]
     .filter(Boolean)
     .join(', ');
+  const location =
+    rawLocation === '' ||
+    rawLocation.toLowerCase() === 'unknown' ||
+    /^[\s?,？]+$/.test(rawLocation)
+      ? 'ไม่ระบุสถานที่'
+      : rawLocation;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
@@ -53,7 +96,7 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
             {primaryImage ? (
               <Image
                 src={primaryImage}
-                alt={post.petName ?? 'รูปสัตว์เลี้ยงในประกาศ'}
+                alt={displayPetName}
                 fill
                 priority
                 sizes="(max-width: 1024px) 100vw, 65vw"
@@ -68,17 +111,21 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
 
           <Card className="rounded-3xl">
             <CardHeader>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge
-                  variant={post.type === 'LOST' ? 'destructive' : 'default'}
-                >
-                  {post.type === 'LOST' ? 'ตามหา' : 'พบเห็น'}
-                </Badge>
-                <Badge variant="outline">{post.status}</Badge>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant={post.type === 'LOST' ? 'destructive' : 'default'}
+                  >
+                    {post.type === 'LOST' ? 'ตามหา' : 'พบเห็น'}
+                  </Badge>
+                  <Badge variant="outline">{post.status}</Badge>
+                </div>
+                {/* ปุ่มเปลี่ยนสถานะประกาศ 4 ปุ่ม เห็นเฉพาะเจ้าของประกาศ */}
+                {isOwner && (
+                  <PostStatusActions postId={post.id} status={post.status} />
+                )}
               </div>
-              <CardTitle className="text-2xl">
-                {post.petName ?? 'ไม่ระบุชื่อสัตว์เลี้ยง'}
-              </CardTitle>
+              <CardTitle className="text-2xl">{displayPetName}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
               <p className="leading-7 text-foreground/85">
@@ -94,6 +141,13 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
               )}
             </CardContent>
           </Card>
+
+          <AiMatchingCard
+            postId={post.id}
+            postStatus={post.status}
+            isOwner={isOwner}
+            initialMatches={initialAiMatches}
+          />
         </section>
 
         {/* ข้อมูลสรุปและปุ่มติดต่อ */}
@@ -165,13 +219,13 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
               </div>
               <ContactChatButton
                 postId={post.id}
-                postStatus={post.status as PostStatus}
+                postStatus={post.status}
                 ownerId={post.userId}
                 currentUserId={session?.user?.id ?? null}
               />
             </CardContent>
             {/* กล่อง Timeline จาก GET /posts/:id/events */}
-            <PostEventsCard events={events} />
+            <PostEventsCard events={events} errorMessage={eventsError} />
           </Card>
         </aside>
       </div>

@@ -2,17 +2,14 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { Camera, Loader2 } from 'lucide-react';
 
 import { UserProfile } from '@/types/user';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import { uploadAvatarAction } from '../_actions/profile.actions';
 
 const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_AVATAR_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-
-const FALLBACK_AVATAR_URL =
-  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=400&auto=format&fit=crop';
 
 interface AvatarUploadProps {
   user: UserProfile;
@@ -74,12 +71,10 @@ export function AvatarUpload({ user }: AvatarUploadProps) {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="relative size-16 shrink-0 overflow-hidden rounded-full border-2 border-border/80 shadow-md sm:size-22">
-        <Image
-          src={previewUrl || user.avatarUrl || FALLBACK_AVATAR_URL}
+        <UserAvatar
+          src={previewUrl || user.avatarUrl}
           alt={`${user.firstName} ${user.lastName}`}
-          fill
           sizes="(min-width: 640px) 88px, 64px"
-          className="object-cover"
           priority
         />
 

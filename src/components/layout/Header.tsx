@@ -1,24 +1,37 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Bell, Plus, Menu, X } from 'lucide-react';
+import { io } from 'socket.io-client';
+import {
+  Bell,
+  Plus,
+  Menu as MenuIcon,
+  X,
+  LayoutDashboard,
+  User,
+  Heart,
+  Settings,
+  LogOut,
+} from 'lucide-react';
 
 import { buttonVariants } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
+import { UserAvatar } from '@/components/common/UserAvatar';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import type { SessionUser } from '@/types/auth';
+import { logoutAction } from '@/lib/action/logout.actions';
 
-interface HeaderProps {
-  isLoggedIn?: boolean;
-  userName?: string;
-  userAvatar?: string;
-}
-
-/**
- * รายการลิงก์เมนูนำทางหลักของเว็บไซต์ (Main Navigation Links)
- */
+/** รายการลิงก์เมนูนำทางหลักของเว็บไซต์ (Main Navigation Links) */
 const NAV_LINKS = [
   { href: '/', label: 'หน้าแรก' },
   { href: '/posts', label: 'ประกาศ' },
@@ -27,22 +40,114 @@ const NAV_LINKS = [
   { href: '/chat', label: 'แชท' },
 ];
 
+/** Response shape ของ GET /api/auth/session (built-in endpoint จาก NextAuth) */
+interface AuthSessionResponse {
+  user?: SessionUser;
+  accessToken?: string;
+  error?: string;
+}
+
 /**
  * Header Component (Client Component)
  * - แถบส่วนหัวด้านบนแบบ Sticky Navigation (ติดอยู่ด้านบนเสมอขณะเลื่อนหน้าจอ)
  * - ฝั่งซ้าย: โลโก้แบรนด์ Pawnd
  * - ตรงกลาง: ลิงก์เมนูนำทางหลักบน Desktop (แสดงสถานะ Active Link ตาม pathname)
- * - ฝั่งขวา: ปุ่มสลับธีม (ThemeToggle), กระดิ่งแจ้งเตือน (Notification), รูปโปรไฟล์ผู้ใช้ และปุ่ม "+ แจ้งสัตว์เลี้ยงหาย"
+ *   รวมปุ่ม "แอดมิน" เพิ่มต่อท้ายเฉพาะบัญชีที่ role เป็น ADMIN
+ * - ฝั่งขวา: ปุ่มสลับธีม (ThemeToggle), กระดิ่งแจ้งเตือน (Notification, real-time ผ่าน Socket.IO),
+ *   ดรอปดาวน์เมนู avatar (แดชบอร์ด/โปรไฟล์/ตั้งค่า/ออกจากระบบ) และปุ่ม "+ แจ้งสัตว์เลี้ยงหาย"
  * - รองรับ Mobile Drawer Menu และ Touch Target ขนาด >= 40x40px ตามมาตรฐาน Mobile-First
+ * - สถานะ login เช็คจาก NextAuth session จริงฝั่ง client หลัง mount ผ่าน /api/auth/session
+ *   ตั้งค่าเริ่มต้นเป็น guest ไว้ก่อนเสมอเพื่อความปลอดภัย (กันไม่ให้ guest เห็น UI ของคน login แว้บหนึ่ง)
+ * - ลิงก์ "หน้าแรก" ชี้ไปที่ / เสมอ ไม่สลับไป /dashboard ตามสถานะ login อีกต่อไป
+ *   (ย้ายไปเป็นเมนู "แดชบอร์ด" ในดรอปดาวน์ avatar แทน)
+ * - ดรอปดาวน์ avatar เขียนด้วย React state + CSS ล้วนๆ (ไม่ใช้ Base UI Menu/Portal)
+ * - จุดแดงแจ้งเตือน: ดึงค่าเริ่มต้นครั้งเดียวผ่าน /api/notifications/unread-count ตอน mount
+ *   แล้วต่อ Socket.IO (namespace /notifications, auth ผ่าน query.token ตาม Backend contract
+ *   เหมือนหน้า Notification) ฟัง event 'notification_count_update' เพื่ออัปเดตแบบ real-time ต่อ
  */
-export default function Header({
-  isLoggedIn = true,
-  userName = 'ผู้ใช้งาน',
-  userAvatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop',
-}: HeaderProps) {
+export default function Header() {
   const pathname = usePathname();
   // State สำหรับเปิด/ปิดเมนู Drawer บนมือถือ
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // State ว่ามีการแจ้งเตือนที่ยังไม่อ่านไหม ดึงฝั่ง client หลัง mount แล้วอัปเดตสดผ่าน socket ต่อ
+  const [hasUnread, setHasUnread] = useState(false);
+  // State สถานะ login จริง + ข้อมูลผู้ใช้ + accessToken (ใช้ auth ตอนต่อ socket) ดึงฝั่ง client หลัง mount
+  const [authState, setAuthState] = useState<{
+    isLoggedIn: boolean;
+    user: SessionUser | null;
+    accessToken: string | null;
+  }>({ isLoggedIn: false, user: null, accessToken: null });
+  const { isLoggedIn, user, accessToken } = authState;
+  const isAdmin = user?.role === 'ADMIN';
+
+  useEffect(() => {
+    let active = true;
+
+    fetch('/api/auth/session', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((session: AuthSessionResponse | null) => {
+        if (!active) return;
+        // logic เดียวกับที่ src/middleware.ts ใช้เช็ค route protection —
+        // session ที่ refresh token หมดอายุยังมี user object อยู่ แต่ถือว่า logged out
+        const loggedIn =
+          !!session?.user && session.error !== 'RefreshAccessTokenError';
+        setAuthState({
+          isLoggedIn: loggedIn,
+          user: loggedIn ? session!.user! : null,
+          accessToken: loggedIn ? (session!.accessToken ?? null) : null,
+        });
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // ดึงจำนวนที่ยังไม่อ่านครั้งแรกตอน mount (ให้จุดแดงขึ้นทันทีโดยไม่ต้องรอ socket handshake)
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let active = true;
+
+    fetch('/api/notifications/unread-count', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : { unreadCount: 0 }))
+      .then((data: { unreadCount?: number }) => {
+        if (active) setHasUnread((data.unreadCount ?? 0) > 0);
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [isLoggedIn]);
+
+  // ต่อ Socket.IO เพื่ออัปเดตจุดแดงแบบ real-time ต่อจากการดึงครั้งแรกด้านบน
+  // (แพทเทิร์นเดียวกับ NotificationsList — auth ผ่าน query.token ไม่ใช่ auth.token แบบ Chat)
+  useEffect(() => {
+    if (!isLoggedIn || !accessToken) return;
+
+    const socketBaseUrl =
+      process.env.NEXT_PUBLIC_PAWND_API_URL || 'http://localhost:8000';
+    const namespaceUrl = `${socketBaseUrl.replace(/\/$/, '')}/notifications`;
+
+    const socket = io(namespaceUrl, {
+      query: { token: accessToken },
+      forceNew: true,
+    });
+
+    const handleCountUpdate = (payload: { unreadCount: number }) => {
+      setHasUnread(payload.unreadCount > 0);
+    };
+
+    socket.on('notification_count_update', handleCountUpdate);
+
+    return () => {
+      socket.off('notification_count_update', handleCountUpdate);
+      socket.disconnect();
+    };
+  }, [isLoggedIn, accessToken]);
+
+  const userName = user ? `${user.firstName} ${user.lastName}` : 'ผู้ใช้งาน';
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
@@ -67,16 +172,14 @@ export default function Header({
         {/* 2. เมนูนำทางบนหน้าจอ Desktop (กึ่งกลาง) */}
         <nav className="hidden md:flex items-center gap-7">
           {NAV_LINKS.map((link) => {
-            const targetHref =
-              link.href === '/' && isLoggedIn ? '/dashboard' : link.href;
             const isActive =
               link.href === '/'
-                ? pathname === '/' || pathname === '/dashboard'
+                ? pathname === '/'
                 : pathname.startsWith(link.href);
             return (
               <Link
                 key={link.href}
-                href={targetHref}
+                href={link.href}
                 className={cn(
                   'text-sm font-medium transition-colors hover:text-primary',
                   isActive
@@ -88,6 +191,21 @@ export default function Header({
               </Link>
             );
           })}
+
+          {/* ปุ่มแอดมิน แสดงเฉพาะบัญชีที่ role เป็น ADMIN เท่านั้น */}
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className={cn(
+                'text-sm font-medium transition-colors hover:text-primary',
+                pathname.startsWith('/admin')
+                  ? 'font-semibold text-primary'
+                  : 'text-muted-foreground',
+              )}
+            >
+              แอดมิน
+            </Link>
+          )}
         </nav>
 
         {/* 3. ส่วนเครื่องมือและข้อมูลผู้ใช้บน Desktop (ทางขวา) */}
@@ -104,23 +222,52 @@ export default function Header({
                 className="relative flex size-10 min-h-[40px] min-w-[40px] items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-muted hover:text-foreground active:scale-95"
               >
                 <Bell className="size-5" />
-                <span className="absolute top-2.5 right-2.5 size-2 rounded-full bg-destructive ring-2 ring-background" />
+                {hasUnread && (
+                  <span className="absolute top-2.5 right-2.5 size-2 rounded-full bg-destructive ring-2 ring-background" />
+                )}
               </Link>
 
-              {/* รูปโปรไฟล์ Avatar ของผู้ใช้งาน (คลิกเพื่อเข้าสู่ระบบโปรไฟล์และจัดการสัตว์เลี้ยง) */}
-              <Link
-                href="/profile/pets"
-                className="relative size-10 min-h-[40px] min-w-[40px] overflow-hidden rounded-full ring-2 ring-border transition-transform hover:scale-105 active:scale-95"
-                title={`${userName} (โปรไฟล์สัตว์เลี้ยง)`}
-              >
-                <Image
-                  src={userAvatar}
-                  alt={userName}
-                  fill
-                  sizes="40px"
-                  className="object-cover"
-                />
-              </Link>
+              {/* ดรอปดาวน์เมนู Avatar: แดชบอร์ด / โปรไฟล์ผู้ใช้ / โปรไฟล์สัตว์เลี้ยง / ตั้งค่า / ออกจากระบบ */}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  aria-label={`เมนูผู้ใช้งาน: ${userName}`}
+                  className="relative size-10 min-h-[40px] min-w-[40px] overflow-hidden rounded-full ring-2 ring-border transition-transform hover:scale-105 active:scale-95"
+                >
+                  <UserAvatar
+                    src={user?.avatarUrl}
+                    alt={userName}
+                    sizes="40px"
+                  />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem href="/dashboard">
+                    <LayoutDashboard className="size-4" />
+                    แดชบอร์ด
+                  </DropdownMenuItem>
+                  <DropdownMenuItem href="/profile">
+                    <User className="size-4" />
+                    โปรไฟล์ผู้ใช้
+                  </DropdownMenuItem>
+                  <DropdownMenuItem href="/profile/pets">
+                    <Heart className="size-4" />
+                    โปรไฟล์สัตว์เลี้ยง
+                  </DropdownMenuItem>
+                  <DropdownMenuItem href="/profile/settings">
+                    <Settings className="size-4" />
+                    ตั้งค่าระบบ
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => {
+                      void logoutAction();
+                    }}
+                    className="text-destructive hover:bg-destructive/10"
+                  >
+                    <LogOut className="size-4" />
+                    ออกจากระบบ
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {/* ปุ่ม CTA: แจ้งสัตว์เลี้ยงหาย */}
               <Link
@@ -171,7 +318,7 @@ export default function Header({
             {mobileMenuOpen ? (
               <X className="size-5" />
             ) : (
-              <Menu className="size-5" />
+              <MenuIcon className="size-5" />
             )}
           </button>
         </div>
@@ -182,17 +329,13 @@ export default function Header({
         <div className="border-b border-border bg-background px-4 py-4 sm:hidden">
           <nav className="flex flex-col gap-2">
             {NAV_LINKS.map((link) => {
-              const targetHref =
-                link.href === '/' && isLoggedIn ? '/dashboard' : link.href;
               const isActive =
-                link.href === '/'
-                  ? pathname === '/' || pathname === '/dashboard'
-                  : pathname === link.href;
+                link.href === '/' ? pathname === '/' : pathname === link.href;
 
               return (
                 <Link
                   key={link.href}
-                  href={targetHref}
+                  href={link.href}
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
                     'flex min-h-[40px] items-center rounded-xl px-3 text-sm font-medium transition-colors hover:bg-muted',
@@ -205,6 +348,22 @@ export default function Header({
                 </Link>
               );
             })}
+
+            {/* ปุ่มแอดมินบนมือถือ แสดงเฉพาะบัญชีที่ role เป็น ADMIN เท่านั้น */}
+            {isAdmin && (
+              <Link
+                href="/admin"
+                onClick={() => setMobileMenuOpen(false)}
+                className={cn(
+                  'flex min-h-[40px] items-center rounded-xl px-3 text-sm font-medium transition-colors hover:bg-muted',
+                  pathname.startsWith('/admin')
+                    ? 'bg-muted text-primary font-semibold'
+                    : 'text-foreground',
+                )}
+              >
+                แอดมิน
+              </Link>
+            )}
 
             {/* แถวสลับธีมบนมือถือ */}
             <div className="flex items-center justify-between border-t border-border pt-3">

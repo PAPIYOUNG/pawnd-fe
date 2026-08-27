@@ -103,6 +103,7 @@ export default async function PublicPetProfilePage({ params }: PublicPetPageProp
             src={displayImageUrl}
             alt={pet.name}
             fill
+            sizes="100vw"
             className="object-cover"
             priority
           />

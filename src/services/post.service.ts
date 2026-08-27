@@ -221,10 +221,9 @@ export async function getAllPosts(
     });
     return response;
   } catch {
-    // Fallback เป็น mock data เมื่อ Backend ไม่พร้อม
     return {
-      data: MOCK_POSTS as unknown as PostDetail[],
-      meta: { page: 1, limit: 20, total: MOCK_POSTS.length, totalPages: 1 },
+      data: [],
+      meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
     };
   }
 }
@@ -281,8 +280,8 @@ export async function searchPosts(
  */
 export async function createPost(
   payload: CreatePostPayload,
-): Promise<PostDetail> {
-  return authFetch<PostDetail>('/posts', {
+): Promise<CreatePostResponse> {
+  return authFetch<CreatePostResponse>('/posts', {
     method: 'POST',
     body: payload as unknown as Record<string, unknown>,
   });
@@ -314,7 +313,7 @@ export async function deletePost(id: string): Promise<void> {
 
 /**
  * อัปโหลดรูปภาพเพิ่มเติมให้ประกาศ (POST /posts/:id/images)
- * รองรับสูงสุด 10 รูปต่อประกาศ (ตาม Backend FilesInterceptor)
+ * รองรับสูงสุด 3 รูปต่อประกาศ (ตาม business validation ใน Backend)
  * ส่งเป็น FormData (multipart/form-data)
  */
 export async function uploadPostImages(
@@ -343,6 +342,33 @@ export async function getPostStats(): Promise<Record<string, number>> {
 }
 
 /**
+ * ตรวจสอบและทำความสะอาดข้อความ ป้องกันค่าว่าง, 'Unknown' หรือเครื่องหมาย '?' ล้วน
+ */
+function sanitizeText(value?: string | null, fallback = ''): string {
+  if (!value) return fallback;
+  const trimmed = value.trim();
+  if (
+    trimmed === '' ||
+    trimmed.toLowerCase() === 'unknown' ||
+    /^[\s?？]+$/.test(trimmed)
+  ) {
+    return fallback;
+  }
+  return trimmed;
+}
+
+/**
+ * แปลงชื่อสัตว์เลี้ยงให้เหมาะสมตามประเภทประกาศ
+ * - ถ้าเป็น FOUND (พบสัตว์พลัดหลง) และไม่มีชื่อ ให้แสดง "ไม่ทราบชื่อ"
+ * - ถ้าเป็น LOST (สัตว์หาย) และไม่มีชื่อ ให้แสดง "สัตว์เลี้ยง (ไม่ระบุชื่อ)"
+ */
+function resolvePetName(rawName?: string | null, postType?: PostType): string {
+  const defaultName =
+    postType === 'FOUND' ? 'ไม่ทราบชื่อ' : 'สัตว์เลี้ยง (ไม่ระบุชื่อ)';
+  return sanitizeText(rawName, defaultName);
+}
+
+/**
  * แปลง PostDetail จาก Backend เป็น LatestPostItem ที่ UI cards ใช้
  * ใช้สำหรับ mapping ข้อมูลจริงให้ตรงกับ component props
  */
@@ -358,6 +384,24 @@ export function mapPostToLatestItem(post: PostDetail): LatestPostItem {
     timeAgo = `${hours} ชั่วโมงที่แล้ว`;
   }
 
+  const cleanDistrict = sanitizeText(post.district, '');
+  const cleanProvince = sanitizeText(post.province, '');
+  const cleanDesc = sanitizeText(post.locationDescription, '');
+
+  // จัดรูปแบบการแสดงผลสถานที่: แสดง "เขต/อำเภอ, จังหวัด" เช่น "พระนคร, กรุงเทพมหานคร"
+  let locationDisplay = cleanDesc;
+  if (!locationDisplay) {
+    if (cleanDistrict && cleanProvince) {
+      locationDisplay = `${cleanDistrict}, ${cleanProvince}`;
+    } else if (cleanProvince) {
+      locationDisplay = cleanProvince;
+    } else if (cleanDistrict) {
+      locationDisplay = cleanDistrict;
+    } else {
+      locationDisplay = 'ไม่ระบุสถานที่';
+    }
+  }
+
   return {
     id: post.id,
     type: post.type,
@@ -366,16 +410,16 @@ export function mapPostToLatestItem(post: PostDetail): LatestPostItem {
     petType: (post.petType ||
       post.pet?.type ||
       'DOG') as LatestPostItem['petType'],
-    breed: post.breed || post.pet?.breed || undefined,
+    breed: sanitizeText(post.breed || post.pet?.breed, undefined),
     gender: post.gender as LatestPostItem['gender'],
-    color: post.color || undefined,
-    distinctiveFeatures: post.distinctiveFeatures || undefined,
-    description: post.description || undefined,
-    province: post.province || 'ไม่ระบุ',
-    district: post.district || undefined,
-    locationDetail: post.locationDescription || post.province || 'ไม่ระบุ',
+    color: sanitizeText(post.color, undefined),
+    distinctiveFeatures: sanitizeText(post.distinctiveFeatures, undefined),
+    description: sanitizeText(post.description, undefined),
+    province: cleanProvince || 'ไม่ระบุจังหวัด',
+    district: cleanDistrict || undefined,
+    locationDetail: locationDisplay,
     rewardAmount: post.rewardAmount,
-    contactPhone: post.contactPhone || undefined,
+    contactPhone: sanitizeText(post.contactPhone, undefined),
     timeAgo,
     coverImageUrl:
       (post.images && post.images.length > 0

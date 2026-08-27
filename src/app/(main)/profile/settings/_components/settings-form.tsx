@@ -92,7 +92,10 @@ export function SettingsForm({
     if (!res.success) {
       // ถ้าบันทึกไม่สำเร็จ ให้ย้อนค่ากลับไปเป็นค่าเดิมก่อนหน้า เพื่อไม่ให้ UI ค้างสถานะที่ไม่ตรงกับ Backend
       setNotificationEnabled(!checked);
-      setSettingsFeedback({ type: 'error', message: res.error || 'เกิดข้อผิดพลาดในการบันทึก' });
+      setSettingsFeedback({
+        type: 'error',
+        message: res.error || 'เกิดข้อผิดพลาดในการบันทึก',
+      });
     }
   };
 
@@ -108,7 +111,10 @@ export function SettingsForm({
     if (!res.success) {
       // ถ้าบันทึกไม่สำเร็จ ให้ย้อนค่ากลับไปเป็นค่าเดิมก่อนหน้า เพื่อไม่ให้ UI ค้างสถานะที่ไม่ตรงกับ Backend
       setTwoFactorEnabled(!checked);
-      setSettingsFeedback({ type: 'error', message: res.error || 'เกิดข้อผิดพลาดในการบันทึก' });
+      setSettingsFeedback({
+        type: 'error',
+        message: res.error || 'เกิดข้อผิดพลาดในการบันทึก',
+      });
     }
   };
 
@@ -126,13 +132,19 @@ export function SettingsForm({
 
     setIsChangingPassword(false);
     if (res.success) {
-      setPasswordFeedback({ type: 'success', message: res.message || 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว' });
+      setPasswordFeedback({
+        type: 'success',
+        message: res.message || 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว',
+      });
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setTimeout(() => setPasswordFeedback(null), 4000);
     } else {
-      setPasswordFeedback({ type: 'error', message: res.error || 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน' });
+      setPasswordFeedback({
+        type: 'error',
+        message: res.error || 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน',
+      });
     }
   };
 
@@ -228,84 +240,96 @@ export function SettingsForm({
         </div>
       </div>
 
-      {/* 2. การเปลี่ยนรหัสผ่าน */}
-      <form onSubmit={handleChangePassword} className="flex flex-col gap-4 rounded-3xl border border-border/80 bg-card p-6 shadow-sm dark:border-border/60">
-        <div className="flex items-center gap-2.5">
-          <Lock className="size-5 text-primary" />
-          <h3 className="text-lg font-bold text-foreground">เปลี่ยนรหัสผ่าน</h3>
-        </div>
-
-        {passwordFeedback && (
-          <div
-            className={`flex items-center gap-2 rounded-2xl p-3.5 text-xs font-semibold ${
-              passwordFeedback.type === 'success'
-                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
-                : 'bg-destructive/15 text-destructive'
-            }`}
-          >
-            {passwordFeedback.type === 'success' ? (
-              <CheckCircle2 className="size-4 shrink-0" />
-            ) : (
-              <AlertCircle className="size-4 shrink-0" />
-            )}
-            <span>{passwordFeedback.message}</span>
+      {/* 2. การเปลี่ยนรหัสผ่าน — แสดงเฉพาะบัญชีที่มีรหัสผ่านอยู่แล้วเท่านั้น (Google/LINE ล้วนไม่มีรหัสผ่านให้เปลี่ยน) */}
+      {hasPassword && (
+        <form
+          onSubmit={handleChangePassword}
+          className="flex flex-col gap-4 rounded-3xl border border-border/80 bg-card p-6 shadow-sm dark:border-border/60"
+        >
+          <div className="flex items-center gap-2.5">
+            <Lock className="size-5 text-primary" />
+            <h3 className="text-lg font-bold text-foreground">
+              เปลี่ยนรหัสผ่าน
+            </h3>
           </div>
-        )}
 
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs font-semibold">รหัสผ่านปัจจุบัน</Label>
-          <Input
-            type="password"
-            placeholder="••••••••"
-            value={oldPassword}
-            onChange={(e) => setOldPassword(e.target.value)}
-            className="rounded-2xl"
-            required
-          />
-        </div>
+          {passwordFeedback && (
+            <div
+              className={`flex items-center gap-2 rounded-2xl p-3.5 text-xs font-semibold ${
+                passwordFeedback.type === 'success'
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+                  : 'bg-destructive/15 text-destructive'
+              }`}
+            >
+              {passwordFeedback.type === 'success' ? (
+                <CheckCircle2 className="size-4 shrink-0" />
+              ) : (
+                <AlertCircle className="size-4 shrink-0" />
+              )}
+              <span>{passwordFeedback.message}</span>
+            </div>
+          )}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs font-semibold">รหัสผ่านใหม่</Label>
-            <Input
-              type="password"
-              placeholder="อย่างน้อย 8 ตัวอักษร"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="rounded-2xl"
-              required
-              minLength={8}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs font-semibold">ยืนยันรหัสผ่านใหม่</Label>
+            <Label className="text-xs font-semibold">รหัสผ่านปัจจุบัน</Label>
             <Input
               type="password"
               placeholder="••••••••"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              value={oldPassword}
+              onChange={(e) => setOldPassword(e.target.value)}
               className="rounded-2xl"
               required
-              minLength={8}
             />
           </div>
-        </div>
 
-        <div className="flex justify-end pt-2">
-          <Button
-            type="submit"
-            disabled={isChangingPassword}
-            className="gap-2 rounded-2xl bg-primary px-6 font-semibold text-primary-foreground shadow-md hover:bg-primary/90"
-          >
-            {isChangingPassword && <Loader2 className="size-4 animate-spin" />}
-            <span>
-              {isChangingPassword ? 'กำลังเปลี่ยน...' : 'เปลี่ยนรหัสผ่าน'}
-            </span>
-          </Button>
-        </div>
-      </form>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-semibold">รหัสผ่านใหม่</Label>
+              <Input
+                type="password"
+                placeholder="อย่างน้อย 8 ตัวอักษร"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="rounded-2xl"
+                required
+                minLength={8}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-semibold">
+                ยืนยันรหัสผ่านใหม่
+              </Label>
+              <Input
+                type="password"
+                placeholder="••••••••"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="rounded-2xl"
+                required
+                minLength={8}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button
+              type="submit"
+              disabled={isChangingPassword}
+              className="gap-2 rounded-2xl bg-primary px-6 font-semibold text-primary-foreground shadow-md hover:bg-primary/90"
+            >
+              {isChangingPassword && (
+                <Loader2 className="size-4 animate-spin" />
+              )}
+              <span>
+                {isChangingPassword ? 'กำลังเปลี่ยน...' : 'เปลี่ยนรหัสผ่าน'}
+              </span>
+            </Button>
+          </div>
+        </form>
+      )}
 
       {/* ปุ่มลบบัญชีถาวร */}
+
       {!showDeleteConfirm ? (
         <div className="flex justify-start">
           <Button
