@@ -12,7 +12,10 @@ export const metadata: Metadata = {
 export default function RegisterPage() {
   return (
     <div className="flex min-h-screen w-full">
-      <AuthAside />
+      <AuthAside
+        title="ยินดีต้อนรับสู่ PAWND"
+        description="แพลตฟอร์มช่วยตามหาสัตว์เลี้ยงหาย ด้วยพลัง AI จับคู่แม่นยำ พร้อมชุมชนคนรักสัตว์ที่พร้อมช่วยเหลือกันตลอด 24 ชั่วโมง"
+      />
 
       <div className="flex w-full flex-1 flex-col">
         <div className="flex items-center gap-2 px-8 py-6">

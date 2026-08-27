@@ -14,8 +14,8 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen w-full">
       <AuthAside
-        title="ยินดีต้อนรับกลับมา"
-        description="เข้าสู่ระบบเพื่อติดตามสถานะประกาศ รับการแจ้งเตือนการจับคู่ และช่วยเหลือสัตว์เลี้ยงให้กลับบ้านได้เร็วที่สุด"
+        title="ยินดีต้อนรับสู่ PAWND"
+        description="แพลตฟอร์มช่วยตามหาสัตว์เลี้ยงหาย ด้วยพลัง AI จับคู่แม่นยำ พร้อมชุมชนคนรักสัตว์ที่พร้อมช่วยเหลือกันตลอด 24 ชั่วโมง"
       />
 
       <div className="flex w-full flex-1 flex-col">
