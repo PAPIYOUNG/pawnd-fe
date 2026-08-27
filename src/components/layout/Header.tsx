@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -43,6 +43,25 @@ export default function Header({
   const pathname = usePathname();
   // State สำหรับเปิด/ปิดเมนู Drawer บนมือถือ
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // State ว่ามีการแจ้งเตือนที่ยังไม่อ่านไหม ดึงฝั่ง client หลัง mount
+  // เพื่อไม่ให้ Server Layout ต้องอ่าน session (ซึ่งจะบังคับทุกหน้าเป็น Dynamic Rendering)
+  const [hasUnread, setHasUnread] = useState(false);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let active = true;
+
+    fetch('/api/notifications/unread-count', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : { unreadCount: 0 }))
+      .then((data: { unreadCount?: number }) => {
+        if (active) setHasUnread((data.unreadCount ?? 0) > 0);
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [isLoggedIn]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
@@ -104,7 +123,9 @@ export default function Header({
                 className="relative flex size-10 min-h-[40px] min-w-[40px] items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-muted hover:text-foreground active:scale-95"
               >
                 <Bell className="size-5" />
-                <span className="absolute top-2.5 right-2.5 size-2 rounded-full bg-destructive ring-2 ring-background" />
+                {hasUnread && (
+                  <span className="absolute top-2.5 right-2.5 size-2 rounded-full bg-destructive ring-2 ring-background" />
+                )}
               </Link>
 
               {/* รูปโปรไฟล์ Avatar ของผู้ใช้งาน (คลิกเพื่อเข้าสู่ระบบโปรไฟล์และจัดการสัตว์เลี้ยง) */}
