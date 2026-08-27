@@ -39,7 +39,6 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
   // ดึง Timeline ของประกาศหลังยืนยันว่า post นี้มีอยู่จริง
   const events = await getPostEvents(id);
 
-  const primaryImage = post.images?.[0]?.imageUrl;
   const primaryImage =
     post.images?.[0]?.imageUrl || post.pet?.profileImageUrl || undefined;
   const location = [post.subdistrict, post.district, post.province]
