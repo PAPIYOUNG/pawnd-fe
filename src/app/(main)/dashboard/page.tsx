@@ -80,48 +80,56 @@ export default async function DashboardMainPage() {
   }
 
   // แปลงรายการ PostDetail จาก Backend -> MyPostDashboardItem สำหรับ Dashboard Grid
-  const dashboardPosts: MyPostDashboardItem[] | undefined =
-    myPosts.length > 0
-      ? myPosts.map((post) => {
-          const isFound = post.type === 'FOUND';
-          const defaultPetName = isFound
-            ? 'ไม่ทราบชื่อ'
-            : 'สัตว์เลี้ยง (ไม่ระบุชื่อ)';
-          const petName = cleanText(
-            post.petName || post.pet?.name,
-            defaultPetName,
-          );
-          const location = cleanText(
-            post.locationDescription || post.province,
-            'ไม่ระบุสถานที่',
-          );
+  const dashboardPosts: MyPostDashboardItem[] = myPosts.map((post) => {
+    const isFound = post.type === 'FOUND';
+    const defaultPetName = isFound
+      ? 'ไม่ทราบชื่อ'
+      : 'สัตว์เลี้ยง (ไม่ระบุชื่อ)';
+    const petName = cleanText(post.petName || post.pet?.name, defaultPetName);
 
-          return {
-            id: post.id,
-            type: post.type,
-            status: post.status as MyPostDashboardItem['status'],
-            petName,
-            petType:
-              post.petType === 'CAT'
-                ? 'แมว'
-                : post.petType === 'DOG'
-                  ? 'สุนัข'
-                  : 'สัตว์เลี้ยง',
-            breed: cleanText(post.breed || post.pet?.breed, 'ไม่ระบุสายพันธุ์'),
-            age: post.pet?.age ? `อายุ ${post.pet.age} ปี` : 'ไม่ระบุอายุ',
-            location,
-            lastUpdated: formatRelativeTime(post.updatedAt || post.createdAt),
-            rewardAmount: post.rewardAmount
-              ? post.rewardAmount.toLocaleString()
-              : null,
-            imageUrl:
-              (post.images && post.images.length > 0
-                ? post.images[0].imageUrl
-                : post.pet?.profileImageUrl) ||
-              'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=600&auto=format&fit=crop',
-          };
-        })
-      : undefined;
+    const cleanDistrict = cleanText(post.district, '');
+    const cleanProvince = cleanText(post.province, '');
+    const cleanDesc = cleanText(post.locationDescription, '');
+
+    // แสดง เขต/อำเภอ คู่กับ จังหวัด
+    let location = cleanDesc;
+    if (!location) {
+      if (cleanDistrict && cleanProvince) {
+        location = `${cleanDistrict}, ${cleanProvince}`;
+      } else if (cleanProvince) {
+        location = cleanProvince;
+      } else if (cleanDistrict) {
+        location = cleanDistrict;
+      } else {
+        location = 'ไม่ระบุสถานที่';
+      }
+    }
+
+    return {
+      id: post.id,
+      type: post.type,
+      status: post.status as MyPostDashboardItem['status'],
+      petName,
+      petType:
+        post.petType === 'CAT'
+          ? 'แมว'
+          : post.petType === 'DOG'
+            ? 'สุนัข'
+            : 'สัตว์เลี้ยง',
+      breed: cleanText(post.breed || post.pet?.breed, 'ไม่ระบุสายพันธุ์'),
+      age: post.pet?.age ? `อายุ ${post.pet.age} ปี` : 'ไม่ระบุอายุ',
+      location,
+      lastUpdated: formatRelativeTime(post.updatedAt || post.createdAt),
+      rewardAmount: post.rewardAmount
+        ? post.rewardAmount.toLocaleString()
+        : null,
+      imageUrl:
+        (post.images && post.images.length > 0
+          ? post.images[0].imageUrl
+          : post.pet?.profileImageUrl) ||
+        'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=600&auto=format&fit=crop',
+    };
+  });
 
   return (
     <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-7xl flex-col md:flex-row">

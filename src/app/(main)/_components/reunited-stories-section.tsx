@@ -15,7 +15,14 @@ interface ReunitedStoriesSectionProps {
  * - แสดงภาพถ่ายจริงของสัตว์เลี้ยงคู่กับเจ้าของ พร้อมข้อความรีวิว/ความประทับใจ
  * - รองรับ Dark Mode และ Responsive Grid (1 คอลัมน์บนมือถือ, 3 คอลัมน์บนจอแท็บเล็ต/เดสก์ท็อป)
  */
-export function ReunitedStoriesSection({ stories }: ReunitedStoriesSectionProps) {
+export function ReunitedStoriesSection({
+  stories,
+}: ReunitedStoriesSectionProps) {
+  // หากยังไม่มีเรื่องราวความสำเร็จในระบบ ให้ซ่อน Section นี้ ไม่แสดงข้อมูลจำลอง
+  if (!stories || stories.length === 0) {
+    return null;
+  }
+
   return (
     <section className="w-full bg-[#ECF5EE] py-12 transition-colors duration-300 sm:py-16 dark:bg-[#071E14]/70">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -25,7 +32,8 @@ export function ReunitedStoriesSection({ stories }: ReunitedStoriesSectionProps)
             เรื่องราวความสำเร็จพากลับบ้าน
           </h2>
           <p className="mt-2 text-sm text-[#2D5A47] sm:text-base dark:text-[#D1FAE5]/80">
-            ความหวังมีเสมอ เสียงขอบคุณจากครอบครัวที่ได้สัตว์เลี้ยงสุดที่รักกลับมาสู่อ้อมกอด
+            ความหวังมีเสมอ
+            เสียงขอบคุณจากครอบครัวที่ได้สัตว์เลี้ยงสุดที่รักกลับมาสู่อ้อมกอด
           </p>
         </div>
 

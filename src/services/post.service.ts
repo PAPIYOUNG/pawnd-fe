@@ -108,62 +108,6 @@ export interface SearchPostsParams extends PostQueryParams {
   eventTo?: string;
 }
 
-/** Mock ข้อมูลรายการโพสต์จำลอง สำหรับ fallback เมื่อ Backend ไม่พร้อม */
-export const MOCK_POSTS: LatestPostItem[] = [
-  {
-    id: 'post-1',
-    type: 'LOST',
-    petName: 'น้องลูน่า (Luna) แมววิเชียรมาศ',
-    petType: 'CAT',
-    breed: 'วิเชียรมาศ',
-    province: 'กรุงเทพฯ',
-    locationDetail: 'พญาไท, กรุงเทพฯ',
-    timeAgo: '10 นาทีที่แล้ว',
-    coverImageUrl:
-      'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=600&auto=format&fit=crop',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'post-2',
-    type: 'FOUND',
-    petName: 'พบเห็นสุนัขไซบีเรียน ฮัสกี้ ปลอกคอดำ',
-    petType: 'DOG',
-    breed: 'ไซบีเรียน ฮัสกี้',
-    province: 'นนทบุรี',
-    locationDetail: 'งามวงศ์วาน, นนทบุรี',
-    timeAgo: '1 ชั่วโมงที่แล้ว',
-    coverImageUrl:
-      'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?q=80&w=600&auto=format&fit=crop',
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-  },
-  {
-    id: 'post-3',
-    type: 'LOST',
-    petName: 'ช็อกโก้ สุนัขพุดเดิลสีน้ำตาล',
-    petType: 'DOG',
-    breed: 'พุดเดิ้ลทอย',
-    province: 'กรุงเทพฯ',
-    locationDetail: 'ลาดพร้าว 101, กรุงเทพฯ',
-    timeAgo: '3 ชั่วโมงที่แล้ว',
-    coverImageUrl:
-      'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?q=80&w=600&auto=format&fit=crop',
-    createdAt: new Date(Date.now() - 10800000).toISOString(),
-  },
-  {
-    id: 'post-4',
-    type: 'LOST',
-    petName: 'น้องส้มส้ม แมวลายเสือส้ม สวมกระดิ่งแดง',
-    petType: 'CAT',
-    breed: 'พันธุ์ไทยผสมเปอร์เซีย',
-    province: 'กรุงเทพฯ',
-    locationDetail: 'ดินแดง, กรุงเทพฯ',
-    timeAgo: '5 ชั่วโมงที่แล้ว',
-    coverImageUrl:
-      'https://images.unsplash.com/photo-1573865526739-10659fec78a5?q=80&w=600&auto=format&fit=crop',
-    createdAt: new Date(Date.now() - 18000000).toISOString(),
-  },
-];
-
 /**
  * สร้าง query string จาก object parameters
  * กรองค่า undefined ออกก่อนสร้าง URL params
@@ -194,10 +138,9 @@ export async function getAllPosts(
     });
     return response;
   } catch {
-    // Fallback เป็น mock data เมื่อ Backend ไม่พร้อม
     return {
-      data: MOCK_POSTS as unknown as PostDetail[],
-      meta: { page: 1, limit: 20, total: MOCK_POSTS.length, totalPages: 1 },
+      data: [],
+      meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
     };
   }
 }
@@ -358,11 +301,23 @@ export function mapPostToLatestItem(post: PostDetail): LatestPostItem {
     timeAgo = `${hours} ชั่วโมงที่แล้ว`;
   }
 
-  const cleanProvince = sanitizeText(post.province, 'ไม่ระบุ');
-  const cleanLocationDetail = sanitizeText(
-    post.locationDescription,
-    cleanProvince,
-  );
+  const cleanDistrict = sanitizeText(post.district, '');
+  const cleanProvince = sanitizeText(post.province, '');
+  const cleanDesc = sanitizeText(post.locationDescription, '');
+
+  // จัดรูปแบบการแสดงผลสถานที่: แสดง "เขต/อำเภอ, จังหวัด" เช่น "พระนคร, กรุงเทพมหานคร"
+  let locationDisplay = cleanDesc;
+  if (!locationDisplay) {
+    if (cleanDistrict && cleanProvince) {
+      locationDisplay = `${cleanDistrict}, ${cleanProvince}`;
+    } else if (cleanProvince) {
+      locationDisplay = cleanProvince;
+    } else if (cleanDistrict) {
+      locationDisplay = cleanDistrict;
+    } else {
+      locationDisplay = 'ไม่ระบุสถานที่';
+    }
+  }
 
   return {
     id: post.id,
@@ -376,9 +331,9 @@ export function mapPostToLatestItem(post: PostDetail): LatestPostItem {
     color: sanitizeText(post.color, undefined),
     distinctiveFeatures: sanitizeText(post.distinctiveFeatures, undefined),
     description: sanitizeText(post.description, undefined),
-    province: cleanProvince,
-    district: sanitizeText(post.district, undefined),
-    locationDetail: cleanLocationDetail,
+    province: cleanProvince || 'ไม่ระบุจังหวัด',
+    district: cleanDistrict || undefined,
+    locationDetail: locationDisplay,
     rewardAmount: post.rewardAmount,
     contactPhone: sanitizeText(post.contactPhone, undefined),
     timeAgo,

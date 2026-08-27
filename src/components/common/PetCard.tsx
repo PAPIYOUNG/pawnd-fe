@@ -40,10 +40,18 @@ export function PetCard({ post }: PetCardProps) {
   // กำหนดชื่อที่แสดงผล: ถ้าไม่มีชื่อหรือเป็น Unknown/??? ให้ fallback เป็นภาษาไทยตามประเภทประกาศ
   const defaultName = isLost ? 'สัตว์เลี้ยง (ไม่ระบุชื่อ)' : 'ไม่ทราบชื่อ';
   const displayName = cleanText(post.petName, defaultName);
-  const displayLocation = cleanText(
-    post.locationDetail || post.province,
-    'ไม่ระบุสถานที่',
-  );
+  const cleanDistrict = cleanText(post.district, '');
+  const cleanProvince = cleanText(post.province, '');
+  let defaultLocation = 'ไม่ระบุสถานที่';
+  if (cleanDistrict && cleanProvince) {
+    defaultLocation = `${cleanDistrict}, ${cleanProvince}`;
+  } else if (cleanProvince) {
+    defaultLocation = cleanProvince;
+  } else if (cleanDistrict) {
+    defaultLocation = cleanDistrict;
+  }
+
+  const displayLocation = cleanText(post.locationDetail, defaultLocation);
 
   return (
     <Link href={`/posts/${post.id}`} className="group block">
