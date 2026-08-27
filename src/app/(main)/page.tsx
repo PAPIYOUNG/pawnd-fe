@@ -24,14 +24,20 @@ export const metadata: Metadata = {
 export default async function HomePage() {
   // ดึงข้อมูลสถิติ ประกาศล่าสุด และเรื่องราวความสำเร็จพร้อมกันแบบ Parallel
   const { stats, latestPosts, reunitedStories } = await getHomePageData();
+  const socketUrl =
+    process.env.NEXT_PUBLIC_SOCKET_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.API_URL ||
+    'http://localhost:8000';
 
   return (
     <div className="flex flex-col">
       {/* 1. ส่วนแบนเนอร์หลักด้านบน (Hero Banner พร้อมภาพพื้นหลังสลับอัตโนมัติและปุ่ม CTA) */}
       <HeroSection />
 
-      {/* 2. ส่วนแถบสถิติแบบ Realtime (Live Stats Bar พร้อมตัวเลขและแอนิเมชัน Highlight +1) */}
-      <StatsBar stats={stats} />
+      {/* 2. ส่วนแถบสถิติแบบ Realtime (Live Stats Bar พร้อมตัวเลขจริงและ WebSocket updates) */}
+      <StatsBar stats={stats} socketUrl={socketUrl} />
+
 
       {/* 3. ส่วนประกาศตามหาและพบสัตว์ล่าสุด (Infinite Loop Carousel พร้อมปุ่มลูกศรเลื่อนซ้าย-ขวา) */}
       <LatestPostsSection posts={latestPosts} />

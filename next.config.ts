@@ -2,7 +2,7 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   // อนุญาตให้เข้าถึง dev server จากเครื่องอื่นใน LAN (เช่น ทดสอบผ่านมือถือ)
-  allowedDevOrigins: ['192.168.1.176'],
+  allowedDevOrigins: ['192.168.1.67'],
   experimental: {
     serverActions: {
       // รองรับการส่งรูปสูงสุด 3 ไฟล์ตาม Backend (ไฟล์ละไม่เกิน 5MB) ผ่าน Server Action
