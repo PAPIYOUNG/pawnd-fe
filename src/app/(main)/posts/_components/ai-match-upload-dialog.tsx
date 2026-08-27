@@ -154,11 +154,11 @@ export function AiMatchUploadDialog() {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
         render={
-          <Button className="h-11 w-full gap-2 rounded-2xl bg-primary px-5 font-semibold text-primary-foreground shadow-md hover:bg-primary/90 sm:w-auto" />
+          <Button className="h-10 gap-2 rounded-2xl bg-primary px-4 text-xs font-semibold text-primary-foreground shadow-md hover:bg-primary/90 sm:text-sm" />
         }
       >
-        <Plus className="size-5 stroke-[2.5]" />
-        <span>อัพโหลดรูปเผื่อค้นหา</span>
+        <Plus className="size-4 stroke-[2.5]" />
+        <span>อัพโหลดรูปเพื่อค้นหา</span>
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-lg">

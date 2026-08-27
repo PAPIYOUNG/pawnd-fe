@@ -124,8 +124,10 @@ export default async function PostsPage({ searchParams }: PostsPageProps) {
           </p>
         </div>
 
-        {/* ปุ่ม CTA สร้างประกาศ */}
+        {/* ปุ่ม CTA อัปโหลดรูปค้นหา และสร้างประกาศ */}
         <div className="flex items-center gap-3">
+          <AiMatchUploadDialog />
+
           <Link href="/posts/create">
             <Button className="h-10 rounded-2xl bg-primary px-4 text-xs font-semibold text-primary-foreground shadow-md transition-transform hover:scale-[1.02] active:scale-[0.98] sm:text-sm">
               <Plus className="mr-1.5 size-4" />
@@ -148,8 +150,6 @@ export default async function PostsPage({ searchParams }: PostsPageProps) {
 
         {/* ตัวกรองแบบด่วน (Quick Filters) */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-          <AiMatchUploadDialog />
-
           <select className="h-10 rounded-2xl border border-border bg-background px-3 text-xs sm:text-sm">
             <option value="ALL">ทุกประเภท (ทั้งหมด)</option>
             <option value="LOST">เฉพาะสัตว์หาย (LOST)</option>
