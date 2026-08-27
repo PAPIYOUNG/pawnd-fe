@@ -3,10 +3,20 @@
 import { revalidatePath } from 'next/cache';
 
 import {
+  getNotifications,
   markAsRead,
   markAllAsRead,
   deleteNotification,
 } from '@/services/notification.service';
+
+/**
+ * Server Action สำหรับดึงรายการแจ้งเตือนล่าสุดไม่กี่รายการ + จำนวนที่ยังไม่อ่าน
+ * เรียกจาก Header (Client Component) เพื่อโชว์ preview ใน dropdown กระดิ่ง
+ */
+export async function getRecentNotificationsAction(limit = 5) {
+  const { notifications, unreadCount } = await getNotifications({ limit });
+  return { notifications, unreadCount };
+}
 
 /**
  * Server Action สำหรับทำเครื่องหมายว่าอ่านแล้วสำหรับการแจ้งเตือนรายการเดียว
@@ -28,7 +38,7 @@ export async function markAsReadAction(id: string) {
 
 /**
  * Server Action สำหรับทำเครื่องหมายว่าอ่านแล้วทั้งหมด
- * เรียกจากปุ่ม "อ่านทั้งหมดแล้ว" ที่ส่วนหัวของหน้า Notifications
+ * เรียกจากปุ่ม "อ่านทั้งหมดแล้ว" ที่ส่วนหัวของหน้า Notifications และใน dropdown บน Header
  */
 export async function markAllAsReadAction() {
   try {
