@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Camera, Loader2 } from 'lucide-react';
 
 import { UserProfile } from '@/types/user';
@@ -23,6 +24,7 @@ interface AvatarUploadProps {
  */
 export function AvatarUpload({ user }: AvatarUploadProps) {
   const router = useRouter();
+  const { update: updateSession } = useSession();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -59,7 +61,10 @@ export function AvatarUpload({ user }: AvatarUploadProps) {
     const res = await uploadAvatarAction(formData);
 
     setIsUploading(false);
-    if (res.success) {
+    if (res.success && res.data) {
+      // อัปเดต avatarUrl ใน session token ทันที (trigger: 'update' ใน auth.ts's jwt callback)
+      // เพื่อให้ Header ที่อ่านจาก useSession() เห็นรูปใหม่โดยไม่ต้อง login ใหม่
+      await updateSession({ user: { avatarUrl: res.data.avatarUrl } });
       router.refresh();
     } else {
       setError(res.error || 'ไม่สามารถอัปโหลดรูปอวาตาร์ได้');

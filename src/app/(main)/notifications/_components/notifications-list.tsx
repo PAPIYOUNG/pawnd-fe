@@ -5,10 +5,6 @@ import Link from 'next/link';
 import { io } from 'socket.io-client';
 import {
   Bell,
-  Sparkles,
-  MapPin,
-  MessageCircle,
-  ShieldCheck,
   AlertCircle,
   Clock,
   ChevronRight,
@@ -19,12 +15,17 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { NotificationItem, NotificationType } from '@/types/notification';
+import type { NotificationItem } from '@/types/notification';
+import {
+  getNotificationIcon,
+  getNotificationLink,
+  formatNotificationTimeAgo,
+} from '@/lib/notification-utils';
 import {
   markAsReadAction,
   markAllAsReadAction,
   deleteNotificationAction,
-} from '../_actions/notifications.actions';
+} from '@/lib/action/notifications.actions';
 
 interface NotificationsListProps {
   /** รายการแจ้งเตือนเริ่มต้น ดึงมาจาก Backend ผ่าน Server Component ชั้นบน */
@@ -35,47 +36,6 @@ interface NotificationsListProps {
   accessToken: string;
   /** URL ของ Backend สำหรับต่อ Socket.IO (จาก process.env.API_URL ฝั่ง Server) */
   socketUrl: string;
-}
-
-/** เลือกไอคอนตามประเภทการแจ้งเตือน */
-function getIcon(type: NotificationType) {
-  switch (type) {
-    case 'AI_MATCH':
-      return <Sparkles className="size-5 text-emerald-500" />;
-    case 'NEW_MESSAGE':
-      return <MessageCircle className="size-5 text-primary" />;
-    case 'NEW_CLUE':
-      return <MapPin className="size-5 text-amber-500" />;
-    case 'PROFILE_VERIFICATION':
-      return <ShieldCheck className="size-5 text-primary" />;
-    default:
-      return <Bell className="size-5 text-muted-foreground" />;
-  }
-}
-
-/** หาลิงก์ปลายทางที่ควรพาไปเมื่อกดการ์ดแจ้งเตือน โดยดูจาก related id ก่อนเป็นอันดับแรก */
-function getLink(item: NotificationItem): string {
-  if (item.relatedChatRoomId) return `/chat?room=${item.relatedChatRoomId}`;
-  if (item.relatedPostId) return `/posts/${item.relatedPostId}`;
-  if (item.type === 'PROFILE_VERIFICATION') return '/profile';
-  return '/dashboard';
-}
-
-/** แปลง createdAt (ISO string) เป็นข้อความเวลาแบบสัมพัทธ์ภาษาไทย */
-function formatTimeAgo(dateStr: string): string {
-  const diffMs = Date.now() - new Date(dateStr).getTime();
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return 'เมื่อสักครู่';
-  if (minutes < 60) return `${minutes} นาทีที่แล้ว`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} ชั่วโมงที่แล้ว`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days} วันที่แล้ว`;
-  return new Date(dateStr).toLocaleDateString('th-TH', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
 }
 
 /**
@@ -230,7 +190,7 @@ export function NotificationsList({
           {notifications.map((item) => (
             <Link
               key={item.id}
-              href={getLink(item)}
+              href={getNotificationLink(item)}
               onClick={() => handleItemClick(item)}
               className={cn(
                 'group flex items-start gap-4 rounded-2xl border p-4 transition-all hover:shadow-md sm:p-5',
@@ -241,7 +201,7 @@ export function NotificationsList({
             >
               {/* ไอคอนประเภทการแจ้งเตือน */}
               <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-card shadow-2xs">
-                {getIcon(item.type)}
+                {getNotificationIcon(item.type)}
               </div>
 
               {/* ข้อความการแจ้งเตือน */}
@@ -259,7 +219,7 @@ export function NotificationsList({
                 </p>
                 <div className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   <Clock className="size-3" />
-                  <span>{formatTimeAgo(item.createdAt)}</span>
+                  <span>{formatNotificationTimeAgo(item.createdAt)}</span>
                 </div>
               </div>
 

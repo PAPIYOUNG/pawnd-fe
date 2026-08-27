@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import '@styles/globals.css';
+import { SessionProvider } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { notoSans } from '@/styles/font';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
@@ -41,7 +42,9 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
         />
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground transition-colors duration-200">
-        <ThemeProvider>{children}</ThemeProvider>
+        <SessionProvider>
+          <ThemeProvider>{children}</ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   );

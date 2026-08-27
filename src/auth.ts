@@ -76,7 +76,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token: rawToken, user }) {
+    async jwt({ token: rawToken, user, trigger, session }) {
       // Auth.js core ประกาศ JWT ให้ extends Record<string, unknown> การ augment
       // interface ผ่าน next-auth/jwt ไม่ทำให้ field ที่เราเพิ่มเข้ามาถูก narrow เป็น
       // ชนิดที่ถูกต้องตอนอ่านค่า จึง cast ผ่าน type เฉพาะของเราเองอีกชั้นเพื่อความชัวร์
@@ -102,6 +102,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           decodeJwtExpiry(authorizedUser.accessToken) ?? undefined;
         delete token.error;
         return token;
+      }
+
+      // Client เรียก useSession().update({ user: { avatarUrl } }) หลังเปลี่ยนรูปโปรไฟล์สำเร็จ
+      // อัปเดตเฉพาะ avatarUrl ใน token.pawndUser เพื่อให้ session ใหม่สะท้อนรูปที่เปลี่ยนทันที
+      if (trigger === 'update' && session?.user?.avatarUrl && token.pawndUser) {
+        token.pawndUser = {
+          ...token.pawndUser,
+          avatarUrl: session.user.avatarUrl,
+        };
       }
 
       // accessToken ยังไม่หมดอายุ (เผื่อ buffer 30 วิ) ใช้ต่อได้เลย
