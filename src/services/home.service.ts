@@ -43,7 +43,6 @@ interface ApiLatestPost {
   createdAt?: string;
 }
 
-
 /** ข้อมูลโพสต์ที่กลับบ้านแล้วตามที่ Backend ส่งกลับมาจริง */
 interface ApiReunitedPost {
   id: string;
@@ -291,6 +290,37 @@ function getPetTypeThai(type?: string): string {
 }
 
 /**
+ * ตรวจสอบและทำความสะอาดข้อความ ป้องกันกรณีที่เป็นค่าว่าง, 'Unknown', หรือประกอบด้วยเครื่องหมาย '?' ล้วน
+ */
+function sanitizeText(value?: string | null, fallback = ''): string {
+  if (!value) return fallback;
+  const trimmed = value.trim();
+  // ตรวจสอบว่าเป็นสตริงว่าง, ข้อความ 'unknown' (ไม่สนใจตัวพิมพ์เล็กใหญ่) หรือเป็นเครื่องหมาย ? หรือ ？ ล้วน
+  if (
+    trimmed === '' ||
+    trimmed.toLowerCase() === 'unknown' ||
+    /^[\s?？]+$/.test(trimmed)
+  ) {
+    return fallback;
+  }
+  return trimmed;
+}
+
+/**
+ * แปลงชื่อสัตว์เลี้ยงให้เหมาะสมตามประเภทประกาศ
+ * - ถ้าเป็น FOUND (พบสัตว์พลัดหลง) และไม่มีชื่อ ให้แสดง "ไม่ทราบชื่อ"
+ * - ถ้าเป็น LOST (สัตว์หาย) และไม่มีชื่อ ให้แสดง "สัตว์เลี้ยง (ไม่ระบุชื่อ)"
+ */
+function resolvePetName(
+  rawName?: string | null,
+  postType?: 'LOST' | 'FOUND',
+): string {
+  const defaultName =
+    postType === 'FOUND' ? 'ไม่ทราบชื่อ' : 'สัตว์เลี้ยง (ไม่ระบุชื่อ)';
+  return sanitizeText(rawName, defaultName);
+}
+
+/**
  * ดึงข้อมูลประกาศตามหาและพบสัตว์ล่าสุด (GET /home/latest)
  * Backend ส่ง { success, data: { posts: [...] } } → apiFetch unwrap ได้ { posts: [...] }
  * จากนั้น map ข้อมูลจาก Backend DTO เป็น LatestPostItem ที่ UI ใช้
@@ -311,17 +341,20 @@ export async function getLatestPosts(limit = 8): Promise<LatestPostItem[]> {
     // Map ข้อมูลจริงจาก Backend DTO → LatestPostItem ที่ Frontend UI ใช้
     return response.posts.map((p: ApiLatestPost, idx: number) => {
       const typeStr = getPetTypeThai(p.petType);
-      const breedOrType = p.breed ? `${typeStr} • ${p.breed}` : typeStr;
+      const postType = p.type || (idx % 2 === 0 ? 'LOST' : 'FOUND');
+      const cleanBreed = sanitizeText(p.breed, '');
+      const breedOrType = cleanBreed ? `${typeStr} • ${cleanBreed}` : typeStr;
+      const cleanProvince = sanitizeText(p.province, 'ไม่ระบุจังหวัด');
 
       return {
         id: p.id,
-        type: p.type || (idx % 2 === 0 ? 'LOST' : 'FOUND'),
-        petName: p.petName || 'สัตว์เลี้ยง',
+        type: postType,
+        petName: resolvePetName(p.petName, postType),
         petType: p.petType || 'OTHER',
-        breed: p.breed || typeStr,
+        breed: cleanBreed || typeStr,
         ageDescription: breedOrType,
-        province: p.province || 'ไม่ระบุจังหวัด',
-        locationDetail: p.province ? `${p.province}` : 'ไม่ระบุจังหวัด',
+        province: cleanProvince,
+        locationDetail: cleanProvince,
         timeAgo: formatRelativeTimeThai(p.createdAt),
         coverImageUrl:
           p.coverImageUrl ||
@@ -352,19 +385,23 @@ export async function getReunitedStories(limit = 3): Promise<ReunitedStory[]> {
     }
 
     // Map ข้อมูลจาก Backend DTO → ReunitedStory ที่ Frontend UI ใช้
-    return response.posts.map((p: ApiReunitedPost, idx: number) => ({
-      id: p.id,
-      petName: p.petName || 'น้องสัตว์เลี้ยง',
-      ownerName: `คุณ ${p.petName || 'ผู้ใช้'}`,
-      quote:
-        'ขอบคุณพลังของคอมมูนิตี้และระบบ Pawnd ที่ช่วยให้เราได้พบกันอีกครั้งอย่างปลอดภัยครับ',
-      province: p.province || 'กรุงเทพฯ',
-      coverImageUrl:
-        p.coverImageUrl ||
-        MOCK_REUNITED_STORIES[idx % MOCK_REUNITED_STORIES.length].coverImageUrl,
-      reunitedAt: p.reunitedAt,
-      detailUrl: `/posts/${p.id}`,
-    }));
+    return response.posts.map((p: ApiReunitedPost, idx: number) => {
+      const cleanName = sanitizeText(p.petName, 'น้องสัตว์เลี้ยง');
+      return {
+        id: p.id,
+        petName: cleanName,
+        ownerName: `คุณ ${cleanName}`,
+        quote:
+          'ขอบคุณพลังของคอมมูนิตี้และระบบ Pawnd ที่ช่วยให้เราได้พบกันอีกครั้งอย่างปลอดภัยครับ',
+        province: sanitizeText(p.province, 'กรุงเทพฯ'),
+        coverImageUrl:
+          p.coverImageUrl ||
+          MOCK_REUNITED_STORIES[idx % MOCK_REUNITED_STORIES.length]
+            .coverImageUrl,
+        reunitedAt: p.reunitedAt,
+        detailUrl: `/posts/${p.id}`,
+      };
+    });
   } catch {
     return MOCK_REUNITED_STORIES;
   }

@@ -316,6 +316,33 @@ export async function getPostStats(): Promise<Record<string, number>> {
 }
 
 /**
+ * ตรวจสอบและทำความสะอาดข้อความ ป้องกันค่าว่าง, 'Unknown' หรือเครื่องหมาย '?' ล้วน
+ */
+function sanitizeText(value?: string | null, fallback = ''): string {
+  if (!value) return fallback;
+  const trimmed = value.trim();
+  if (
+    trimmed === '' ||
+    trimmed.toLowerCase() === 'unknown' ||
+    /^[\s?？]+$/.test(trimmed)
+  ) {
+    return fallback;
+  }
+  return trimmed;
+}
+
+/**
+ * แปลงชื่อสัตว์เลี้ยงให้เหมาะสมตามประเภทประกาศ
+ * - ถ้าเป็น FOUND (พบสัตว์พลัดหลง) และไม่มีชื่อ ให้แสดง "ไม่ทราบชื่อ"
+ * - ถ้าเป็น LOST (สัตว์หาย) และไม่มีชื่อ ให้แสดง "สัตว์เลี้ยง (ไม่ระบุชื่อ)"
+ */
+function resolvePetName(rawName?: string | null, postType?: PostType): string {
+  const defaultName =
+    postType === 'FOUND' ? 'ไม่ทราบชื่อ' : 'สัตว์เลี้ยง (ไม่ระบุชื่อ)';
+  return sanitizeText(rawName, defaultName);
+}
+
+/**
  * แปลง PostDetail จาก Backend เป็น LatestPostItem ที่ UI cards ใช้
  * ใช้สำหรับ mapping ข้อมูลจริงให้ตรงกับ component props
  */
@@ -331,23 +358,29 @@ export function mapPostToLatestItem(post: PostDetail): LatestPostItem {
     timeAgo = `${hours} ชั่วโมงที่แล้ว`;
   }
 
+  const cleanProvince = sanitizeText(post.province, 'ไม่ระบุ');
+  const cleanLocationDetail = sanitizeText(
+    post.locationDescription,
+    cleanProvince,
+  );
+
   return {
     id: post.id,
     type: post.type,
-    petName: post.petName || post.pet?.name || 'สัตว์เลี้ยง',
+    petName: resolvePetName(post.petName || post.pet?.name, post.type),
     petType: (post.petType ||
       post.pet?.type ||
       'DOG') as LatestPostItem['petType'],
-    breed: post.breed || post.pet?.breed || undefined,
+    breed: sanitizeText(post.breed || post.pet?.breed, undefined),
     gender: post.gender as LatestPostItem['gender'],
-    color: post.color || undefined,
-    distinctiveFeatures: post.distinctiveFeatures || undefined,
-    description: post.description || undefined,
-    province: post.province || 'ไม่ระบุ',
-    district: post.district || undefined,
-    locationDetail: post.locationDescription || post.province || 'ไม่ระบุ',
+    color: sanitizeText(post.color, undefined),
+    distinctiveFeatures: sanitizeText(post.distinctiveFeatures, undefined),
+    description: sanitizeText(post.description, undefined),
+    province: cleanProvince,
+    district: sanitizeText(post.district, undefined),
+    locationDetail: cleanLocationDetail,
     rewardAmount: post.rewardAmount,
-    contactPhone: post.contactPhone || undefined,
+    contactPhone: sanitizeText(post.contactPhone, undefined),
     timeAgo,
     coverImageUrl:
       (post.images && post.images.length > 0

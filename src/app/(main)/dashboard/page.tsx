@@ -5,11 +5,15 @@ import { getMyPosts } from '@/services/post.service';
 import { getMyChatRooms } from '@/services/chat.service';
 import { ProfileSidebar } from '@/components/layout/ProfileSidebar';
 import { DashboardMetrics } from './_components/dashboard-metrics';
-import { DashboardMyPosts, MyPostDashboardItem } from './_components/dashboard-my-posts';
+import {
+  DashboardMyPosts,
+  MyPostDashboardItem,
+} from './_components/dashboard-my-posts';
 
 export const metadata: Metadata = {
   title: 'แดชบอร์ด | PAWND',
-  description: 'แดชบอร์ดจัดการสัตว์เลี้ยง ประกาศตามหา และผลลัพธ์ AI Smart Matching',
+  description:
+    'แดชบอร์ดจัดการสัตว์เลี้ยง ประกาศตามหา และผลลัพธ์ AI Smart Matching',
 };
 
 /**
@@ -48,30 +52,75 @@ export default async function DashboardMainPage() {
 
   // คำนวณสถิติจากข้อมูลจริง
   const totalPets = myPets.length;
-  const activeLostPosts = myPosts.filter((p) => p.status === 'ACTIVE' && p.type === 'LOST').length;
-  const activeFoundPosts = myPosts.filter((p) => p.status === 'ACTIVE' && p.type === 'FOUND').length;
-  const unreadMessages = myChatRooms.reduce((sum, room) => sum + (room.unreadCount || 0), 0);
+  const activeLostPosts = myPosts.filter(
+    (p) => p.status === 'ACTIVE' && p.type === 'LOST',
+  ).length;
+  const activeFoundPosts = myPosts.filter(
+    (p) => p.status === 'ACTIVE' && p.type === 'FOUND',
+  ).length;
+  const unreadMessages = myChatRooms.reduce(
+    (sum, room) => sum + (room.unreadCount || 0),
+    0,
+  );
+
+  /**
+   * Helper function สำหรับทำความสะอาดข้อความ ป้องกัน 'Unknown' หรือ '????'
+   */
+  function cleanText(val?: string | null, fallback = ''): string {
+    if (!val) return fallback;
+    const trimmed = val.trim();
+    if (
+      trimmed === '' ||
+      trimmed.toLowerCase() === 'unknown' ||
+      /^[\s?？]+$/.test(trimmed)
+    ) {
+      return fallback;
+    }
+    return trimmed;
+  }
 
   // แปลงรายการ PostDetail จาก Backend -> MyPostDashboardItem สำหรับ Dashboard Grid
   const dashboardPosts: MyPostDashboardItem[] | undefined =
     myPosts.length > 0
-      ? myPosts.map((post) => ({
-          id: post.id,
-          type: post.type,
-          status: post.status as MyPostDashboardItem['status'],
-          petName: post.petName || post.pet?.name || 'สัตว์เลี้ยง',
-          petType: post.petType === 'CAT' ? 'แมว' : post.petType === 'DOG' ? 'สุนัข' : 'สัตว์เลี้ยง',
-          breed: post.breed || post.pet?.breed || 'ไม่ระบุสายพันธุ์',
-          age: post.pet?.age ? `อายุ ${post.pet.age} ปี` : 'ไม่ระบุอายุ',
-          location: post.locationDescription || post.province || 'ไม่ระบุสถานที่',
-          lastUpdated: formatRelativeTime(post.updatedAt || post.createdAt),
-          rewardAmount: post.rewardAmount ? post.rewardAmount.toLocaleString() : null,
-          imageUrl:
-            (post.images && post.images.length > 0
-              ? post.images[0].imageUrl
-              : post.pet?.profileImageUrl) ||
-            'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=600&auto=format&fit=crop',
-        }))
+      ? myPosts.map((post) => {
+          const isFound = post.type === 'FOUND';
+          const defaultPetName = isFound
+            ? 'ไม่ทราบชื่อ'
+            : 'สัตว์เลี้ยง (ไม่ระบุชื่อ)';
+          const petName = cleanText(
+            post.petName || post.pet?.name,
+            defaultPetName,
+          );
+          const location = cleanText(
+            post.locationDescription || post.province,
+            'ไม่ระบุสถานที่',
+          );
+
+          return {
+            id: post.id,
+            type: post.type,
+            status: post.status as MyPostDashboardItem['status'],
+            petName,
+            petType:
+              post.petType === 'CAT'
+                ? 'แมว'
+                : post.petType === 'DOG'
+                  ? 'สุนัข'
+                  : 'สัตว์เลี้ยง',
+            breed: cleanText(post.breed || post.pet?.breed, 'ไม่ระบุสายพันธุ์'),
+            age: post.pet?.age ? `อายุ ${post.pet.age} ปี` : 'ไม่ระบุอายุ',
+            location,
+            lastUpdated: formatRelativeTime(post.updatedAt || post.createdAt),
+            rewardAmount: post.rewardAmount
+              ? post.rewardAmount.toLocaleString()
+              : null,
+            imageUrl:
+              (post.images && post.images.length > 0
+                ? post.images[0].imageUrl
+                : post.pet?.profileImageUrl) ||
+              'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=600&auto=format&fit=crop',
+          };
+        })
       : undefined;
 
   return (
@@ -87,7 +136,8 @@ export default async function DashboardMainPage() {
             แดชบอร์ด
           </h1>
           <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-            สวัสดี คุณ{user.firstName}! ยินดีต้อนรับสู่ระบบการจัดการสัตว์เลี้ยงของคุณ
+            สวัสดี คุณ{user.firstName}!
+            ยินดีต้อนรับสู่ระบบการจัดการสัตว์เลี้ยงของคุณ
           </p>
         </div>
 

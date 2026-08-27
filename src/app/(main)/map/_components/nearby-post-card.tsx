@@ -17,6 +17,16 @@ export function NearbyPostCard({
   const { feature, distanceKm } = item;
   const { properties } = feature;
 
+  const isFound = properties.postType === 'FOUND';
+  const defaultPetName = isFound ? 'ไม่ทราบชื่อ' : 'ไม่ระบุชื่อสัตว์เลี้ยง';
+  const rawPetName = (properties.petName || '').trim();
+  const displayPetName =
+    rawPetName === '' ||
+    rawPetName.toLowerCase() === 'unknown' ||
+    /^[\s?？]+$/.test(rawPetName)
+      ? defaultPetName
+      : rawPetName;
+
   return (
     <button
       type="button"
@@ -33,7 +43,7 @@ export function NearbyPostCard({
         {properties.thumbnailUrl ? (
           <Image
             src={properties.thumbnailUrl}
-            alt={properties.petName ?? 'รูปสัตว์เลี้ยง'}
+            alt={displayPetName}
             fill
             sizes="64px"
             className="object-cover transition-transform group-hover:scale-105"
@@ -70,7 +80,7 @@ export function NearbyPostCard({
           </span>
         </div>
         <h3 className="mt-0.5 truncate text-sm font-bold text-foreground">
-          {properties.petName ?? 'ไม่ระบุชื่อสัตว์เลี้ยง'}
+          {displayPetName}
         </h3>
         <p className="mt-1 truncate text-[11px] text-muted-foreground">
           {PET_TYPE_LABEL[properties.petType]}
