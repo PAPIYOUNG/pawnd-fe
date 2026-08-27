@@ -15,6 +15,7 @@ import { getPostMatches } from '@/services/ai-matching.service';
 import { AiMatchingCard } from './_components/ai-matching-card';
 import { ContactChatButton } from './_components/contact-chat-button';
 import { PostEventsCard } from './_components/post-events-card';
+import { PostStatusActions } from './_components/post-status-actions';
 
 interface PostDetailPageProps {
   params: Promise<{ id: string }>;
@@ -110,13 +111,19 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
 
           <Card className="rounded-3xl">
             <CardHeader>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge
-                  variant={post.type === 'LOST' ? 'destructive' : 'default'}
-                >
-                  {post.type === 'LOST' ? 'ตามหา' : 'พบเห็น'}
-                </Badge>
-                <Badge variant="outline">{post.status}</Badge>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant={post.type === 'LOST' ? 'destructive' : 'default'}
+                  >
+                    {post.type === 'LOST' ? 'ตามหา' : 'พบเห็น'}
+                  </Badge>
+                  <Badge variant="outline">{post.status}</Badge>
+                </div>
+                {/* ปุ่มเปลี่ยนสถานะประกาศ 4 ปุ่ม เห็นเฉพาะเจ้าของประกาศ */}
+                {isOwner && (
+                  <PostStatusActions postId={post.id} status={post.status} />
+                )}
               </div>
               <CardTitle className="text-2xl">{displayPetName}</CardTitle>
             </CardHeader>
