@@ -1,6 +1,7 @@
 import { apiFetch } from '@/lib/api/api-fetch';
 import { authFetch } from '@/lib/api/auth-fetch';
 import {
+  type CreatePostResponse,
   LatestPostItem,
   type PetType,
   type PostStatus,

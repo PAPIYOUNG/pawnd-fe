@@ -33,6 +33,7 @@ interface HomeReunitedResponse {
 interface ApiLatestPost {
   id: string;
   type?: 'LOST' | 'FOUND';
+  status?: 'ACTIVE' | 'REUNITED' | 'CLOSED' | 'HIDDEN' | 'DELETED';
   petName?: string;
   petType?: 'DOG' | 'CAT' | 'BIRD' | 'HAMSTER' | 'EXOTIC' | 'OTHER';
   breed?: string | null;
@@ -203,6 +204,7 @@ export async function getLatestPosts(limit = 8): Promise<LatestPostItem[]> {
       return {
         id: p.id,
         type: postType,
+        status: p.status || 'ACTIVE',
         petName: resolvePetName(p.petName, postType),
         petType: p.petType || 'OTHER',
         breed: cleanBreed || typeStr,

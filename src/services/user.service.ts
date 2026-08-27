@@ -67,6 +67,7 @@ export const MOCK_USER_PROFILE: UserProfile = {
     {
       id: 'post-hist-1',
       type: 'LOST',
+      status: 'ACTIVE',
       petName: 'ตามหาแมวสามสีพิกัดพญาไท',
       petType: 'CAT',
       breed: 'พันธุ์ไทย สามสี',
@@ -80,6 +81,7 @@ export const MOCK_USER_PROFILE: UserProfile = {
     {
       id: 'post-hist-2',
       type: 'FOUND',
+      status: 'ACTIVE',
       petName: 'พบเห็นสุนัขไซบีเรียนคาดว่าหลงทาง',
       petType: 'DOG',
       breed: 'ไซบีเรียน ฮัสกี้',
@@ -93,6 +95,7 @@ export const MOCK_USER_PROFILE: UserProfile = {
     {
       id: 'post-hist-3',
       type: 'LOST',
+      status: 'ACTIVE',
       petName: 'ตามหาสุนัขพูเดิล ช็อกโก้',
       petType: 'DOG',
       breed: 'พุดเดิ้ลทอย',
@@ -106,6 +109,7 @@ export const MOCK_USER_PROFILE: UserProfile = {
     {
       id: 'post-hist-4',
       type: 'LOST',
+      status: 'ACTIVE',
       petName: 'แมวเปอร์เซียหลุดหาย แถวดินแดง',
       petType: 'CAT',
       breed: 'เปอร์เซีย',
@@ -119,6 +123,7 @@ export const MOCK_USER_PROFILE: UserProfile = {
     {
       id: 'post-hist-5',
       type: 'FOUND',
+      status: 'ACTIVE',
       petName: 'พบน้องแมวจรพิกัดลาดพร้าวซอย 4',
       petType: 'CAT',
       breed: 'พันธุ์ไทย',
