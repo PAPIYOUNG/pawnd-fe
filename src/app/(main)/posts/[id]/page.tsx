@@ -9,6 +9,9 @@ import Image from 'next/image';
 import { notFound } from 'next/navigation';
 
 import type { PostStatus } from '@/types/post';
+import type { AiMatchItem } from '@/types/ai-match';
+import { getPostMatches } from '@/services/ai-matching.service';
+import { AiMatchingCard } from './_components/ai-matching-card';
 import { ContactChatButton } from './_components/contact-chat-button';
 import { PostEventsCard } from './_components/post-events-card';
 
@@ -38,6 +41,21 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
 
   // ดึง Timeline ของประกาศหลังยืนยันว่า post นี้มีอยู่จริง
   const events = await getPostEvents(id);
+
+  // เฉพาะเจ้าของประกาศเท่านั้นที่สั่งจับคู่ใหม่/Pin/Dismiss ได้ (ตาม Backend assertOwnedPost)
+  // แต่ผู้ใช้ที่ login แล้วคนอื่นดูรายการผลจับคู่ (read-only) ได้เช่นกัน
+  const isOwner = (session?.user?.id ?? null) === post.userId;
+
+  let initialAiMatches: AiMatchItem[] = [];
+  if (session?.user?.id) {
+    try {
+      const result = await getPostMatches(id);
+      initialAiMatches = result.matches;
+    } catch (error) {
+      // โหลดผลจับคู่เดิมไม่สำเร็จ ไม่ต้องบล็อกทั้งหน้า ให้ Client Component เริ่มจากรายการว่างแทน
+      if (!(error instanceof ApiError)) throw error;
+    }
+  }
 
   const primaryImage =
     post.images?.[0]?.imageUrl || post.pet?.profileImageUrl || undefined;
@@ -95,6 +113,13 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
               )}
             </CardContent>
           </Card>
+
+          <AiMatchingCard
+            postId={post.id}
+            postStatus={post.status}
+            isOwner={isOwner}
+            initialMatches={initialAiMatches}
+          />
         </section>
 
         {/* ข้อมูลสรุปและปุ่มติดต่อ */}
