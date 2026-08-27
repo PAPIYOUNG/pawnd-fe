@@ -8,7 +8,7 @@ import { CalendarDays, MapPin, PawPrint, UserRound } from 'lucide-react';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 
-import type { PostStatus } from '@/types/post';
+import type { PostEvent } from '@/types/posts-event';
 import { ContactChatButton } from './_components/contact-chat-button';
 import { PostEventsCard } from './_components/post-events-card';
 
@@ -21,23 +21,30 @@ const dateFormatter = new Intl.DateTimeFormat('th-TH', {
   timeStyle: 'short',
 });
 
-/** หน้า public post detail และจุดเริ่มต้นของ In-app Chat */
+/**
+ * หน้า public post detail และจุดเริ่มต้นของ In-app Chat
+ * ดึงข้อมูล Timeline จาก Backend แยกจากข้อมูลประกาศ เพื่อให้ส่วนความคืบหน้า
+ * แสดงสถานะว่างหรือข้อผิดพลาดได้โดยไม่ทำให้รายละเอียดประกาศทั้งหน้าหายไป
+ */
 export default async function PostDetailPage({ params }: PostDetailPageProps) {
   const { id } = await params;
-  const session = await auth();
-
-  let post;
-  try {
-    post = await getPostById(id);
-  } catch (error) {
-    if (error instanceof ApiError && error.statusCode === 404) notFound();
-    throw error;
-  }
+  // เริ่มอ่าน session และ post พร้อมกันเพื่อลดเวลารอของหน้า detail
+  const [session, post] = await Promise.all([auth(), getPostById(id)]);
 
   if (!post) notFound();
 
-  // ดึง Timeline ของประกาศหลังยืนยันว่า post นี้มีอยู่จริง
-  const events = await getPostEvents(id);
+  // แยก error ของ Timeline ออกจาก post detail เพื่อให้ผู้ใช้ยังอ่านข้อมูลประกาศได้
+  let events: PostEvent[] = [];
+  let eventsError: string | null = null;
+  try {
+    events = await getPostEvents(id);
+  } catch (error) {
+    // 404/500 จาก endpoint นี้ไม่ควรเปิดเผยรายละเอียดระบบแก่ผู้ใช้
+    eventsError =
+      error instanceof ApiError && error.statusCode === 404
+        ? 'ไม่พบข้อมูลความคืบหน้าของประกาศนี้'
+        : 'ไม่สามารถโหลดความคืบหน้าของประกาศได้ในขณะนี้';
+  }
 
   const primaryImage =
     post.images?.[0]?.imageUrl || post.pet?.profileImageUrl || undefined;
@@ -166,13 +173,13 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
               </div>
               <ContactChatButton
                 postId={post.id}
-                postStatus={post.status as PostStatus}
+                postStatus={post.status}
                 ownerId={post.userId}
                 currentUserId={session?.user?.id ?? null}
               />
             </CardContent>
             {/* กล่อง Timeline จาก GET /posts/:id/events */}
-            <PostEventsCard events={events} />
+            <PostEventsCard events={events} errorMessage={eventsError} />
           </Card>
         </aside>
       </div>
