@@ -39,6 +39,16 @@ export function MapMarkerPopup({ feature }: MapMarkerPopupProps) {
     [handlePopupAdd],
   );
 
+  const isFound = properties.postType === 'FOUND';
+  const defaultPetName = isFound ? 'ไม่ทราบชื่อ' : 'ไม่ระบุชื่อสัตว์เลี้ยง';
+  const rawPetName = (properties.petName || '').trim();
+  const displayPetName =
+    rawPetName === '' ||
+    rawPetName.toLowerCase() === 'unknown' ||
+    /^[\s?？]+$/.test(rawPetName)
+      ? defaultPetName
+      : rawPetName;
+
   return (
     <Popup
       className="pawnd-map-popup [&_.leaflet-popup-close-button]:!top-2 [&_.leaflet-popup-close-button]:!right-2 [&_.leaflet-popup-close-button]:!flex [&_.leaflet-popup-close-button]:!size-9 [&_.leaflet-popup-close-button]:!items-center [&_.leaflet-popup-close-button]:!justify-center [&_.leaflet-popup-close-button]:!rounded-full [&_.leaflet-popup-close-button]:!border [&_.leaflet-popup-close-button]:!border-border [&_.leaflet-popup-close-button]:!bg-background [&_.leaflet-popup-close-button]:!text-foreground [&_.leaflet-popup-close-button]:!shadow-sm [&_.leaflet-popup-close-button]:transition-colors [&_.leaflet-popup-close-button]:hover:!bg-muted [&_.leaflet-popup-close-button]:focus-visible:!outline-none [&_.leaflet-popup-close-button]:focus-visible:!ring-3 [&_.leaflet-popup-close-button]:focus-visible:!ring-ring/40 dark:[&_.leaflet-popup-content-wrapper]:!border dark:[&_.leaflet-popup-content-wrapper]:!border-border dark:[&_.leaflet-popup-content-wrapper]:!bg-card dark:[&_.leaflet-popup-content-wrapper]:!text-card-foreground dark:[&_.leaflet-popup-content-wrapper]:!shadow-xl dark:[&_.leaflet-popup-tip]:!border dark:[&_.leaflet-popup-tip]:!border-border dark:[&_.leaflet-popup-tip]:!bg-card dark:[&_.leaflet-popup-tip]:!shadow-lg"
@@ -51,7 +61,7 @@ export function MapMarkerPopup({ feature }: MapMarkerPopupProps) {
           {properties.thumbnailUrl ? (
             <Image
               src={properties.thumbnailUrl}
-              alt={properties.petName ?? 'รูปสัตว์เลี้ยง'}
+              alt={displayPetName}
               fill
               sizes="224px"
               className="object-cover"
@@ -76,7 +86,7 @@ export function MapMarkerPopup({ feature }: MapMarkerPopupProps) {
             {POST_TYPE_LABEL[properties.postType]}
           </p>
           <h3 className="line-clamp-1 text-base font-bold text-foreground">
-            {properties.petName ?? 'ไม่ระบุชื่อสัตว์เลี้ยง'}
+            {displayPetName}
           </h3>
           <p className="text-xs font-medium text-foreground/75">
             {PET_TYPE_LABEL[properties.petType]}

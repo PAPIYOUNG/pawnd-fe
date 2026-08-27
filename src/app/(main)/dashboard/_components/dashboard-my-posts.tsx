@@ -29,35 +29,6 @@ export interface MyPostDashboardItem {
   imageUrl: string;
 }
 
-const DEFAULT_MY_POSTS: MyPostDashboardItem[] = [
-  {
-    id: 'post-mimi-1',
-    type: 'LOST',
-    petName: 'มีมี่',
-    petType: 'แมว',
-    breed: 'สามสี',
-    age: 'อายุ 1 ปี',
-    location: 'เขตพญาไท, กรุงเทพฯ',
-    lastUpdated: 'อัปเดตล่าสุดเมื่อ 2 ชม. ที่แล้ว',
-    rewardAmount: '5,000',
-    imageUrl:
-      'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=600&auto=format&fit=crop',
-  },
-  {
-    id: 'post-bobo-2',
-    type: 'FOUND',
-    petName: 'โบโบ้',
-    petType: 'สุนัข',
-    breed: 'พูเดิล',
-    age: 'อายุ 3 ปี',
-    location: 'ลาดพร้าว ซอย 101, กรุงเทพฯ',
-    lastUpdated: 'อัปเดตล่าสุดเมื่อวานนี้',
-    rewardAmount: null,
-    imageUrl:
-      'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?q=80&w=600&auto=format&fit=crop',
-  },
-];
-
 /**
  * DashboardMyPosts Component (Client Component)
  * - การ์ดรายการประกาศตามหาของฉันในหน้า Dashboard ตรงตามดีไซน์ UI
@@ -65,11 +36,17 @@ const DEFAULT_MY_POSTS: MyPostDashboardItem[] = [
  * - รายละเอียด: ชื่อ, ชนิด, สายพันธุ์, อายุ, พิกัดสถานที่ และเวลาอัปเดต
  * - แถบล่าง: ป้ายรางวัล และปุ่ม Action (ดูใบปลิว/Flyer, แก้ไข, ลบผ่าน Backend จริง)
  */
-export function DashboardMyPosts({ initialPosts = DEFAULT_MY_POSTS }: { initialPosts?: MyPostDashboardItem[] }) {
-  const router = useRouter();
+export function DashboardMyPosts({
+  initialPosts = [],
+}: {
+  initialPosts?: MyPostDashboardItem[];
+}) {
   const [posts, setPosts] = useState<MyPostDashboardItem[]>(initialPosts);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   const triggerFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
@@ -129,148 +106,152 @@ export function DashboardMyPosts({ initialPosts = DEFAULT_MY_POSTS }: { initialP
         </div>
       )}
 
-
-      {/* กริดการ์ดประกาศ (2 คอลัมน์) */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {posts.map((post, index) => {
-          const isLost = post.type === 'LOST';
-          const isReunited = post.status === 'REUNITED';
-          const isClosed = post.status === 'CLOSED';
-
-          return (
-            <div
-              key={post.id}
-              role="link"
-              tabIndex={0}
-              onClick={() => router.push(`/posts/${post.id}`)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  router.push(`/posts/${post.id}`);
-                }
-              }}
-              className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xs transition-all hover:shadow-md ${
-                isClosed ? 'grayscale' : ''
-              }`}
+      {/* กริดการ์ดประกาศ หรือ Empty State */}
+      {posts.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-border py-12 text-center">
+          <p className="text-sm font-semibold text-foreground">
+            คุณยังไม่มีประกาศตามหาในขณะนี้
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            สร้างประกาศเพื่อเริ่มตามหาหรือแจ้งเบาะแสสัตว์เลี้ยง
+          </p>
+          <Link href="/posts/create" className="mt-4">
+            <button
+              type="button"
+              className="inline-flex h-9 items-center justify-center rounded-2xl bg-primary px-4 text-xs font-semibold text-primary-foreground shadow-xs transition-opacity hover:opacity-90"
             >
-              {/* คาดทับสีทั้งการ์ด: กลับบ้านแล้ว = โทนเขียว, ปิดประกาศ = โทนขาวดำ (ใช้ grayscale ที่ตัวการ์ด) */}
-              {isReunited && (
-                <div className="pointer-events-none absolute inset-0 z-10 rounded-3xl bg-emerald-500/15" />
-              )}
+              + สร้างประกาศใหม่
+            </button>
+          </Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {posts.map((post) => {
+            const isLost = post.type === 'LOST';
+            const isReunited = post.status === 'REUNITED';
+            const isClosed = post.status === 'CLOSED';
 
-              {/* ริบบิ้นลายน้ำคาดทแยงมุมทั้งการ์ด */}
-              {(isReunited || isClosed) && (
-                <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center overflow-hidden">
-                  <div
-                    className={`w-[150%] rotate-[-35deg] py-1.5 text-center text-xs font-black uppercase tracking-[0.2em] text-white shadow-lg ${
-                      isReunited ? 'bg-emerald-600/90' : 'bg-neutral-700/90'
-                    }`}
-                  >
-                    {isReunited ? 'กลับบ้านแล้ว' : 'CLOSE'}
+            return (
+              <div
+                key={post.id}
+                className={`group relative flex flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xs transition-all hover:shadow-md ${
+                  isClosed ? 'grayscale' : ''
+                }`}
+              >
+                {/* คาดทับสีทั้งการ์ด: กลับบ้านแล้ว = โทนเขียว, ปิดประกาศ = โทนขาวดำ (ใช้ grayscale ที่ตัวการ์ด) */}
+                {isReunited && (
+                  <div className="pointer-events-none absolute inset-0 z-10 rounded-3xl bg-emerald-500/15" />
+                )}
+
+                {/* ริบบิ้นลายน้ำคาดทแยงมุมทั้งการ์ด */}
+                {(isReunited || isClosed) && (
+                  <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center overflow-hidden">
+                    <div
+                      className={`w-[150%] rotate-[-35deg] py-1.5 text-center text-xs font-black uppercase tracking-[0.2em] text-white shadow-lg ${
+                        isReunited ? 'bg-emerald-600/90' : 'bg-neutral-700/90'
+                      }`}
+                    >
+                      {isReunited ? 'กลับบ้านแล้ว' : 'CLOSE'}
+                    </div>
+                  </div>
+                )}
+
+                {/* รูปภาพสัตว์เลี้ยงพร้อมป้ายสถานะ LOST/FOUND */}
+                <div className="relative h-44 w-full bg-muted">
+                  <Image
+                    src={post.imageUrl}
+                    alt={post.petName}
+                    fill
+                    className="object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+
+                  {/* ป้ายประเภทประกาศ (LOST สีส้ม/เหลือง, FOUND สีน้ำเงิน) */}
+                  <div className="absolute top-3 left-3">
+                    <span
+                      className={`rounded-full px-3 py-1 text-[11px] font-black text-white shadow-xs ${
+                        isLost ? 'bg-amber-500' : 'bg-blue-600'
+                      }`}
+                    >
+                      {isLost ? 'LOST' : 'FOUND'}
+                    </span>
                   </div>
                 </div>
-              )}
 
-              {/* รูปภาพสัตว์เลี้ยงพร้อมป้ายสถานะ LOST/FOUND */}
-              <div className="relative h-44 w-full bg-muted">
-                <Image
-                  src={post.imageUrl}
-                  alt={post.petName}
-                  fill
-                  priority={index === 0}
-                  sizes="(max-width: 640px) 100vw, 400px"
-                  className="object-cover transition-transform duration-300 group-hover:scale-105"
-                />
+                {/* ข้อมูลเนื้อหา */}
+                <div className="flex flex-1 flex-col p-4">
+                  <h3 className="text-lg font-bold text-foreground">
+                    {post.petName}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {post.petType} • {post.breed} • {post.age}
+                  </p>
 
-                {/* ป้ายประเภทประกาศ (LOST สีส้ม/เหลือง, FOUND สีน้ำเงิน) */}
-                <div className="absolute top-3 left-3">
-                  <span
-                    className={`rounded-full px-3 py-1 text-[11px] font-black text-white shadow-xs ${
-                      isLost ? 'bg-amber-500' : 'bg-blue-600'
-                    }`}
-                  >
-                    {isLost ? 'LOST' : 'FOUND'}
-                  </span>
-                </div>
-              </div>
-
-              {/* ข้อมูลเนื้อหา */}
-              <div className="flex flex-1 flex-col p-4">
-                <h3 className="text-lg font-bold text-foreground">
-                  {post.petName}
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {post.petType} • {post.breed} • {post.age}
-                </p>
-
-                {/* พิกัดสถานที่และเวลา */}
-                <div className="mt-3 flex flex-col gap-1 text-[11px] text-muted-foreground border-t border-border/60 pt-3">
-                  <span className="flex items-center gap-1.5 truncate">
-                    <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
-                    <span className="truncate">{post.location}</span>
-                  </span>
-                  <span className="flex items-center gap-1.5 truncate">
-                    <span className="size-2 rounded-full bg-muted-foreground/50 shrink-0" />
-                    <span className="truncate">{post.lastUpdated}</span>
-                  </span>
-                </div>
-
-                {/* แถบล่างสุด: เงินรางวัล & ปุ่ม Action ไอคอน */}
-                <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
-                  {/* เงินรางวัล */}
-                  <div>
-                    {post.rewardAmount ? (
-                      <span className="inline-flex items-center rounded-lg bg-emerald-100/80 px-2 py-0.5 text-[11px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                        รางวัล ฿{post.rewardAmount}
-                      </span>
-                    ) : (
-                      <span className="text-[11px] text-muted-foreground">
-                        ไม่มีรางวัลนำจับ
-                      </span>
-                    )}
+                  {/* พิกัดสถานที่และเวลา */}
+                  <div className="mt-3 flex flex-col gap-1 text-[11px] text-muted-foreground border-t border-border/60 pt-3">
+                    <span className="flex items-center gap-1.5 truncate">
+                      <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
+                      <span className="truncate">{post.location}</span>
+                    </span>
+                    <span className="flex items-center gap-1.5 truncate">
+                      <span className="size-2 rounded-full bg-muted-foreground/50 shrink-0" />
+                      <span className="truncate">{post.lastUpdated}</span>
+                    </span>
                   </div>
 
-                  {/* ปุ่ม Action 3 ปุ่ม: ดู/ใบปลิว (Eye), แก้ไข (Edit), ลบ (Trash) - หยุด event ไม่ให้ทะลุไปกดเปิดการ์ด */}
-                  <div
-                    className="flex items-center gap-1"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Link
-                      href={`/posts/${post.id}/flyer`}
-                      className="flex size-7.5 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-primary/20 hover:text-primary"
-                      title="ดูใบปลิวตามหา"
-                    >
-                      <Eye className="size-3.5" />
-                    </Link>
-
-                    <Link
-                      href={`/posts/${post.id}/progress`}
-                      className="flex size-7.5 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-amber-500/20 hover:text-amber-600"
-                      title="แก้ไขประกาศ / อัปเดตไทม์ไลน์"
-                    >
-                      <Edit2 className="size-3.5" />
-                    </Link>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDeletePost(post.id, post.petName)}
-                      disabled={deletingId === post.id}
-                      className="flex size-7.5 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-destructive/20 hover:text-destructive disabled:opacity-50"
-                      title="ลบประกาศ"
-                    >
-                      {deletingId === post.id ? (
-                        <Loader2 className="size-3.5 animate-spin" />
+                  {/* แถบล่างสุด: เงินรางวัล & ปุ่ม Action ไอคอน */}
+                  <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
+                    {/* เงินรางวัล */}
+                    <div>
+                      {post.rewardAmount ? (
+                        <span className="inline-flex items-center rounded-lg bg-emerald-100/80 px-2 py-0.5 text-[11px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                          รางวัล ฿{post.rewardAmount}
+                        </span>
                       ) : (
-                        <Trash2 className="size-3.5" />
+                        <span className="text-[11px] text-muted-foreground">
+                          ไม่มีรางวัลนำจับ
+                        </span>
                       )}
-                    </button>
+                    </div>
+
+                    {/* ปุ่ม Action 3 ปุ่ม: ดู/ใบปลิว (Eye), แก้ไข (Edit), ลบ (Trash) */}
+                    <div className="flex items-center gap-1">
+                      <Link
+                        href={`/posts/${post.id}/flyer`}
+                        className="flex size-7.5 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-primary/20 hover:text-primary"
+                        title="ดูใบปลิวตามหา"
+                      >
+                        <Eye className="size-3.5" />
+                      </Link>
+
+                      <Link
+                        href={`/posts/${post.id}/progress`}
+                        className="flex size-7.5 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-amber-500/20 hover:text-amber-600"
+                        title="แก้ไขประกาศ / อัปเดตไทม์ไลน์"
+                      >
+                        <Edit2 className="size-3.5" />
+                      </Link>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePost(post.id, post.petName)}
+                        disabled={deletingId === post.id}
+                        className="flex size-7.5 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-destructive/20 hover:text-destructive disabled:opacity-50"
+                        title="ลบประกาศ"
+                      >
+                        {deletingId === post.id ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="size-3.5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
