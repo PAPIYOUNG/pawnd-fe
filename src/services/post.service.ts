@@ -1,6 +1,12 @@
 import { apiFetch } from '@/lib/api/api-fetch';
 import { authFetch } from '@/lib/api/auth-fetch';
-import { LatestPostItem, PostStatus, PostType } from '@/types/post';
+import {
+  LatestPostItem,
+  type PetType,
+  type PostStatus,
+  PostStatus as PostStatusEnum,
+  PostType,
+} from '@/types/post';
 
 /**
  * Post Service — จัดการประกาศตามหาสัตว์เลี้ยง (Lost & Found Posts)
@@ -85,8 +91,8 @@ export interface PostQueryParams {
   page?: number;
   limit?: number;
   type?: PostType;
-  status?: string;
-  petType?: string;
+  status?: PostStatus;
+  petType?: PetType;
 }
 
 /** พารามิเตอร์สำหรับค้นหาโพสต์ */
@@ -130,6 +136,7 @@ export const MOCK_POSTS: LatestPostItem[] = [
   {
     id: 'post-1',
     type: 'LOST',
+    status: 'ACTIVE',
     petName: 'น้องลูน่า (Luna) แมววิเชียรมาศ',
     petType: 'CAT',
     breed: 'วิเชียรมาศ',
@@ -143,6 +150,7 @@ export const MOCK_POSTS: LatestPostItem[] = [
   {
     id: 'post-2',
     type: 'FOUND',
+    status: 'ACTIVE',
     petName: 'พบเห็นสุนัขไซบีเรียน ฮัสกี้ ปลอกคอดำ',
     petType: 'DOG',
     breed: 'ไซบีเรียน ฮัสกี้',
@@ -156,6 +164,7 @@ export const MOCK_POSTS: LatestPostItem[] = [
   {
     id: 'post-3',
     type: 'LOST',
+    status: 'ACTIVE',
     petName: 'ช็อกโก้ สุนัขพุดเดิลสีน้ำตาล',
     petType: 'DOG',
     breed: 'พุดเดิ้ลทอย',
@@ -169,6 +178,7 @@ export const MOCK_POSTS: LatestPostItem[] = [
   {
     id: 'post-4',
     type: 'LOST',
+    status: 'ACTIVE',
     petName: 'น้องส้มส้ม แมวลายเสือส้ม สวมกระดิ่งแดง',
     petType: 'CAT',
     breed: 'พันธุ์ไทยผสมเปอร์เซีย',
@@ -351,6 +361,7 @@ export function mapPostToLatestItem(post: PostDetail): LatestPostItem {
   return {
     id: post.id,
     type: post.type,
+    status: post.status,
     petName: post.petName || post.pet?.name || 'สัตว์เลี้ยง',
     petType: (post.petType ||
       post.pet?.type ||

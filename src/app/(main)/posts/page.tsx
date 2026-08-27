@@ -1,6 +1,9 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
+import { PostFilters } from './[id]/_components/post-filters';
+
+import type { PetType, PostStatus, PostType } from '@/types/post';
 import {
   Megaphone,
   Search,
@@ -41,6 +44,9 @@ const POSTS_PER_PAGE = 8;
 
 type PostsPageSearchParams = {
   page?: string | string[];
+  type?: string | string[];
+  petType?: string | string[];
+  status?: string | string[];
 };
 
 type PostsPageProps = {
@@ -55,6 +61,79 @@ function parsePage(value: string | string[] | undefined): number {
   const page = Number(pageValue);
 
   return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+/**
+ * คืนค่าแรกของ query parameter กรณี URL มีค่า key เดิมมากกว่าหนึ่งค่า
+ */
+function getSingleSearchParam(
+  value: string | string[] | undefined,
+): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+/** ตรวจสอบ PostType ที่อนุญาตจาก URL */
+function parsePostType(
+  value: string | string[] | undefined,
+): PostType | undefined {
+  const type = getSingleSearchParam(value);
+
+  return type === 'LOST' || type === 'FOUND' ? type : undefined;
+}
+
+/** ตรวจสอบ PetType ที่อนุญาตจาก URL */
+function parsePetType(
+  value: string | string[] | undefined,
+): PetType | undefined {
+  const petType = getSingleSearchParam(value);
+
+  return petType === 'DOG' ||
+    petType === 'CAT' ||
+    petType === 'BIRD' ||
+    petType === 'HAMSTER' ||
+    petType === 'EXOTIC' ||
+    petType === 'OTHER'
+    ? petType
+    : undefined;
+}
+
+/** คืนสถานะที่หน้า posts อนุญาต โดยกำหนด ACTIVE เป็นค่าเริ่มต้น */
+function parsePostStatus(value: string | string[] | undefined): PostStatus {
+  const status = getSingleSearchParam(value);
+
+  return status === 'REUNITED' || status === 'CLOSED' || status === 'ACTIVE'
+    ? status
+    : 'ACTIVE';
+}
+
+/** สร้าง URL Pagination โดยคง filter ทั้งสามตัวไว้ */
+function createPostsHref(
+  page: number,
+  type: PostType | undefined,
+  petType: PetType | undefined,
+  status: PostStatus,
+): string {
+  const params = new URLSearchParams();
+
+  if (page > 1) {
+    params.set('page', String(page));
+  }
+
+  if (type) {
+    params.set('type', type);
+  }
+
+  if (petType) {
+    params.set('petType', petType);
+  }
+
+  if (status !== 'ACTIVE') {
+    params.set('status', status);
+  }
+
+  const queryString = params.toString();
+
+  return queryString ? `/posts?${queryString}` : '/posts';
 }
 
 /**
@@ -99,10 +178,17 @@ function buildPageItems(
 export default async function PostsPage({ searchParams }: PostsPageProps) {
   const resolvedSearchParams = await searchParams;
   const currentPage = parsePage(resolvedSearchParams.page);
+  const selectedType = parsePostType(resolvedSearchParams.type);
+  const selectedPetType = parsePetType(resolvedSearchParams.petType);
+  const selectedStatus = parsePostStatus(resolvedSearchParams.status);
 
+  /** เรียก API พร้อมตัวกรองทั้ง 3 ค่า */
   const response = await getAllPosts({
     page: currentPage,
     limit: POSTS_PER_PAGE,
+    type: selectedType,
+    petType: selectedPetType,
+    status: selectedStatus,
   });
 
   const backendPosts = response.data || [];
@@ -174,18 +260,11 @@ export default async function PostsPage({ searchParams }: PostsPageProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <select className="h-10 rounded-2xl border border-border bg-background px-3 text-xs sm:text-sm">
-            <option value="ALL">ทุกประเภท (ทั้งหมด)</option>
-            <option value="LOST">ตามหา (LOST)</option>
-            <option value="FOUND">พบเห็น (FOUND)</option>
-          </select>
-
-          <select className="h-10 rounded-2xl border border-border bg-background px-3 text-xs sm:text-sm">
-            <option value="ALL">สัตว์ทุกชนิด</option>
-            <option value="DOG">สุนัข</option>
-            <option value="CAT">แมว</option>
-            <option value="OTHER">อื่นๆ</option>
-          </select>
+          <PostFilters
+            selectedType={selectedType}
+            selectedPetType={selectedPetType}
+            selectedStatus={selectedStatus}
+          />
         </div>
       </div>
 
@@ -193,12 +272,25 @@ export default async function PostsPage({ searchParams }: PostsPageProps) {
       <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {posts.map((post) => {
           const isLost = post.type === 'LOST';
+          const isReunited = post.status === 'REUNITED';
+          const isClosed = post.status === 'CLOSED' && post.type === 'FOUND';
 
           return (
             <div
               key={post.id}
-              className="group flex flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-sm transition-all duration-300 hover:shadow-xl dark:border-border/60"
+              className={cn(
+                'group relative flex flex-col overflow-hidden rounded-lg border border-border/80 bg-card shadow-sm transition-shadow hover:shadow-md',
+                isReunited && 'opacity-80',
+                isClosed && 'border-muted-foreground/40 bg-muted grayscale',
+              )}
             >
+              {/* แถบคาดสำหรับประกาศ FOUND ที่ปิดแล้ว */}
+              {isClosed && (
+                <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 w-[150%] -translate-x-1/2 -translate-y-1/2 -rotate-45 bg-muted-foreground py-2 text-center text-xs font-bold tracking-widest text-background">
+                  CLOSED
+                </div>
+              )}
+
               {/* ภาพหน้าปก */}
               <div className="relative h-48 w-full overflow-hidden bg-muted">
                 <Image
@@ -208,6 +300,18 @@ export default async function PostsPage({ searchParams }: PostsPageProps) {
                   sizes="(max-width: 768px) 100vw, 400px"
                   className="object-cover transition-transform duration-500 group-hover:scale-105"
                 />
+                {/* วางแถบสถานะตรงนี้ */}
+                {isReunited && (
+                  <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 w-[150%] -translate-x-1/2 -translate-y-1/2 -rotate-45 bg-primary py-2 text-center text-xs font-bold tracking-widest text-primary-foreground">
+                    กลับบ้านแล้ว
+                  </div>
+                )}
+
+                {isClosed && (
+                  <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 w-[150%] -translate-x-1/2 -translate-y-1/2 -rotate-45 bg-foreground py-2 text-center text-xs font-bold tracking-widest text-background">
+                    CLOSED
+                  </div>
+                )}
 
                 {/* ป้ายประเภทประกาศ */}
                 <div className="absolute top-3 left-3">
@@ -280,7 +384,14 @@ export default async function PostsPage({ searchParams }: PostsPageProps) {
           <PaginationContent>
             <PaginationItem>
               {currentPage > 1 ? (
-                <PaginationPrevious href={`/posts?page=${currentPage - 1}`} />
+                <PaginationPrevious
+                  href={createPostsHref(
+                    currentPage - 1,
+                    selectedType,
+                    selectedPetType,
+                    selectedStatus,
+                  )}
+                />
               ) : (
                 <span className="inline-flex h-10 items-center rounded-xl px-3.5 text-sm text-muted-foreground/50">
                   ก่อนหน้า
@@ -294,7 +405,12 @@ export default async function PostsPage({ searchParams }: PostsPageProps) {
                   <PaginationEllipsis />
                 ) : (
                   <PaginationLink
-                    href={`/posts?page=${item}`}
+                    href={createPostsHref(
+                      item,
+                      selectedType,
+                      selectedPetType,
+                      selectedStatus,
+                    )}
                     isActive={item === currentPage}
                   >
                     {item}
@@ -305,7 +421,14 @@ export default async function PostsPage({ searchParams }: PostsPageProps) {
 
             <PaginationItem>
               {currentPage < totalPages ? (
-                <PaginationNext href={`/posts?page=${currentPage + 1}`} />
+                <PaginationNext
+                  href={createPostsHref(
+                    currentPage + 1,
+                    selectedType,
+                    selectedPetType,
+                    selectedStatus,
+                  )}
+                />
               ) : (
                 <span className="inline-flex h-10 items-center rounded-xl px-3.5 text-sm text-muted-foreground/50">
                   ถัดไป
