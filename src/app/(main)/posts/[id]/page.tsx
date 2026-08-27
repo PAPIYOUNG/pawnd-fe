@@ -49,14 +49,6 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
         ? 'ไม่พบข้อมูลความคืบหน้าของประกาศนี้'
         : 'ไม่สามารถโหลดความคืบหน้าของประกาศได้ในขณะนี้';
   }
-    if (error instanceof ApiError && error.statusCode === 404) notFound();
-    throw error;
-  }
-
-  if (!post) notFound();
-
-  // ดึง Timeline ของประกาศหลังยืนยันว่า post นี้มีอยู่จริง
-  const events = await getPostEvents(id);
 
   // เฉพาะเจ้าของประกาศเท่านั้นที่สั่งจับคู่ใหม่/Pin/Dismiss ได้ (ตาม Backend assertOwnedPost)
   // ส่วนการดูรายการผลจับคู่ (read-only) เป็น public endpoint เห็นได้ทั้งคนที่ login และไม่ได้ login
