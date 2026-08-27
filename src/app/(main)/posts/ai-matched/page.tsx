@@ -113,6 +113,7 @@ export default function AiMatchedPostsPage() {
                     src={item.sourcePet.imageUrl}
                     alt={item.sourcePet.name}
                     fill
+                    sizes="64px"
                     className="object-cover"
                   />
                 </div>
@@ -137,6 +138,7 @@ export default function AiMatchedPostsPage() {
                     src={item.candidatePet.imageUrl}
                     alt={item.candidatePet.name}
                     fill
+                    sizes="64px"
                     className="object-cover"
                   />
                 </div>

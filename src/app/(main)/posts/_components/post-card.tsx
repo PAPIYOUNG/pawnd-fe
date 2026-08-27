@@ -11,6 +11,8 @@ import type { LatestPostItem } from '@/types/post';
 
 interface PostCardProps {
   post: LatestPostItem;
+  /** true สำหรับการ์ดใบแรกที่อยู่เหนือ fold เพื่อให้โหลดภาพแบบ eager (LCP) */
+  priority?: boolean;
 }
 
 /**
@@ -18,7 +20,7 @@ interface PostCardProps {
  * - การ์ดแสดงประกาศ 1 รายการในหน้ารายการประกาศ (`/posts`)
  * - กดที่ตัวการ์ด (ยกเว้นปุ่ม Action) จะพาไปหน้ารายละเอียดประกาศ `/posts/[id]`
  */
-export function PostCard({ post }: PostCardProps) {
+export function PostCard({ post, priority = false }: PostCardProps) {
   const router = useRouter();
   const isLost = post.type === 'LOST';
 
@@ -42,6 +44,7 @@ export function PostCard({ post }: PostCardProps) {
           alt={post.petName}
           fill
           sizes="(max-width: 768px) 100vw, 400px"
+          priority={priority}
           className="object-cover transition-transform duration-500 group-hover:scale-105"
         />
 

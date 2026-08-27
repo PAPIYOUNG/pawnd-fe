@@ -111,6 +111,7 @@ function ReportRow({ report }: { report: AdminReportListItem }) {
                   src={coverImage}
                   alt={`ภาพประกอบ${contentType}ที่ถูกรายงาน`}
                   fill
+                  sizes="40px"
                   className="object-cover"
                 />
               </div>
