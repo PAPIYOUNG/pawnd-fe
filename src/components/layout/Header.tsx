@@ -48,7 +48,10 @@ export default function Header({
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* 1. โลโก้และชื่อแบรนด์ Pawnd ทางซ้าย */}
-        <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 transition-opacity hover:opacity-90"
+        >
           <Image
             src="/logo.png"
             alt="PAWND Logo"
@@ -64,7 +67,8 @@ export default function Header({
         {/* 2. เมนูนำทางบนหน้าจอ Desktop (กึ่งกลาง) */}
         <nav className="hidden md:flex items-center gap-7">
           {NAV_LINKS.map((link) => {
-            const targetHref = link.href === '/' && isLoggedIn ? '/dashboard' : link.href;
+            const targetHref =
+              link.href === '/' && isLoggedIn ? '/dashboard' : link.href;
             const isActive =
               link.href === '/'
                 ? pathname === '/' || pathname === '/dashboard'
@@ -77,7 +81,7 @@ export default function Header({
                   'text-sm font-medium transition-colors hover:text-primary',
                   isActive
                     ? 'font-semibold text-primary'
-                    : 'text-muted-foreground'
+                    : 'text-muted-foreground',
                 )}
               >
                 {link.label}
@@ -123,7 +127,7 @@ export default function Header({
                 href="/posts/create?type=LOST"
                 className={cn(
                   buttonVariants({ variant: 'default', size: 'default' }),
-                  'h-10 min-h-[40px] rounded-2xl gap-1.5 px-4 font-medium shadow-xs'
+                  'h-10 min-h-[40px] rounded-2xl gap-1.5 px-4 font-medium shadow-xs',
                 )}
               >
                 <Plus className="size-4 stroke-[2.5]" />
@@ -137,7 +141,7 @@ export default function Header({
                 href="/login"
                 className={cn(
                   buttonVariants({ variant: 'ghost', size: 'sm' }),
-                  'h-10 min-h-[40px] rounded-xl px-4'
+                  'h-10 min-h-[40px] rounded-xl px-4',
                 )}
               >
                 เข้าสู่ระบบ
@@ -146,7 +150,7 @@ export default function Header({
                 href="/register"
                 className={cn(
                   buttonVariants({ variant: 'default', size: 'sm' }),
-                  'h-10 min-h-[40px] rounded-xl px-4'
+                  'h-10 min-h-[40px] rounded-xl px-4',
                 )}
               >
                 สมัครสมาชิก
@@ -164,7 +168,11 @@ export default function Header({
             aria-label="เปิดเมนูนำทาง"
             className="flex size-10 min-h-[40px] min-w-[40px] items-center justify-center rounded-xl text-foreground hover:bg-muted active:scale-95"
           >
-            {mobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+            {mobileMenuOpen ? (
+              <X className="size-5" />
+            ) : (
+              <Menu className="size-5" />
+            )}
           </button>
         </div>
       </div>
@@ -174,7 +182,8 @@ export default function Header({
         <div className="border-b border-border bg-background px-4 py-4 sm:hidden">
           <nav className="flex flex-col gap-2">
             {NAV_LINKS.map((link) => {
-              const targetHref = link.href === '/' && isLoggedIn ? '/dashboard' : link.href;
+              const targetHref =
+                link.href === '/' && isLoggedIn ? '/dashboard' : link.href;
               const isActive =
                 link.href === '/'
                   ? pathname === '/' || pathname === '/dashboard'
@@ -187,7 +196,9 @@ export default function Header({
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
                     'flex min-h-[40px] items-center rounded-xl px-3 text-sm font-medium transition-colors hover:bg-muted',
-                    isActive ? 'bg-muted text-primary font-semibold' : 'text-foreground'
+                    isActive
+                      ? 'bg-muted text-primary font-semibold'
+                      : 'text-foreground',
                   )}
                 >
                   {link.label}
@@ -210,7 +221,7 @@ export default function Header({
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
                   buttonVariants({ variant: 'default' }),
-                  'h-11 w-full rounded-2xl gap-1.5 font-medium'
+                  'h-11 w-full rounded-2xl gap-1.5 font-medium',
                 )}
               >
                 <Plus className="size-4 stroke-[2.5]" />
