@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api/api-fetch';
 import { authFetch } from '@/lib/api/auth-fetch';
 
 import type {
@@ -9,7 +10,8 @@ import type {
 /**
  * AI Matching Service — เรียกใช้ Endpoint ของ `AiController` ฝั่ง Backend
  * ที่เกี่ยวกับการจับคู่ประกาศ (`/ai/match`, `/ai/posts/:postId/matches`)
- * ทุกฟังก์ชันในไฟล์นี้ต้อง login และต้องเป็นเจ้าของประกาศเท่านั้น จึงใช้ authFetch เสมอ
+ * - getPostMatches เป็น public endpoint (ไม่ต้อง login ก็ดูผลจับคู่ได้) → ใช้ apiFetch
+ * - ฟังก์ชันอื่นที่เหลือ (สั่งจับคู่ใหม่, Pin/Dismiss) ต้อง login และเป็นเจ้าของประกาศเท่านั้น จึงใช้ authFetch
  */
 
 /**
@@ -28,11 +30,12 @@ export async function triggerPostMatch(
 
 /**
  * ดึงรายการผลการจับคู่ทั้งหมดของประกาศนี้ เรียงจากคะแนนรวมสูงไปต่ำ (GET /ai/posts/:postId/matches)
+ * เป็น public endpoint — ผู้ใช้ที่ไม่ได้ login ก็ดูรายการนี้ได้เช่นกัน (read-only)
  */
 export async function getPostMatches(
   postId: string,
 ): Promise<GetPostMatchesResult> {
-  return authFetch<GetPostMatchesResult>(`/ai/posts/${postId}/matches`, {
+  return apiFetch<GetPostMatchesResult>(`/ai/posts/${postId}/matches`, {
     method: 'GET',
     cache: 'no-store',
   });

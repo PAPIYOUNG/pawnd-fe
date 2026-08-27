@@ -43,18 +43,16 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
   const events = await getPostEvents(id);
 
   // เฉพาะเจ้าของประกาศเท่านั้นที่สั่งจับคู่ใหม่/Pin/Dismiss ได้ (ตาม Backend assertOwnedPost)
-  // แต่ผู้ใช้ที่ login แล้วคนอื่นดูรายการผลจับคู่ (read-only) ได้เช่นกัน
+  // ส่วนการดูรายการผลจับคู่ (read-only) เป็น public endpoint เห็นได้ทั้งคนที่ login และไม่ได้ login
   const isOwner = (session?.user?.id ?? null) === post.userId;
 
   let initialAiMatches: AiMatchItem[] = [];
-  if (session?.user?.id) {
-    try {
-      const result = await getPostMatches(id);
-      initialAiMatches = result.matches;
-    } catch (error) {
-      // โหลดผลจับคู่เดิมไม่สำเร็จ ไม่ต้องบล็อกทั้งหน้า ให้ Client Component เริ่มจากรายการว่างแทน
-      if (!(error instanceof ApiError)) throw error;
-    }
+  try {
+    const result = await getPostMatches(id);
+    initialAiMatches = result.matches;
+  } catch (error) {
+    // โหลดผลจับคู่เดิมไม่สำเร็จ ไม่ต้องบล็อกทั้งหน้า ให้ Client Component เริ่มจากรายการว่างแทน
+    if (!(error instanceof ApiError)) throw error;
   }
 
   const primaryImage =
