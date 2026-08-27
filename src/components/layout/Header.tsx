@@ -18,6 +18,7 @@ import {
 
 import { buttonVariants } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -28,10 +29,6 @@ import {
 import { cn } from '@/lib/utils';
 import type { SessionUser } from '@/types/auth';
 import { logoutAction } from '@/lib/action/logout.actions';
-
-/** รูปโปรไฟล์สำรอง กรณี login แล้วแต่ยังไม่ได้ตั้งค่า avatarUrl */
-const DEFAULT_AVATAR_URL =
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop';
 
 /** รายการลิงก์เมนูนำทางหลักของเว็บไซต์ (Main Navigation Links) */
 const NAV_LINKS = [
@@ -117,7 +114,6 @@ export default function Header() {
   }, [isLoggedIn]);
 
   const userName = user ? `${user.firstName} ${user.lastName}` : 'ผู้ใช้งาน';
-  const userAvatar = user?.avatarUrl || DEFAULT_AVATAR_URL;
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
@@ -203,12 +199,10 @@ export default function Header() {
                   aria-label={`เมนูผู้ใช้งาน: ${userName}`}
                   className="relative size-10 min-h-[40px] min-w-[40px] overflow-hidden rounded-full ring-2 ring-border transition-transform hover:scale-105 active:scale-95"
                 >
-                  <Image
-                    src={userAvatar}
+                  <UserAvatar
+                    src={user?.avatarUrl}
                     alt={userName}
-                    fill
                     sizes="40px"
-                    className="object-cover"
                   />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
