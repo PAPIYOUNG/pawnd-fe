@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Eye,
   Edit2,
@@ -65,6 +66,7 @@ const DEFAULT_MY_POSTS: MyPostDashboardItem[] = [
  * - แถบล่าง: ป้ายรางวัล และปุ่ม Action (ดูใบปลิว/Flyer, แก้ไข, ลบผ่าน Backend จริง)
  */
 export function DashboardMyPosts({ initialPosts = DEFAULT_MY_POSTS }: { initialPosts?: MyPostDashboardItem[] }) {
+  const router = useRouter();
   const [posts, setPosts] = useState<MyPostDashboardItem[]>(initialPosts);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -138,7 +140,16 @@ export function DashboardMyPosts({ initialPosts = DEFAULT_MY_POSTS }: { initialP
           return (
             <div
               key={post.id}
-              className={`group relative flex flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xs transition-all hover:shadow-md ${
+              role="link"
+              tabIndex={0}
+              onClick={() => router.push(`/posts/${post.id}`)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  router.push(`/posts/${post.id}`);
+                }
+              }}
+              className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xs transition-all hover:shadow-md ${
                 isClosed ? 'grayscale' : ''
               }`}
             >
@@ -217,8 +228,11 @@ export function DashboardMyPosts({ initialPosts = DEFAULT_MY_POSTS }: { initialP
                     )}
                   </div>
 
-                  {/* ปุ่ม Action 3 ปุ่ม: ดู/ใบปลิว (Eye), แก้ไข (Edit), ลบ (Trash) */}
-                  <div className="flex items-center gap-1">
+                  {/* ปุ่ม Action 3 ปุ่ม: ดู/ใบปลิว (Eye), แก้ไข (Edit), ลบ (Trash) - หยุด event ไม่ให้ทะลุไปกดเปิดการ์ด */}
+                  <div
+                    className="flex items-center gap-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <Link
                       href={`/posts/${post.id}/flyer`}
                       className="flex size-7.5 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-primary/20 hover:text-primary"
