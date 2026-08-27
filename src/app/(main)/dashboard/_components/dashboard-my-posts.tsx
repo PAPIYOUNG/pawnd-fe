@@ -3,15 +3,8 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import {
-  Eye,
-  Edit2,
-  Trash2,
-  Loader2,
-  CheckCircle2,
-  AlertCircle,
-} from 'lucide-react';
-import { deleteMyPostAction } from '../_actions/dashboard.actions';
+import { useRouter } from 'next/navigation';
+import { Newspaper, Edit2 } from 'lucide-react';
 
 export interface MyPostDashboardItem {
   id: string;
@@ -33,44 +26,16 @@ export interface MyPostDashboardItem {
  * - การ์ดรายการประกาศตามหาของฉันในหน้า Dashboard ตรงตามดีไซน์ UI
  * - แสดงสถานะ LOST / FOUND
  * - รายละเอียด: ชื่อ, ชนิด, สายพันธุ์, อายุ, พิกัดสถานที่ และเวลาอัปเดต
- * - แถบล่าง: ป้ายรางวัล และปุ่ม Action (ดูใบปลิว/Flyer, แก้ไข, ลบผ่าน Backend จริง)
+ * - กดที่ตัวการ์ด (ยกเว้นปุ่ม Action) จะพาไปหน้ารายละเอียดประกาศ `/posts/[id]`
+ * - แถบล่าง: ป้ายรางวัล และปุ่ม Action (ดูใบปลิว/Flyer, แก้ไข)
  */
 export function DashboardMyPosts({
   initialPosts = [],
 }: {
   initialPosts?: MyPostDashboardItem[];
 }) {
-  const [posts, setPosts] = useState<MyPostDashboardItem[]>(initialPosts);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<{
-    type: 'success' | 'error';
-    message: string;
-  } | null>(null);
-
-  const triggerFeedback = (type: 'success' | 'error', message: string) => {
-    setFeedback({ type, message });
-    setTimeout(() => setFeedback(null), 4000);
-  };
-
-  const handleDeletePost = async (id: string, name: string) => {
-    if (confirm(`คุณต้องการลบประกาศของ "${name}" ใช่หรือไม่?`)) {
-      setDeletingId(id);
-      setFeedback(null);
-      try {
-        const res = await deleteMyPostAction(id);
-        if (res.success) {
-          setPosts((prev) => prev.filter((p) => p.id !== id));
-          triggerFeedback('success', `ลบประกาศของ "${name}" เรียบร้อยแล้ว`);
-        } else {
-          triggerFeedback('error', res.error || 'ไม่สามารถลบประกาศได้');
-        }
-      } catch {
-        triggerFeedback('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
-      } finally {
-        setDeletingId(null);
-      }
-    }
-  };
+  const [posts] = useState<MyPostDashboardItem[]>(initialPosts);
+  const router = useRouter();
 
   return (
     <div className="flex flex-col gap-4">
@@ -86,24 +51,6 @@ export function DashboardMyPosts({
           ดูทั้งหมด
         </Link>
       </div>
-
-      {/* แจ้งเตือนสถานะผลลัพธ์การลบประกาศ */}
-      {feedback && (
-        <div
-          className={`flex items-center gap-2 rounded-2xl p-3.5 text-xs font-semibold animate-in fade-in duration-200 ${
-            feedback.type === 'success'
-              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
-              : 'bg-destructive/15 text-destructive'
-          }`}
-        >
-          {feedback.type === 'success' ? (
-            <CheckCircle2 className="size-4 shrink-0" />
-          ) : (
-            <AlertCircle className="size-4 shrink-0" />
-          )}
-          <span>{feedback.message}</span>
-        </div>
-      )}
 
       {/* กริดการ์ดประกาศ หรือ Empty State */}
       {posts.length === 0 ? (
@@ -133,7 +80,16 @@ export function DashboardMyPosts({
             return (
               <div
                 key={post.id}
-                className={`group relative flex flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xs transition-all hover:shadow-md ${
+                role="link"
+                tabIndex={0}
+                onClick={() => router.push(`/posts/${post.id}`)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    router.push(`/posts/${post.id}`);
+                  }
+                }}
+                className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xs transition-all hover:shadow-md ${
                   isClosed ? 'grayscale' : ''
                 }`}
               >
@@ -161,6 +117,7 @@ export function DashboardMyPosts({
                     src={post.imageUrl}
                     alt={post.petName}
                     fill
+                    sizes="(min-width: 640px) 50vw, 100vw"
                     className="object-cover transition-transform duration-300 group-hover:scale-105"
                   />
 
@@ -197,8 +154,11 @@ export function DashboardMyPosts({
                     </span>
                   </div>
 
-                  {/* แถบล่างสุด: เงินรางวัล & ปุ่ม Action ไอคอน */}
-                  <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
+                  {/* แถบล่างสุด: เงินรางวัล & ปุ่ม Action ไอคอน - หยุด event ไม่ให้ทะลุไปกดเปิดการ์ดซ้ำ */}
+                  <div
+                    className="mt-4 flex items-center justify-between border-t border-border/60 pt-3"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {/* เงินรางวัล */}
                     <div>
                       {post.rewardAmount ? (
@@ -212,14 +172,14 @@ export function DashboardMyPosts({
                       )}
                     </div>
 
-                    {/* ปุ่ม Action 3 ปุ่ม: ดู/ใบปลิว (Eye), แก้ไข (Edit), ลบ (Trash) */}
+                    {/* ปุ่ม Action: ดู/ใบปลิว (Newspaper), แก้ไข (Edit) */}
                     <div className="flex items-center gap-1">
                       <Link
                         href={`/posts/${post.id}/flyer`}
                         className="flex size-7.5 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-primary/20 hover:text-primary"
                         title="ดูใบปลิวตามหา"
                       >
-                        <Eye className="size-3.5" />
+                        <Newspaper className="size-3.5" />
                       </Link>
 
                       <Link
@@ -229,20 +189,6 @@ export function DashboardMyPosts({
                       >
                         <Edit2 className="size-3.5" />
                       </Link>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDeletePost(post.id, post.petName)}
-                        disabled={deletingId === post.id}
-                        className="flex size-7.5 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground transition-colors hover:bg-destructive/20 hover:text-destructive disabled:opacity-50"
-                        title="ลบประกาศ"
-                      >
-                        {deletingId === post.id ? (
-                          <Loader2 className="size-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="size-3.5" />
-                        )}
-                      </button>
                     </div>
                   </div>
                 </div>

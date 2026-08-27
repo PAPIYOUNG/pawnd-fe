@@ -9,8 +9,13 @@ import Image from 'next/image';
 import { notFound } from 'next/navigation';
 
 import type { PostEvent } from '@/types/posts-event';
+import type { PostStatus } from '@/types/post';
+import type { AiMatchItem } from '@/types/ai-match';
+import { getPostMatches } from '@/services/ai-matching.service';
+import { AiMatchingCard } from './_components/ai-matching-card';
 import { ContactChatButton } from './_components/contact-chat-button';
 import { PostEventsCard } from './_components/post-events-card';
+import { PostStatusActions } from './_components/post-status-actions';
 
 interface PostDetailPageProps {
   params: Promise<{ id: string }>;
@@ -44,6 +49,19 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
       error instanceof ApiError && error.statusCode === 404
         ? 'ไม่พบข้อมูลความคืบหน้าของประกาศนี้'
         : 'ไม่สามารถโหลดความคืบหน้าของประกาศได้ในขณะนี้';
+  }
+
+  // เฉพาะเจ้าของประกาศเท่านั้นที่สั่งจับคู่ใหม่/Pin/Dismiss ได้ (ตาม Backend assertOwnedPost)
+  // ส่วนการดูรายการผลจับคู่ (read-only) เป็น public endpoint เห็นได้ทั้งคนที่ login และไม่ได้ login
+  const isOwner = (session?.user?.id ?? null) === post.userId;
+
+  let initialAiMatches: AiMatchItem[] = [];
+  try {
+    const result = await getPostMatches(id);
+    initialAiMatches = result.matches;
+  } catch (error) {
+    // โหลดผลจับคู่เดิมไม่สำเร็จ ไม่ต้องบล็อกทั้งหน้า ให้ Client Component เริ่มจากรายการว่างแทน
+    if (!(error instanceof ApiError)) throw error;
   }
 
   const primaryImage =
@@ -93,13 +111,19 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
 
           <Card className="rounded-3xl">
             <CardHeader>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge
-                  variant={post.type === 'LOST' ? 'destructive' : 'default'}
-                >
-                  {post.type === 'LOST' ? 'ตามหา' : 'พบเห็น'}
-                </Badge>
-                <Badge variant="outline">{post.status}</Badge>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant={post.type === 'LOST' ? 'destructive' : 'default'}
+                  >
+                    {post.type === 'LOST' ? 'ตามหา' : 'พบเห็น'}
+                  </Badge>
+                  <Badge variant="outline">{post.status}</Badge>
+                </div>
+                {/* ปุ่มเปลี่ยนสถานะประกาศ 4 ปุ่ม เห็นเฉพาะเจ้าของประกาศ */}
+                {isOwner && (
+                  <PostStatusActions postId={post.id} status={post.status} />
+                )}
               </div>
               <CardTitle className="text-2xl">{displayPetName}</CardTitle>
             </CardHeader>
@@ -117,6 +141,13 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
               )}
             </CardContent>
           </Card>
+
+          <AiMatchingCard
+            postId={post.id}
+            postStatus={post.status}
+            isOwner={isOwner}
+            initialMatches={initialAiMatches}
+          />
         </section>
 
         {/* ข้อมูลสรุปและปุ่มติดต่อ */}

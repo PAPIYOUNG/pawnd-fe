@@ -80,6 +80,7 @@ export default async function PetAvatarGeneratorPage({ params }: PetAvatarPagePr
             }
             alt={`ภาพของ ${pet.name}`}
             fill
+            sizes="(min-width: 768px) 256px, 100vw"
             className="object-cover"
           />
           <div className="absolute top-3 left-3">

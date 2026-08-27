@@ -172,6 +172,7 @@ export function PetQrModal({ pet, isOpen, onClose, onQrCodeChange }: PetQrModalP
                     src={qrImageUrl}
                     alt={`QR Code ของ ${pet.name}`}
                     fill
+                    sizes="176px"
                     className="object-contain p-2"
                     unoptimized
                   />

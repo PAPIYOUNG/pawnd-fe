@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -19,6 +18,7 @@ import {
 import { cn } from '@/lib/utils';
 import { UserProfile } from '@/types/user';
 import { logoutAction } from '@/lib/action/logout.actions';
+import { UserAvatar } from '@/components/common/UserAvatar';
 
 interface ProfileSidebarProps {
   user: UserProfile;
@@ -87,15 +87,10 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
             className="flex items-center gap-2.5 rounded-2xl p-1 text-left transition-colors hover:bg-muted"
           >
             <div className="relative size-9 overflow-hidden rounded-full ring-2 ring-primary/30">
-              <Image
-                src={
-                  user.avatarUrl ||
-                  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=400&auto=format&fit=crop'
-                }
+              <UserAvatar
+                src={user.avatarUrl}
                 alt={`${user.firstName} ${user.lastName}`}
-                fill
                 sizes="36px"
-                className="object-cover"
               />
             </div>
             <div className="flex flex-col">
@@ -174,15 +169,10 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
             {/* ข้อมูลโปรไฟล์ใน Drawer */}
             <div className="flex flex-col items-center border-b border-border/60 pb-5 pt-2">
               <div className="relative size-18 overflow-hidden rounded-full ring-3 ring-primary/30 shadow-md">
-                <Image
-                  src={
-                    user.avatarUrl ||
-                    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=400&auto=format&fit=crop'
-                  }
+                <UserAvatar
+                  src={user.avatarUrl}
                   alt={`${user.firstName} ${user.lastName}`}
-                  fill
                   sizes="72px"
-                  className="object-cover"
                 />
               </div>
               <h3 className="mt-3 text-base font-bold text-foreground">
@@ -284,15 +274,10 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
                 isExpanded ? 'size-20' : 'size-12',
               )}
             >
-              <Image
-                src={
-                  user.avatarUrl ||
-                  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=400&auto=format&fit=crop'
-                }
+              <UserAvatar
+                src={user.avatarUrl}
                 alt={`${user.firstName} ${user.lastName}`}
-                fill
                 sizes={isExpanded ? '80px' : '48px'}
-                className="object-cover"
                 priority
               />
             </div>
