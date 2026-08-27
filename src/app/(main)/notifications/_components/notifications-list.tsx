@@ -55,7 +55,7 @@ function getIcon(type: NotificationType) {
 
 /** หาลิงก์ปลายทางที่ควรพาไปเมื่อกดการ์ดแจ้งเตือน โดยดูจาก related id ก่อนเป็นอันดับแรก */
 function getLink(item: NotificationItem): string {
-  if (item.relatedChatRoomId) return `/chat/${item.relatedChatRoomId}`;
+  if (item.relatedChatRoomId) return `/chat?room=${item.relatedChatRoomId}`;
   if (item.relatedPostId) return `/posts/${item.relatedPostId}`;
   if (item.type === 'PROFILE_VERIFICATION') return '/profile';
   return '/dashboard';
