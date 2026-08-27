@@ -1,11 +1,11 @@
 import {
   AlertCircle,
-  CheckCircle2,
+  BadgeCheck,
   Clock,
-  FileText,
-  Heart,
+  CircleX,
+  FilePlus,
+  HeartHandshake,
   Sparkles,
-  XCircle,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -34,33 +34,34 @@ const EVENT_CONTENT: Record<
   POST_CREATED: {
     title: 'สร้างประกาศแล้ว',
     fallbackDescription: 'ระบบบันทึกประกาศเข้าสู่ PAWND เรียบร้อยแล้ว',
-    Icon: FileText,
-    iconClassName: 'bg-primary/10 text-primary',
+    Icon: FilePlus,
+    iconClassName: 'border-primary/20 bg-primary/10 text-primary',
   },
   AI_MATCHES_FOUND: {
     title: 'AI พบเคสที่อาจตรงกัน',
     fallbackDescription: 'ระบบพบประกาศที่มีลักษณะใกล้เคียงจากการวิเคราะห์ AI',
     Icon: Sparkles,
-    iconClassName: 'bg-primary/10 text-primary',
+    iconClassName:
+      'border-secondary-foreground/10 bg-secondary text-secondary-foreground',
   },
   AI_MATCH_CONFIRMED: {
     title: 'ยืนยันผลการจับคู่ AI',
     fallbackDescription: 'มีการยืนยันผลการจับคู่ของประกาศนี้',
-    Icon: CheckCircle2,
-    iconClassName: 'bg-primary/10 text-primary',
+    Icon: BadgeCheck,
+    iconClassName: 'border-primary/20 bg-primary/10 text-primary',
   },
   REUNITED: {
     title: 'สัตว์เลี้ยงกลับบ้านแล้ว',
     fallbackDescription:
       'เจ้าของประกาศยืนยันว่าสัตว์เลี้ยงกลับบ้านอย่างปลอดภัย',
-    Icon: Heart,
-    iconClassName: 'bg-primary text-primary-foreground',
+    Icon: HeartHandshake,
+    iconClassName: 'border-primary bg-primary text-primary-foreground',
   },
   POST_CLOSED: {
     title: 'ปิดประกาศแล้ว',
     fallbackDescription: 'ประกาศนี้ถูกปิดการติดตามแล้ว',
-    Icon: XCircle,
-    iconClassName: 'bg-destructive/10 text-destructive',
+    Icon: CircleX,
+    iconClassName: 'border-destructive/20 bg-destructive/10 text-destructive',
   },
 };
 
@@ -69,7 +70,7 @@ const UNKNOWN_EVENT_CONTENT = {
   title: 'มีความคืบหน้าใหม่',
   fallbackDescription: 'ระบบบันทึกเหตุการณ์ใหม่ของประกาศนี้แล้ว',
   Icon: Clock,
-  iconClassName: 'bg-primary/10 text-primary',
+  iconClassName: 'border-border bg-muted text-primary',
 };
 
 /** ใช้รูปแบบวันที่ภาษาไทยในรายการ Timeline */
@@ -199,8 +200,8 @@ export function PostEventsCard({
                   {!isLatest && (
                     <span
                       className={cn(
-                        'absolute top-8 bottom-0 left-4 w-px bg-border',
-                        !compact && 'left-5 top-10',
+                        'absolute top-9 bottom-0 left-[1.125rem] w-px bg-border',
+                        !compact && 'left-[1.375rem] top-11',
                       )}
                       aria-hidden="true"
                     />
@@ -209,13 +210,19 @@ export function PostEventsCard({
                   {/* ไอคอนของ Event */}
                   <div
                     className={cn(
-                      'relative z-10 flex shrink-0 items-center justify-center rounded-full',
-                      compact ? 'size-8' : 'size-10',
+                      'relative z-10 flex shrink-0 items-center justify-center border shadow-xs',
+                      compact ? 'size-9 rounded-xl' : 'size-11 rounded-2xl',
                       content.iconClassName,
-                      isLatest && 'ring-2 ring-primary/20 ring-offset-2',
+                      isLatest && 'ring-2 ring-primary/20',
                     )}
                   >
-                    <Icon className="size-4" aria-hidden="true" />
+                    <Icon
+                      className={cn(
+                        compact ? 'size-4' : 'size-5',
+                        'stroke-[2.25]',
+                      )}
+                      aria-hidden="true"
+                    />
                   </div>
 
                   {/* เนื้อหา Event */}
