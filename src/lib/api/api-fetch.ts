@@ -22,7 +22,7 @@ export async function apiFetch<T>(
   }
 
   if (body !== undefined && !(body instanceof FormData)) {
-    newHeaders.set('content-type', 'application/json');
+    newHeaders.set('content-type', 'application/json; charset=utf-8');
   }
 
   let newBody: BodyInit | undefined;

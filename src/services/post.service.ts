@@ -108,62 +108,6 @@ export interface SearchPostsParams extends PostQueryParams {
   eventTo?: string;
 }
 
-/** Mock ข้อมูลรายการโพสต์จำลอง สำหรับ fallback เมื่อ Backend ไม่พร้อม */
-export const MOCK_POSTS: LatestPostItem[] = [
-  {
-    id: 'post-1',
-    type: 'LOST',
-    petName: 'น้องลูน่า (Luna) แมววิเชียรมาศ',
-    petType: 'CAT',
-    breed: 'วิเชียรมาศ',
-    province: 'กรุงเทพฯ',
-    locationDetail: 'พญาไท, กรุงเทพฯ',
-    timeAgo: '10 นาทีที่แล้ว',
-    coverImageUrl:
-      'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=600&auto=format&fit=crop',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'post-2',
-    type: 'FOUND',
-    petName: 'พบเห็นสุนัขไซบีเรียน ฮัสกี้ ปลอกคอดำ',
-    petType: 'DOG',
-    breed: 'ไซบีเรียน ฮัสกี้',
-    province: 'นนทบุรี',
-    locationDetail: 'งามวงศ์วาน, นนทบุรี',
-    timeAgo: '1 ชั่วโมงที่แล้ว',
-    coverImageUrl:
-      'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?q=80&w=600&auto=format&fit=crop',
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-  },
-  {
-    id: 'post-3',
-    type: 'LOST',
-    petName: 'ช็อกโก้ สุนัขพุดเดิลสีน้ำตาล',
-    petType: 'DOG',
-    breed: 'พุดเดิ้ลทอย',
-    province: 'กรุงเทพฯ',
-    locationDetail: 'ลาดพร้าว 101, กรุงเทพฯ',
-    timeAgo: '3 ชั่วโมงที่แล้ว',
-    coverImageUrl:
-      'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?q=80&w=600&auto=format&fit=crop',
-    createdAt: new Date(Date.now() - 10800000).toISOString(),
-  },
-  {
-    id: 'post-4',
-    type: 'LOST',
-    petName: 'น้องส้มส้ม แมวลายเสือส้ม สวมกระดิ่งแดง',
-    petType: 'CAT',
-    breed: 'พันธุ์ไทยผสมเปอร์เซีย',
-    province: 'กรุงเทพฯ',
-    locationDetail: 'ดินแดง, กรุงเทพฯ',
-    timeAgo: '5 ชั่วโมงที่แล้ว',
-    coverImageUrl:
-      'https://images.unsplash.com/photo-1573865526739-10659fec78a5?q=80&w=600&auto=format&fit=crop',
-    createdAt: new Date(Date.now() - 18000000).toISOString(),
-  },
-];
-
 /**
  * สร้าง query string จาก object parameters
  * กรองค่า undefined ออกก่อนสร้าง URL params
@@ -194,10 +138,9 @@ export async function getAllPosts(
     });
     return response;
   } catch {
-    // Fallback เป็น mock data เมื่อ Backend ไม่พร้อม
     return {
-      data: MOCK_POSTS as unknown as PostDetail[],
-      meta: { page: 1, limit: 20, total: MOCK_POSTS.length, totalPages: 1 },
+      data: [],
+      meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
     };
   }
 }
@@ -316,6 +259,33 @@ export async function getPostStats(): Promise<Record<string, number>> {
 }
 
 /**
+ * ตรวจสอบและทำความสะอาดข้อความ ป้องกันค่าว่าง, 'Unknown' หรือเครื่องหมาย '?' ล้วน
+ */
+function sanitizeText(value?: string | null, fallback = ''): string {
+  if (!value) return fallback;
+  const trimmed = value.trim();
+  if (
+    trimmed === '' ||
+    trimmed.toLowerCase() === 'unknown' ||
+    /^[\s?？]+$/.test(trimmed)
+  ) {
+    return fallback;
+  }
+  return trimmed;
+}
+
+/**
+ * แปลงชื่อสัตว์เลี้ยงให้เหมาะสมตามประเภทประกาศ
+ * - ถ้าเป็น FOUND (พบสัตว์พลัดหลง) และไม่มีชื่อ ให้แสดง "ไม่ทราบชื่อ"
+ * - ถ้าเป็น LOST (สัตว์หาย) และไม่มีชื่อ ให้แสดง "สัตว์เลี้ยง (ไม่ระบุชื่อ)"
+ */
+function resolvePetName(rawName?: string | null, postType?: PostType): string {
+  const defaultName =
+    postType === 'FOUND' ? 'ไม่ทราบชื่อ' : 'สัตว์เลี้ยง (ไม่ระบุชื่อ)';
+  return sanitizeText(rawName, defaultName);
+}
+
+/**
  * แปลง PostDetail จาก Backend เป็น LatestPostItem ที่ UI cards ใช้
  * ใช้สำหรับ mapping ข้อมูลจริงให้ตรงกับ component props
  */
@@ -331,23 +301,41 @@ export function mapPostToLatestItem(post: PostDetail): LatestPostItem {
     timeAgo = `${hours} ชั่วโมงที่แล้ว`;
   }
 
+  const cleanDistrict = sanitizeText(post.district, '');
+  const cleanProvince = sanitizeText(post.province, '');
+  const cleanDesc = sanitizeText(post.locationDescription, '');
+
+  // จัดรูปแบบการแสดงผลสถานที่: แสดง "เขต/อำเภอ, จังหวัด" เช่น "พระนคร, กรุงเทพมหานคร"
+  let locationDisplay = cleanDesc;
+  if (!locationDisplay) {
+    if (cleanDistrict && cleanProvince) {
+      locationDisplay = `${cleanDistrict}, ${cleanProvince}`;
+    } else if (cleanProvince) {
+      locationDisplay = cleanProvince;
+    } else if (cleanDistrict) {
+      locationDisplay = cleanDistrict;
+    } else {
+      locationDisplay = 'ไม่ระบุสถานที่';
+    }
+  }
+
   return {
     id: post.id,
     type: post.type,
-    petName: post.petName || post.pet?.name || 'สัตว์เลี้ยง',
+    petName: resolvePetName(post.petName || post.pet?.name, post.type),
     petType: (post.petType ||
       post.pet?.type ||
       'DOG') as LatestPostItem['petType'],
-    breed: post.breed || post.pet?.breed || undefined,
+    breed: sanitizeText(post.breed || post.pet?.breed, undefined),
     gender: post.gender as LatestPostItem['gender'],
-    color: post.color || undefined,
-    distinctiveFeatures: post.distinctiveFeatures || undefined,
-    description: post.description || undefined,
-    province: post.province || 'ไม่ระบุ',
-    district: post.district || undefined,
-    locationDetail: post.locationDescription || post.province || 'ไม่ระบุ',
+    color: sanitizeText(post.color, undefined),
+    distinctiveFeatures: sanitizeText(post.distinctiveFeatures, undefined),
+    description: sanitizeText(post.description, undefined),
+    province: cleanProvince || 'ไม่ระบุจังหวัด',
+    district: cleanDistrict || undefined,
+    locationDetail: locationDisplay,
     rewardAmount: post.rewardAmount,
-    contactPhone: post.contactPhone || undefined,
+    contactPhone: sanitizeText(post.contactPhone, undefined),
     timeAgo,
     coverImageUrl:
       (post.images && post.images.length > 0

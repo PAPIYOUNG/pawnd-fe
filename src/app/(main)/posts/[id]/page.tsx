@@ -48,9 +48,26 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
 
   const primaryImage =
     post.images?.[0]?.imageUrl || post.pet?.profileImageUrl || undefined;
-  const location = [post.subdistrict, post.district, post.province]
+  // ทำความสะอาดชื่อสัตว์เลี้ยงและสถานที่ ป้องกันข้อความ Unknown หรือเครื่องหมาย ?????
+  const isFound = post.type === 'FOUND';
+  const defaultPetName = isFound ? 'ไม่ทราบชื่อ' : 'ไม่ระบุชื่อสัตว์เลี้ยง';
+  const rawPetName = (post.petName || post.pet?.name || '').trim();
+  const displayPetName =
+    rawPetName === '' ||
+    rawPetName.toLowerCase() === 'unknown' ||
+    /^[\s?？]+$/.test(rawPetName)
+      ? defaultPetName
+      : rawPetName;
+
+  const rawLocation = [post.subdistrict, post.district, post.province]
     .filter(Boolean)
     .join(', ');
+  const location =
+    rawLocation === '' ||
+    rawLocation.toLowerCase() === 'unknown' ||
+    /^[\s?,？]+$/.test(rawLocation)
+      ? 'ไม่ระบุสถานที่'
+      : rawLocation;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
@@ -61,7 +78,7 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
             {primaryImage ? (
               <Image
                 src={primaryImage}
-                alt={post.petName ?? 'รูปสัตว์เลี้ยงในประกาศ'}
+                alt={displayPetName}
                 fill
                 priority
                 sizes="(max-width: 1024px) 100vw, 65vw"
@@ -84,9 +101,7 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
                 </Badge>
                 <Badge variant="outline">{post.status}</Badge>
               </div>
-              <CardTitle className="text-2xl">
-                {post.petName ?? 'ไม่ระบุชื่อสัตว์เลี้ยง'}
-              </CardTitle>
+              <CardTitle className="text-2xl">{displayPetName}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
               <p className="leading-7 text-foreground/85">
