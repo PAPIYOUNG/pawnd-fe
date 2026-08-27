@@ -1,5 +1,6 @@
 import { authFetch } from '@/lib/api/auth-fetch';
 import { PetType } from '@/types/post';
+import { PetAvatarItem } from '@/types/pet';
 
 /**
  * AI Service — เรียกใช้ AI Vision Analysis ของ Backend สำหรับวิเคราะห์รูปภาพสัตว์เลี้ยง
@@ -40,12 +41,15 @@ export interface GeneratePetAvatarDto {
  * ผลลัพธ์จากการเจนภาพ Avatar สัตว์เลี้ยงจาก Backend
  */
 export interface GeneratePetAvatarResponse {
+  id?: string;
   petId: string;
   sourceImages: { id: string; imageUrl: string }[];
   avatar: {
+    id?: string;
     imageUrl: string;
     model: string;
     style: string;
+    createdAt?: string;
   };
   quota: {
     used: number;
@@ -69,4 +73,17 @@ export async function generatePetAvatar(
     body: dto as unknown as Record<string, unknown>,
   });
 }
+
+/**
+ * ดึงรายการภาพ AI Avatar ทั้งหมดของผู้ใช้ปัจจุบัน เรียงตามลำดับเวลาล่าสุด (GET /ai/my-avatars)
+ * - เรียกใช้ endpoint สำหรับดึงประวัติรูป Avatar ในอัลบั้มของผู้ใช้
+ * @returns รายการภาพ AI Avatar (PetAvatarItem[])
+ */
+export async function getMyAvatars(): Promise<PetAvatarItem[]> {
+  return authFetch<PetAvatarItem[]>('/ai/my-avatars', {
+    method: 'GET',
+    cache: 'no-store',
+  });
+}
+
 

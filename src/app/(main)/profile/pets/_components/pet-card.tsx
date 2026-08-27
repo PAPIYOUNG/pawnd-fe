@@ -39,8 +39,9 @@ export function PetCard({ pet, onOpenQr, onEdit, onDelete }: PetCardProps) {
         <div className="relative h-44 w-full overflow-hidden bg-muted">
           <Image
             src={
-              pet.coverImageUrl ||
+              (pet.images && pet.images.length > 0 && pet.images[0].imageUrl) ||
               pet.profileImageUrl ||
+              pet.coverImageUrl ||
               'https://images.unsplash.com/photo-1543852786-1cf6624b9987?q=80&w=600&auto=format&fit=crop'
             }
             alt={`ภาพของ ${pet.name}`}
@@ -59,7 +60,7 @@ export function PetCard({ pet, onOpenQr, onEdit, onDelete }: PetCardProps) {
           {/* ป้ายอายุสัตว์เลี้ยงมุมขวาบน */}
           {pet.age !== undefined && pet.age !== null && (
             <div className="absolute top-3 right-3">
-              <span className="rounded-full bg-primary/90 px-2.5 py-0.5 text-[11px] font-bold text-primary-foreground shadow-xs backdrop-blur-xs">
+              <span className="rounded-full bg-primary/95 px-2.5 py-0.5 text-[11px] font-bold text-primary-foreground shadow-xs backdrop-blur-xs">
                 อายุ {pet.age} ปี
               </span>
             </div>
@@ -78,11 +79,19 @@ export function PetCard({ pet, onOpenQr, onEdit, onDelete }: PetCardProps) {
             </p>
           </div>
 
-          {/* คุณลักษณะ (เพศ • สี) */}
-          <div className="mt-2.5 flex items-center gap-1.5 text-xs text-muted-foreground border-t border-border/60 pt-2.5">
+          {/* คุณลักษณะ (เพศ • สี • อายุ) */}
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground border-t border-border/60 pt-2.5">
             <span className="font-semibold text-foreground/90">{genderLabel}</span>
             <span>•</span>
-            <span className="truncate">{pet.color || 'ไม่ระบุสี'}</span>
+            <span className="truncate">
+              {pet.color ? (pet.color.startsWith('สี') ? pet.color : `สี${pet.color}`) : 'ไม่ระบุสี'}
+            </span>
+            {pet.age !== undefined && pet.age !== null && (
+              <>
+                <span>•</span>
+                <span className="font-semibold text-primary">อายุ {pet.age} ปี</span>
+              </>
+            )}
           </div>
 
           {/* ลักษณะเด่น (ถ้ามี) */}

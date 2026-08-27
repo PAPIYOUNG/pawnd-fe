@@ -40,6 +40,8 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
   const events = await getPostEvents(id);
 
   const primaryImage = post.images?.[0]?.imageUrl;
+  const primaryImage =
+    post.images?.[0]?.imageUrl || post.pet?.profileImageUrl || undefined;
   const location = [post.subdistrict, post.district, post.province]
     .filter(Boolean)
     .join(', ');

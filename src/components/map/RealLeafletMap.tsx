@@ -5,7 +5,10 @@ import L from 'leaflet';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 
 import { MapControls } from '@/components/map/MapControls';
-import { MapMarkers } from '@/components/map/MapMarkers';
+import {
+  MapMarkers,
+  type LocationSelectHandler,
+} from '@/components/map/MapMarkers';
 import {
   DEFAULT_CENTER,
   DEFAULT_ZOOM,
@@ -16,6 +19,8 @@ import {
 import {
   createCurrentLocationIcon,
   createMarkerIcon,
+  createSearchLocationIcon,
+  createSelectedLocationIcon,
   getMapFocusTarget,
   isSameViewport,
   readViewportState,
@@ -60,6 +65,16 @@ interface RealLeafletMapProps {
   onDataStateChange?: (state: MapDataState) => void;
   /** ส่ง viewport ปัจจุบันให้หน้าหลักคำนวณระยะทางของรายการ */
   onViewportChange?: (viewport: MapViewportState) => void;
+  /** แสดง marker และโหลดข้อมูลประกาศเมื่อใช้เป็นหน้า Map หลัก */
+  showPostMarkers?: boolean;
+  /** เปิดการเลือกตำแหน่งด้วยการคลิกพื้นที่ว่างหรือ marker บนแผนที่ */
+  onLocationSelect?: LocationSelectHandler;
+  /** จุดที่ผู้ใช้เลือกเป็นตำแหน่งประกาศ */
+  selectedLocation?: CurrentLocation | null;
+  /** จุดจากผลค้นหาที่ใช้เลื่อนแผนที่ก่อนคลิกเลือกพิกัดจริง */
+  searchLocation?: CurrentLocation | null;
+  /** token สำหรับให้เลือกผลค้นหาเดิมซ้ำได้ */
+  searchLocationRequestToken?: number;
 }
 
 interface MapViewportObserverProps {
@@ -72,7 +87,23 @@ interface MapViewportObserverProps {
 interface CurrentLocationControllerProps {
   /** พิกัดใหม่ที่จะใช้เลื่อนและซูมแผนที่ */
   currentLocation?: CurrentLocation | null;
+  /** แจ้งหน้าฟอร์มเมื่อ current location พร้อมใช้เป็นจุดประกาศ */
+  onLocationSelect?: LocationSelectHandler;
   /** ตั้ง guard ก่อนเริ่ม flyTo และให้ publish viewport หนึ่งครั้งเมื่อจบ */
+  beginProgrammaticMovement: (publishViewportOnEnd: boolean) => void;
+}
+
+interface LocationSelectionControllerProps {
+  /** callback รับพิกัดจากการคลิกพื้นที่ว่างบนแผนที่ */
+  onLocationSelect: LocationSelectHandler;
+}
+
+interface SearchLocationControllerProps {
+  /** จุดจากผลค้นหาที่ใช้เป็นเป้าหมายการเลื่อนแผนที่ */
+  searchLocation?: CurrentLocation | null;
+  /** token ของผลค้นหาแต่ละครั้ง */
+  requestToken: number;
+  /** ตั้ง guard ก่อนสั่งเลื่อนแผนที่ */
   beginProgrammaticMovement: (publishViewportOnEnd: boolean) => void;
 }
 
@@ -147,9 +178,64 @@ function MapViewportObserver({
   return null;
 }
 
+/** รับ click บนพื้นที่ว่างของแผนที่เพื่อเลือกพิกัดประกาศ */
+function LocationSelectionController({
+  onLocationSelect,
+}: LocationSelectionControllerProps) {
+  useMapEvents({
+    click: (event) => {
+      onLocationSelect({
+        latitude: event.latlng.lat,
+        longitude: event.latlng.lng,
+      });
+    },
+  });
+
+  return null;
+}
+
+/** เลื่อนแผนที่ไปยังผลค้นหาโดยยังไม่เปลี่ยนพิกัดประกาศที่เลือก */
+function SearchLocationController({
+  searchLocation,
+  requestToken,
+  beginProgrammaticMovement,
+}: SearchLocationControllerProps) {
+  const map = useMap();
+  const lastFocusedSearchRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!searchLocation) {
+      lastFocusedSearchRef.current = null;
+      return;
+    }
+
+    const searchKey = `${requestToken}:${searchLocation.latitude}:${searchLocation.longitude}`;
+    if (lastFocusedSearchRef.current === searchKey) {
+      return;
+    }
+    lastFocusedSearchRef.current = searchKey;
+
+    const focusTarget = getMapFocusTarget(
+      map,
+      searchLocation.latitude,
+      searchLocation.longitude,
+      16,
+    );
+    if (!focusTarget.requiresMovement) {
+      return;
+    }
+
+    beginProgrammaticMovement(true);
+    map.flyTo(focusTarget.center, focusTarget.zoom, { animate: true });
+  }, [beginProgrammaticMovement, map, requestToken, searchLocation]);
+
+  return null;
+}
+
 /** เลื่อนแผนที่ไปยัง current location ทุกครั้งที่ผู้ใช้ขอพิกัดสำเร็จ */
 function CurrentLocationController({
   currentLocation,
+  onLocationSelect,
   beginProgrammaticMovement,
 }: CurrentLocationControllerProps) {
   const map = useMap();
@@ -166,6 +252,7 @@ function CurrentLocationController({
       return;
     }
     lastCenteredLocationRef.current = locationKey;
+    onLocationSelect?.(currentLocation);
 
     const focusTarget = getMapFocusTarget(
       map,
@@ -179,7 +266,7 @@ function CurrentLocationController({
 
     beginProgrammaticMovement(true);
     map.flyTo(focusTarget.center, focusTarget.zoom, { animate: true });
-  }, [beginProgrammaticMovement, currentLocation, map]);
+  }, [beginProgrammaticMovement, currentLocation, map, onLocationSelect]);
 
   return null;
 }
@@ -285,6 +372,11 @@ export default function RealLeafletMap({
   visibleFeatures,
   onDataStateChange,
   onViewportChange,
+  showPostMarkers = true,
+  onLocationSelect,
+  selectedLocation,
+  searchLocation,
+  searchLocationRequestToken = 0,
 }: RealLeafletMapProps) {
   const [bounds, setBounds] = useState<MapViewportState['bounds'] | null>(null);
   const [features, setFeatures] = useState<MapPostFeature[]>([]);
@@ -299,7 +391,12 @@ export default function RealLeafletMap({
   });
   const markerRefs = useRef(new Map<string, L.Marker>());
   const currentLocationIcon = useMemo(() => createCurrentLocationIcon(), []);
-  const renderedFeatures = visibleFeatures ?? features;
+  const selectedLocationIcon = useMemo(() => createSelectedLocationIcon(), []);
+  const searchLocationIcon = useMemo(() => createSearchLocationIcon(), []);
+  const renderedFeatures = useMemo(
+    () => (showPostMarkers ? (visibleFeatures ?? features) : []),
+    [features, showPostMarkers, visibleFeatures],
+  );
 
   /**
    * เริ่ม movement จากโค้ดโดยแก้เฉพาะ ref เพื่อไม่สร้าง render loop
@@ -352,7 +449,7 @@ export default function RealLeafletMap({
    * Abort request เก่าเพื่อป้องกันผลตอบกลับลำดับเก่าทับข้อมูล viewport ใหม่
    */
   useEffect(() => {
-    if (!bounds) {
+    if (!showPostMarkers || !bounds) {
       return;
     }
 
@@ -410,7 +507,7 @@ export default function RealLeafletMap({
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [bounds, onDataStateChange, postType, retryToken]);
+  }, [bounds, onDataStateChange, postType, retryToken, showPostMarkers]);
 
   /** สร้าง icon ต่อประเภทโพสต์ครั้งเดียวต่อชุดข้อมูล เพื่อลดการสร้าง DOM ซ้ำ */
   const markerIcons = useMemo(() => {
@@ -464,8 +561,17 @@ export default function RealLeafletMap({
           onChange={handleViewportChange}
           programmaticMovementRef={programmaticMovementRef}
         />
+        {onLocationSelect && (
+          <LocationSelectionController onLocationSelect={onLocationSelect} />
+        )}
         <CurrentLocationController
           currentLocation={currentLocation}
+          onLocationSelect={onLocationSelect}
+          beginProgrammaticMovement={beginProgrammaticMovement}
+        />
+        <SearchLocationController
+          searchLocation={searchLocation}
+          requestToken={searchLocationRequestToken}
           beginProgrammaticMovement={beginProgrammaticMovement}
         />
         <SelectedPostController
@@ -491,20 +597,27 @@ export default function RealLeafletMap({
           selectedMarkerIcon={selectedMarkerIcon}
           onMarkerReady={handleMarkerReady}
           beginProgrammaticMovement={beginProgrammaticMovement}
+          onLocationSelect={onLocationSelect}
           currentLocation={currentLocation}
           currentLocationIcon={currentLocationIcon}
+          selectedLocation={selectedLocation}
+          selectedLocationIcon={selectedLocationIcon}
+          searchLocation={searchLocation}
+          searchLocationIcon={searchLocationIcon}
         />
       </MapContainer>
 
-      <MapControls
-        onRequestCurrentLocation={onRequestCurrentLocation}
-        isLocating={isLocating}
-        locationError={locationError}
-        isLoading={isLoading}
-        errorMessage={errorMessage}
-        visibleFeatureCount={renderedFeatures.length}
-        onRetry={() => setRetryToken((token) => token + 1)}
-      />
+      {showPostMarkers && (
+        <MapControls
+          onRequestCurrentLocation={onRequestCurrentLocation}
+          isLocating={isLocating}
+          locationError={locationError}
+          isLoading={isLoading}
+          errorMessage={errorMessage}
+          visibleFeatureCount={renderedFeatures.length}
+          onRetry={() => setRetryToken((token) => token + 1)}
+        />
+      )}
     </div>
   );
 }

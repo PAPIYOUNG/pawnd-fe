@@ -113,3 +113,23 @@ export interface CreatePetDto {
  * DTO สำหรับแก้ไขข้อมูลสัตว์เลี้ยง (UpdatePetDto)
  */
 export type UpdatePetDto = Partial<CreatePetDto>;
+
+/**
+ * ข้อมูลภาพ AI Avatar ของสัตว์เลี้ยงที่ถูกจัดเก็บในประวัติอัลบั้ม (Pet AI Avatar Album Item)
+ * ผูกกับผู้ใช้ (userId), สัตว์เลี้ยง (petId), วันที่สร้าง (createdAt), และ URL ภาพ
+ */
+export interface PetAvatarItem {
+  id: string;
+  userId: string;
+  petId: string;
+  imageUrl: string;
+  style: string;
+  createdAt: string;
+  pet?: {
+    id: string;
+    name: string;
+    type: PetType;
+    breed?: string | null;
+    profileImageUrl?: string | null;
+  };
+}
