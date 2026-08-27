@@ -30,6 +30,8 @@ import {
   MOCK_POSTS,
 } from '@/services/post.service';
 
+import { AiMatchUploadDialog } from './_components/ai-match-upload-dialog';
+
 export const metadata: Metadata = {
   title: 'รายการประกาศตามหาสัตว์เลี้ยง | PAWND',
   description:
@@ -137,16 +139,22 @@ export default async function PostsPage({ searchParams }: PostsPageProps) {
           </h1>
           <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">
             ค้นหา ช่วยเหลือ หรือแจ้งเบาะแสสัตว์เลี้ยงพลัดหลงด้วยระบบ AI Smart
-            Matching
+            Matching ค้นหา ช่วยเหลือ หรือแจ้งเบาะแสสัตว์เลี้ยงพลัดหลงด้วยระบบ AI
+            Smart Matching
           </p>
         </div>
 
-        <Link href="/posts/create">
-          <Button className="h-11 w-full gap-2 rounded-2xl bg-primary px-5 font-semibold text-primary-foreground shadow-md hover:bg-primary/90 sm:w-auto">
-            <Plus className="size-5 stroke-[2.5]" />
-            <span>สร้างประกาศใหม่</span>
-          </Button>
-        </Link>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          {/* ปุ่มเปิด Dialog อัปโหลดรูปเพื่อค้นหาด้วย AI Smart Matching */}
+          <AiMatchUploadDialog />
+
+          <Link href="/posts/create" className="sm:w-auto">
+            <Button className="h-11 w-full gap-2 rounded-2xl bg-primary px-5 font-semibold text-primary-foreground shadow-md hover:bg-primary/90 sm:w-auto">
+              <Plus className="size-5 stroke-[2.5]" />
+              <span>สร้างประกาศใหม่</span>
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* 2. แถบตัวกรองและการค้นหา */}

@@ -125,7 +125,6 @@ export default function Footer() {
                 </Link>
               </li>
             </ul>
-          </div>
             <div className="mt-3 flex items-center gap-4">
               <div className="shrink-0 overflow-hidden rounded-xl bg-white p-1.5">
                 <Image
