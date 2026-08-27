@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
+import { io } from 'socket.io-client';
 import {
   Bell,
   Plus,
@@ -45,6 +46,7 @@ const NAV_LINKS = [
 /** Response shape ของ GET /api/auth/session (built-in endpoint จาก NextAuth) */
 interface AuthSessionResponse {
   user?: SessionUser;
+  accessToken?: string;
   error?: string;
 }
 
@@ -54,7 +56,7 @@ interface AuthSessionResponse {
  * - ฝั่งซ้าย: โลโก้แบรนด์ Pawnd
  * - ตรงกลาง: ลิงก์เมนูนำทางหลักบน Desktop (แสดงสถานะ Active Link ตาม pathname)
  *   รวมปุ่ม "แอดมิน" เพิ่มต่อท้ายเฉพาะบัญชีที่ role เป็น ADMIN
- * - ฝั่งขวา: ปุ่มสลับธีม (ThemeToggle), กระดิ่งแจ้งเตือน (Notification),
+ * - ฝั่งขวา: ปุ่มสลับธีม (ThemeToggle), กระดิ่งแจ้งเตือน (Notification, real-time ผ่าน Socket.IO),
  *   ดรอปดาวน์เมนู avatar (แดชบอร์ด/โปรไฟล์/ตั้งค่า/ออกจากระบบ) และปุ่ม "+ แจ้งสัตว์เลี้ยงหาย"
  * - รองรับ Mobile Drawer Menu และ Touch Target ขนาด >= 40x40px ตามมาตรฐาน Mobile-First
  * - สถานะ login เช็คจาก NextAuth session จริงฝั่ง client หลัง mount ผ่าน /api/auth/session
@@ -62,19 +64,23 @@ interface AuthSessionResponse {
  * - ลิงก์ "หน้าแรก" ชี้ไปที่ / เสมอ ไม่สลับไป /dashboard ตามสถานะ login อีกต่อไป
  *   (ย้ายไปเป็นเมนู "แดชบอร์ด" ในดรอปดาวน์ avatar แทน)
  * - ดรอปดาวน์ avatar เขียนด้วย React state + CSS ล้วนๆ (ไม่ใช้ Base UI Menu/Portal)
+ * - จุดแดงแจ้งเตือน: ดึงค่าเริ่มต้นครั้งเดียวผ่าน /api/notifications/unread-count ตอน mount
+ *   แล้วต่อ Socket.IO (namespace /notifications, auth ผ่าน query.token ตาม Backend contract
+ *   เหมือนหน้า Notification) ฟัง event 'notification_count_update' เพื่ออัปเดตแบบ real-time ต่อ
  */
 export default function Header() {
   const pathname = usePathname();
   // State สำหรับเปิด/ปิดเมนู Drawer บนมือถือ
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  // State ว่ามีการแจ้งเตือนที่ยังไม่อ่านไหม ดึงฝั่ง client หลัง mount
+  // State ว่ามีการแจ้งเตือนที่ยังไม่อ่านไหม ดึงฝั่ง client หลัง mount แล้วอัปเดตสดผ่าน socket ต่อ
   const [hasUnread, setHasUnread] = useState(false);
-  // State สถานะ login จริง + ข้อมูลผู้ใช้ ดึงฝั่ง client หลัง mount เช่นกัน
+  // State สถานะ login จริง + ข้อมูลผู้ใช้ + accessToken (ใช้ auth ตอนต่อ socket) ดึงฝั่ง client หลัง mount
   const [authState, setAuthState] = useState<{
     isLoggedIn: boolean;
     user: SessionUser | null;
-  }>({ isLoggedIn: false, user: null });
-  const { isLoggedIn, user } = authState;
+    accessToken: string | null;
+  }>({ isLoggedIn: false, user: null, accessToken: null });
+  const { isLoggedIn, user, accessToken } = authState;
   const isAdmin = user?.role === 'ADMIN';
 
   useEffect(() => {
@@ -91,6 +97,7 @@ export default function Header() {
         setAuthState({
           isLoggedIn: loggedIn,
           user: loggedIn ? session!.user! : null,
+          accessToken: loggedIn ? (session!.accessToken ?? null) : null,
         });
       })
       .catch(() => {});
@@ -100,6 +107,7 @@ export default function Header() {
     };
   }, []);
 
+  // ดึงจำนวนที่ยังไม่อ่านครั้งแรกตอน mount (ให้จุดแดงขึ้นทันทีโดยไม่ต้องรอ socket handshake)
   useEffect(() => {
     if (!isLoggedIn) return;
     let active = true;
@@ -115,6 +123,32 @@ export default function Header() {
       active = false;
     };
   }, [isLoggedIn]);
+
+  // ต่อ Socket.IO เพื่ออัปเดตจุดแดงแบบ real-time ต่อจากการดึงครั้งแรกด้านบน
+  // (แพทเทิร์นเดียวกับ NotificationsList — auth ผ่าน query.token ไม่ใช่ auth.token แบบ Chat)
+  useEffect(() => {
+    if (!isLoggedIn || !accessToken) return;
+
+    const socketBaseUrl =
+      process.env.NEXT_PUBLIC_PAWND_API_URL || 'http://localhost:8000';
+    const namespaceUrl = `${socketBaseUrl.replace(/\/$/, '')}/notifications`;
+
+    const socket = io(namespaceUrl, {
+      query: { token: accessToken },
+      forceNew: true,
+    });
+
+    const handleCountUpdate = (payload: { unreadCount: number }) => {
+      setHasUnread(payload.unreadCount > 0);
+    };
+
+    socket.on('notification_count_update', handleCountUpdate);
+
+    return () => {
+      socket.off('notification_count_update', handleCountUpdate);
+      socket.disconnect();
+    };
+  }, [isLoggedIn, accessToken]);
 
   const userName = user ? `${user.firstName} ${user.lastName}` : 'ผู้ใช้งาน';
   const userAvatar = user?.avatarUrl || DEFAULT_AVATAR_URL;
