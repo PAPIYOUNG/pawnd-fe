@@ -1,14 +1,6 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
-import Image from 'next/image';
-import {
-  Megaphone,
-  Search,
-  MapPin,
-  Calendar,
-  Sparkles,
-  Plus,
-} from 'lucide-react';
+import { Megaphone, Search, Sparkles, Plus } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
 import {
@@ -23,7 +15,6 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
 import {
   getAllPosts,
   mapPostToLatestItem,
@@ -31,6 +22,7 @@ import {
 } from '@/services/post.service';
 
 import { AiMatchUploadDialog } from './_components/ai-match-upload-dialog';
+import { PostCard } from './_components/post-card';
 
 export const metadata: Metadata = {
   title: 'รายการประกาศตามหาสัตว์เลี้ยง | PAWND',
@@ -199,87 +191,9 @@ export default async function PostsPage({ searchParams }: PostsPageProps) {
 
       {/* 3. รายการการ์ดประกาศ */}
       <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {posts.map((post) => {
-          const isLost = post.type === 'LOST';
-
-          return (
-            <div
-              key={post.id}
-              className="group flex flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-sm transition-all duration-300 hover:shadow-xl dark:border-border/60"
-            >
-              {/* ภาพหน้าปก */}
-              <div className="relative h-48 w-full overflow-hidden bg-muted">
-                <Image
-                  src={post.coverImageUrl}
-                  alt={post.petName}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 400px"
-                  className="object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-
-                {/* ป้ายประเภทประกาศ */}
-                <div className="absolute top-3 left-3">
-                  <span
-                    className={cn(
-                      'rounded-full px-3 py-1 text-xs font-bold shadow-xs text-white',
-                      isLost ? 'bg-destructive' : 'bg-emerald-600',
-                    )}
-                  >
-                    {isLost ? 'ตามหา (LOST)' : 'พบเห็น (FOUND)'}
-                  </span>
-                </div>
-
-                {/* ป้ายผลการจับคู่ AI (ถ้ามี) */}
-                <div className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-bold text-emerald-400 backdrop-blur-xs">
-                  <Sparkles className="size-3" />
-                  <span>AI Smart Match</span>
-                </div>
-              </div>
-
-              {/* ข้อมูลประกาศ */}
-              <div className="flex flex-1 flex-col p-5">
-                <h3 className="text-base font-bold text-foreground group-hover:text-primary line-clamp-1">
-                  {post.petName}
-                </h3>
-                <span className="text-xs text-muted-foreground mt-0.5">
-                  {post.breed || 'ไม่ระบุสายพันธุ์'}
-                </span>
-
-                <div className="mt-3 flex flex-col gap-1.5 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1.5 line-clamp-1">
-                    <MapPin className="size-3.5 text-primary shrink-0" />
-                    {post.locationDetail || post.province || 'ไม่ระบุสถานที่'}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Calendar className="size-3.5 text-primary shrink-0" />
-                    {post.timeAgo}
-                  </span>
-                </div>
-
-                {/* ปุ่ม Action */}
-                <div className="mt-5 flex items-center gap-2 border-t border-border/50 pt-4">
-                  <Link href={`/posts/${post.id}`} className="flex-1">
-                    <Button
-                      variant="outline"
-                      className="h-9 w-full rounded-xl text-xs font-semibold"
-                    >
-                      ดูรายละเอียด
-                    </Button>
-                  </Link>
-                  <Link href={`/posts/${post.id}/flyer`}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-9 rounded-xl text-xs text-primary font-semibold"
-                    >
-                      ใบปลิว
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        {posts.map((post) => (
+          <PostCard key={post.id} post={post} />
+        ))}
       </div>
 
       {/* วาง Pagination ตรงนี้ */}
