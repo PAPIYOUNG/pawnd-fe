@@ -10,6 +10,7 @@ export type PetGender = 'MALE' | 'FEMALE' | 'UNKNOWN';
 export interface LatestPostItem {
   id: string;
   type: PostType;
+  status: PostStatus;
   petName: string;
   petType: PetType;
   breed?: string;

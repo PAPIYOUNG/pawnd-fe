@@ -1,14 +1,12 @@
 import { apiFetch } from '@/lib/api/api-fetch';
 import { authFetch } from '@/lib/api/auth-fetch';
-import type {
-  CreatePostPayload,
-  CreatePostResponse,
+import {
   LatestPostItem,
-  PostStatus,
+  type PetType,
+  type PostStatus,
+  PostStatus as PostStatusEnum,
   PostType,
 } from '@/types/post';
-
-export type { CreatePostPayload } from '@/types/post';
 
 /**
  * Post Service — จัดการประกาศตามหาสัตว์เลี้ยง (Lost & Found Posts)
@@ -93,8 +91,8 @@ export interface PostQueryParams {
   page?: number;
   limit?: number;
   type?: PostType;
-  status?: string;
-  petType?: string;
+  status?: PostStatus;
+  petType?: PetType;
 }
 
 /** พารามิเตอร์สำหรับค้นหาโพสต์ */
@@ -107,6 +105,91 @@ export interface SearchPostsParams extends PostQueryParams {
   eventFrom?: string;
   eventTo?: string;
 }
+
+/** DTO สำหรับสร้างโพสต์ใหม่ (ตรงตาม Backend CreatePostDto) */
+export interface CreatePostPayload {
+  type: PostType;
+  petId?: string;
+  petName?: string;
+  petType: string;
+  breed?: string;
+  gender?: string;
+  color?: string;
+  distinctiveFeatures?: string;
+  description?: string;
+  eventDate: string;
+  latitude: number;
+  longitude: number;
+  province?: string;
+  district?: string;
+  subdistrict?: string;
+  locationDescription?: string;
+  rewardAmount?: number;
+  currentLocation?: string;
+  contactPhone?: string;
+  contactLineId?: string;
+  contactEmail?: string;
+}
+
+/** Mock ข้อมูลรายการโพสต์จำลอง สำหรับ fallback เมื่อ Backend ไม่พร้อม */
+export const MOCK_POSTS: LatestPostItem[] = [
+  {
+    id: 'post-1',
+    type: 'LOST',
+    status: 'ACTIVE',
+    petName: 'น้องลูน่า (Luna) แมววิเชียรมาศ',
+    petType: 'CAT',
+    breed: 'วิเชียรมาศ',
+    province: 'กรุงเทพฯ',
+    locationDetail: 'พญาไท, กรุงเทพฯ',
+    timeAgo: '10 นาทีที่แล้ว',
+    coverImageUrl:
+      'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=600&auto=format&fit=crop',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'post-2',
+    type: 'FOUND',
+    status: 'ACTIVE',
+    petName: 'พบเห็นสุนัขไซบีเรียน ฮัสกี้ ปลอกคอดำ',
+    petType: 'DOG',
+    breed: 'ไซบีเรียน ฮัสกี้',
+    province: 'นนทบุรี',
+    locationDetail: 'งามวงศ์วาน, นนทบุรี',
+    timeAgo: '1 ชั่วโมงที่แล้ว',
+    coverImageUrl:
+      'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?q=80&w=600&auto=format&fit=crop',
+    createdAt: new Date(Date.now() - 3600000).toISOString(),
+  },
+  {
+    id: 'post-3',
+    type: 'LOST',
+    status: 'ACTIVE',
+    petName: 'ช็อกโก้ สุนัขพุดเดิลสีน้ำตาล',
+    petType: 'DOG',
+    breed: 'พุดเดิ้ลทอย',
+    province: 'กรุงเทพฯ',
+    locationDetail: 'ลาดพร้าว 101, กรุงเทพฯ',
+    timeAgo: '3 ชั่วโมงที่แล้ว',
+    coverImageUrl:
+      'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?q=80&w=600&auto=format&fit=crop',
+    createdAt: new Date(Date.now() - 10800000).toISOString(),
+  },
+  {
+    id: 'post-4',
+    type: 'LOST',
+    status: 'ACTIVE',
+    petName: 'น้องส้มส้ม แมวลายเสือส้ม สวมกระดิ่งแดง',
+    petType: 'CAT',
+    breed: 'พันธุ์ไทยผสมเปอร์เซีย',
+    province: 'กรุงเทพฯ',
+    locationDetail: 'ดินแดง, กรุงเทพฯ',
+    timeAgo: '5 ชั่วโมงที่แล้ว',
+    coverImageUrl:
+      'https://images.unsplash.com/photo-1573865526739-10659fec78a5?q=80&w=600&auto=format&fit=crop',
+    createdAt: new Date(Date.now() - 18000000).toISOString(),
+  },
+];
 
 /**
  * สร้าง query string จาก object parameters
@@ -322,7 +405,8 @@ export function mapPostToLatestItem(post: PostDetail): LatestPostItem {
   return {
     id: post.id,
     type: post.type,
-    petName: resolvePetName(post.petName || post.pet?.name, post.type),
+    status: post.status,
+    petName: post.petName || post.pet?.name || 'สัตว์เลี้ยง',
     petType: (post.petType ||
       post.pet?.type ||
       'DOG') as LatestPostItem['petType'],
